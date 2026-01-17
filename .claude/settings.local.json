@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(keytool:*)",
+      "mcp__acp__Write",
+      "mcp__acp__Bash"
+    ]
+  }
+}

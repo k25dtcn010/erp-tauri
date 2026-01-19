@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Leave Management</title>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Theme Config -->
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            colors: {
+              "primary": "#136986",
+              "background-light": "#f2f2f3",
+              "background-dark": "#1a1d23",
+              "surface-dark": "#262A31",
+              "surface-light": "#ffffff",
+            },
+            fontFamily: {
+              "display": ["Manrope", "sans-serif"]
+            },
+            borderRadius: {
+              "DEFAULT": "0.25rem", 
+              "lg": "0.5rem", 
+              "xl": "0.75rem", 
+              "2xl": "1rem",
+              "full": "9999px"
+            },
+            boxShadow: {
+              'glow': '0 0 15px -3px rgba(19, 105, 134, 0.3)',
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        /* Custom scrollbar for clean look */
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-gray-100 dark:bg-black font-display antialiased flex justify-center min-h-screen">
+<!-- Mobile Container -->
+<div class="relative w-full max-w-md h-screen max-h-screen bg-background-light dark:bg-background-dark flex flex-col overflow-hidden shadow-2xl sm:rounded-xl sm:h-[850px] sm:my-auto border-x border-gray-200 dark:border-white/5">
+<!-- Header -->
+<header class="flex items-center justify-between p-6 pt-8 pb-4 bg-background-light dark:bg-background-dark z-20">
+<div>
+<h1 class="text-2xl font-bold text-gray-900 dark:text-white leading-tight">Leave<br/>Management</h1>
+</div>
+<button class="w-10 h-10 flex items-center justify-center rounded-full bg-gray-200 dark:bg-white/5 text-gray-600 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-white/10 transition-colors">
+<span class="material-symbols-outlined" style="font-size: 20px;">help_outline</span>
+</button>
+</header>
+<!-- Main Scrollable Content -->
+<main class="flex-1 overflow-y-auto hide-scrollbar px-6 pb-28">
+<!-- Summary Card -->
+<div class="relative overflow-hidden rounded-2xl bg-surface-light dark:bg-surface-dark border border-gray-200 dark:border-white/5 p-6 shadow-sm mb-8">
+<!-- Background decorative element -->
+<div class="absolute -top-10 -right-10 w-32 h-32 bg-primary/10 rounded-full blur-2xl pointer-events-none"></div>
+<div class="flex items-center justify-between mb-6 relative z-10">
+<div>
+<p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Balance</p>
+<h2 class="text-3xl font-extrabold text-gray-900 dark:text-white mt-1">18 <span class="text-lg font-medium text-gray-400 dark:text-gray-500">Days</span></h2>
+</div>
+<div class="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center text-primary">
+<span class="material-symbols-outlined">calendar_month</span>
+</div>
+</div>
+<div class="grid grid-cols-3 gap-4 border-t border-gray-100 dark:border-white/5 pt-6">
+<!-- Annual -->
+<div class="flex flex-col gap-2">
+<div class="flex justify-between items-end">
+<span class="text-xs font-medium text-gray-500 dark:text-gray-400">Annual</span>
+<span class="text-xs font-bold text-gray-900 dark:text-white">12/20</span>
+</div>
+<div class="h-1.5 w-full bg-gray-100 dark:bg-white/5 rounded-full overflow-hidden">
+<div class="h-full bg-primary w-[60%] rounded-full"></div>
+</div>
+</div>
+<!-- Sick -->
+<div class="flex flex-col gap-2">
+<div class="flex justify-between items-end">
+<span class="text-xs font-medium text-gray-500 dark:text-gray-400">Sick</span>
+<span class="text-xs font-bold text-gray-900 dark:text-white">5/10</span>
+</div>
+<div class="h-1.5 w-full bg-gray-100 dark:bg-white/5 rounded-full overflow-hidden">
+<div class="h-full bg-sky-400 w-[50%] rounded-full"></div>
+</div>
+</div>
+<!-- Casual -->
+<div class="flex flex-col gap-2">
+<div class="flex justify-between items-end">
+<span class="text-xs font-medium text-gray-500 dark:text-gray-400">Casual</span>
+<span class="text-xs font-bold text-gray-900 dark:text-white">1/5</span>
+</div>
+<div class="h-1.5 w-full bg-gray-100 dark:bg-white/5 rounded-full overflow-hidden">
+<div class="h-full bg-teal-400 w-[20%] rounded-full"></div>
+</div>
+</div>
+</div>
+</div>
+<!-- Filter Section -->
+<div class="flex items-center justify-between mb-4">
+<h3 class="text-lg font-bold text-gray-900 dark:text-white">Recent Requests</h3>
+</div>
+<div class="flex p-1 bg-surface-light dark:bg-surface-dark rounded-xl border border-gray-200 dark:border-white/5 mb-6 shadow-sm">
+<button class="flex-1 py-2 rounded-lg bg-primary text-white text-sm font-semibold shadow-md transition-all">All</button>
+<button class="flex-1 py-2 rounded-lg text-gray-500 dark:text-gray-400 text-sm font-medium hover:text-gray-900 dark:hover:text-white transition-colors">Pending</button>
+<button class="flex-1 py-2 rounded-lg text-gray-500 dark:text-gray-400 text-sm font-medium hover:text-gray-900 dark:hover:text-white transition-colors">History</button>
+</div>
+<!-- List Items -->
+<div class="space-y-3">
+<!-- Item 1: Approved -->
+<div class="group relative flex gap-4 p-4 rounded-xl bg-surface-light dark:bg-surface-dark border border-gray-200 dark:border-white/5 hover:border-primary/30 transition-all">
+<!-- Date Box -->
+<div class="flex flex-col items-center justify-center w-14 h-14 rounded-lg bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 shrink-0">
+<span class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Oct</span>
+<span class="text-lg font-bold text-gray-900 dark:text-white">12</span>
+</div>
+<!-- Content -->
+<div class="flex-1 flex flex-col justify-center gap-1">
+<div class="flex justify-between items-start">
+<h4 class="text-base font-semibold text-gray-900 dark:text-white">Sick Leave</h4>
+<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                Approved
+                            </span>
+</div>
+<div class="flex justify-between items-center text-sm text-gray-500 dark:text-gray-400">
+<span>Oct 12 - Oct 14</span>
+<span class="text-xs font-medium bg-gray-100 dark:bg-white/5 px-1.5 py-0.5 rounded text-gray-600 dark:text-gray-300">3 days</span>
+</div>
+</div>
+</div>
+<!-- Item 2: Pending -->
+<div class="group relative flex gap-4 p-4 rounded-xl bg-surface-light dark:bg-surface-dark border border-gray-200 dark:border-white/5 hover:border-primary/30 transition-all">
+<!-- Date Box -->
+<div class="flex flex-col items-center justify-center w-14 h-14 rounded-lg bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 shrink-0">
+<span class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Nov</span>
+<span class="text-lg font-bold text-gray-900 dark:text-white">20</span>
+</div>
+<!-- Content -->
+<div class="flex-1 flex flex-col justify-center gap-1">
+<div class="flex justify-between items-start">
+<h4 class="text-base font-semibold text-gray-900 dark:text-white">Annual Vacation</h4>
+<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                                Pending
+                            </span>
+</div>
+<div class="flex justify-between items-center text-sm text-gray-500 dark:text-gray-400">
+<span>Nov 20 - Nov 25</span>
+<span class="text-xs font-medium bg-gray-100 dark:bg-white/5 px-1.5 py-0.5 rounded text-gray-600 dark:text-gray-300">5 days</span>
+</div>
+</div>
+</div>
+<!-- Item 3: Rejected -->
+<div class="group relative flex gap-4 p-4 rounded-xl bg-surface-light dark:bg-surface-dark border border-gray-200 dark:border-white/5 hover:border-primary/30 transition-all opacity-80">
+<!-- Date Box -->
+<div class="flex flex-col items-center justify-center w-14 h-14 rounded-lg bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 shrink-0">
+<span class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Sep</span>
+<span class="text-lg font-bold text-gray-900 dark:text-white">01</span>
+</div>
+<!-- Content -->
+<div class="flex-1 flex flex-col justify-center gap-1">
+<div class="flex justify-between items-start">
+<h4 class="text-base font-semibold text-gray-900 dark:text-white">Personal</h4>
+<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                                Rejected
+                            </span>
+</div>
+<div class="flex justify-between items-center text-sm text-gray-500 dark:text-gray-400">
+<span>Sep 01</span>
+<span class="text-xs font-medium bg-gray-100 dark:bg-white/5 px-1.5 py-0.5 rounded text-gray-600 dark:text-gray-300">1 day</span>
+</div>
+</div>
+</div>
+<!-- Item 4: History -->
+<div class="group relative flex gap-4 p-4 rounded-xl bg-surface-light dark:bg-surface-dark border border-gray-200 dark:border-white/5 hover:border-primary/30 transition-all opacity-70">
+<!-- Date Box -->
+<div class="flex flex-col items-center justify-center w-14 h-14 rounded-lg bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 shrink-0">
+<span class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Aug</span>
+<span class="text-lg font-bold text-gray-900 dark:text-white">15</span>
+</div>
+<!-- Content -->
+<div class="flex-1 flex flex-col justify-center gap-1">
+<div class="flex justify-between items-start">
+<h4 class="text-base font-semibold text-gray-900 dark:text-white">Casual</h4>
+<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                Approved
+                            </span>
+</div>
+<div class="flex justify-between items-center text-sm text-gray-500 dark:text-gray-400">
+<span>Aug 15 - Aug 16</span>
+<span class="text-xs font-medium bg-gray-100 dark:bg-white/5 px-1.5 py-0.5 rounded text-gray-600 dark:text-gray-300">2 days</span>
+</div>
+</div>
+</div>
+</div>
+</main>
+<!-- Floating Action Button -->
+<div class="absolute bottom-24 right-6 z-30">
+<button class="h-14 w-14 rounded-full bg-primary text-white shadow-glow flex items-center justify-center hover:scale-105 active:scale-95 transition-transform group">
+<span class="material-symbols-outlined group-hover:rotate-90 transition-transform duration-300">add</span>
+</button>
+</div>
+<!-- Bottom Navigation -->
+<nav class="h-20 bg-surface-light dark:bg-surface-dark border-t border-gray-200 dark:border-white/5 px-6 flex items-center justify-between z-20">
+<button class="flex flex-col items-center gap-1 text-gray-400 dark:text-gray-500 hover:text-primary dark:hover:text-primary transition-colors">
+<span class="material-symbols-outlined">home</span>
+<span class="text-[10px] font-medium">Home</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-primary relative">
+<div class="absolute -top-3 w-8 h-1 bg-primary rounded-b-full shadow-[0_4px_12px_rgba(19,105,134,0.5)]"></div>
+<span class="material-symbols-outlined filled">event_note</span>
+<span class="text-[10px] font-medium">Leaves</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-gray-400 dark:text-gray-500 hover:text-primary dark:hover:text-primary transition-colors">
+<span class="material-symbols-outlined">group</span>
+<span class="text-[10px] font-medium">Team</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-gray-400 dark:text-gray-500 hover:text-primary dark:hover:text-primary transition-colors">
+<div class="w-6 h-6 rounded-full overflow-hidden border border-gray-200 dark:border-white/10 bg-gray-100 dark:bg-gray-800">
+<div class="w-full h-full bg-gradient-to-br from-gray-300 to-gray-500" data-alt="Abstract user avatar placeholder with gray gradient"></div>
+</div>
+<span class="text-[10px] font-medium">Profile</span>
+</button>
+</nav>
+</div>
+</body></html>

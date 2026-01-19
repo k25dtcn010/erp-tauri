@@ -1,6 +1,54 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
+@theme {
+  --font-display: "Manrope", "sans-serif";
+  --font-sans: "Manrope", "sans-serif";
+
+  --animate-breathing: breathing 3s ease-in-out infinite;
+  --animate-scan: scan 2s linear infinite;
+  --animate-border-glow: border-glow 2s ease-in-out infinite;
+
+  @keyframes breathing {
+    0%,
+    100% {
+      transform: scale(1);
+      box-shadow: 0 0 0 0 rgba(19, 105, 134, 0.7);
+    }
+    50% {
+      transform: scale(1.02);
+      box-shadow: 0 0 0 15px rgba(19, 105, 134, 0);
+    }
+  }
+
+  @keyframes scan {
+    0% {
+      transform: translateY(-100%);
+    }
+    100% {
+      transform: translateY(100%);
+    }
+  }
+
+  @keyframes border-glow {
+    0%,
+    100% {
+      box-shadow: 0 0 15px -5px currentColor;
+    }
+    50% {
+      box-shadow: 0 0 30px 5px currentColor;
+    }
+  }
+}
+
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+
 :root {
   --radius: 0.65rem;
   --background: oklch(1 0 0);

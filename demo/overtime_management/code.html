@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Overtime Management</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#136986",
+                        "background-light": "#f2f2f3",
+                        "background-dark": "#1a1d23",
+                        "surface-dark": "#262a31",
+                        "border-dark": "#353a45",
+                    },
+                    fontFamily: {
+                        "display": ["Manrope", "sans-serif"]
+                    },
+                    borderRadius: { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" },
+                },
+            },
+        }
+    </script>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background-light dark:bg-background-dark font-display text-slate-900 dark:text-white antialiased overflow-x-hidden">
+<!-- Mobile Container -->
+<div class="mx-auto w-full max-w-md min-h-screen flex flex-col relative pb-20">
+<!-- Header -->
+<header class="sticky top-0 z-50 bg-background-light/95 dark:bg-background-dark/95 backdrop-blur-md px-4 py-3 border-b border-gray-200 dark:border-border-dark flex justify-between items-center">
+<h1 class="text-xl font-bold tracking-tight">Overtime</h1>
+<button class="bg-primary hover:bg-primary/90 text-white rounded-full p-2 w-10 h-10 flex items-center justify-center shadow-lg shadow-primary/20 transition-all active:scale-95">
+<span class="material-symbols-outlined">add</span>
+</button>
+</header>
+<!-- Main Content -->
+<main class="flex-1 px-4 pt-6 space-y-6">
+<!-- Summary Stats (Scrollable/Grid) -->
+<div class="grid grid-cols-2 gap-3">
+<div class="bg-white dark:bg-surface-dark p-4 rounded-xl border border-gray-100 dark:border-border-dark shadow-sm">
+<div class="flex items-center gap-2 mb-2">
+<div class="p-1.5 rounded-lg bg-primary/10 text-primary">
+<span class="material-symbols-outlined text-lg">schedule</span>
+</div>
+<span class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Total Hours</span>
+</div>
+<div class="flex items-baseline gap-2">
+<span class="text-2xl font-bold dark:text-white">12.5</span>
+<span class="text-sm font-medium text-emerald-500 flex items-center">
+<span class="material-symbols-outlined text-sm">trending_up</span> 12%
+                        </span>
+</div>
+<p class="text-xs text-gray-400 mt-1">This Month</p>
+</div>
+<div class="bg-white dark:bg-surface-dark p-4 rounded-xl border border-gray-100 dark:border-border-dark shadow-sm">
+<div class="flex items-center gap-2 mb-2">
+<div class="p-1.5 rounded-lg bg-emerald-500/10 text-emerald-500">
+<span class="material-symbols-outlined text-lg">attach_money</span>
+</div>
+<span class="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Est. Payout</span>
+</div>
+<div class="flex items-baseline gap-2">
+<span class="text-2xl font-bold dark:text-white">$450</span>
+</div>
+<p class="text-xs text-gray-400 mt-1">Pending Approval</p>
+</div>
+</div>
+<!-- Chart Section -->
+<section class="bg-white dark:bg-surface-dark rounded-2xl border border-gray-100 dark:border-border-dark p-5 shadow-sm">
+<div class="flex justify-between items-end mb-6">
+<div>
+<h2 class="text-lg font-bold">Activity Trend</h2>
+<p class="text-sm text-gray-500 dark:text-gray-400">Weekly breakdown</p>
+</div>
+<div class="flex gap-2">
+<span class="text-xs font-medium bg-gray-100 dark:bg-white/5 px-2 py-1 rounded text-gray-600 dark:text-gray-300">Oct 2023</span>
+</div>
+</div>
+<!-- Custom Bar Chart Visualization -->
+<div class="h-40 flex items-end justify-between gap-2 px-1">
+<!-- Bar 1 -->
+<div class="flex flex-col items-center gap-2 flex-1 group cursor-pointer">
+<div class="w-full bg-gray-100 dark:bg-white/5 rounded-t-sm relative h-32 flex items-end overflow-hidden">
+<div class="w-full bg-primary/30 group-hover:bg-primary transition-all duration-300 rounded-t-sm" style="height: 40%"></div>
+</div>
+<span class="text-[10px] font-medium text-gray-400 uppercase">M</span>
+</div>
+<!-- Bar 2 -->
+<div class="flex flex-col items-center gap-2 flex-1 group cursor-pointer">
+<div class="w-full bg-gray-100 dark:bg-white/5 rounded-t-sm relative h-32 flex items-end overflow-hidden">
+<div class="w-full bg-primary/30 group-hover:bg-primary transition-all duration-300 rounded-t-sm" style="height: 75%"></div>
+</div>
+<span class="text-[10px] font-medium text-gray-400 uppercase">T</span>
+</div>
+<!-- Bar 3 (Active) -->
+<div class="flex flex-col items-center gap-2 flex-1 group cursor-pointer">
+<div class="relative w-full">
+<div class="absolute -top-8 left-1/2 -translate-x-1/2 bg-surface-dark dark:bg-white text-white dark:text-surface-dark text-[10px] font-bold py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10">4.5h</div>
+<div class="w-full bg-gray-100 dark:bg-white/5 rounded-t-sm relative h-32 flex items-end overflow-hidden ring-1 ring-primary/20">
+<div class="w-full bg-primary rounded-t-sm" style="height: 90%"></div>
+</div>
+</div>
+<span class="text-[10px] font-bold text-primary uppercase">W</span>
+</div>
+<!-- Bar 4 -->
+<div class="flex flex-col items-center gap-2 flex-1 group cursor-pointer">
+<div class="w-full bg-gray-100 dark:bg-white/5 rounded-t-sm relative h-32 flex items-end overflow-hidden">
+<div class="w-full bg-primary/30 group-hover:bg-primary transition-all duration-300 rounded-t-sm" style="height: 30%"></div>
+</div>
+<span class="text-[10px] font-medium text-gray-400 uppercase">T</span>
+</div>
+<!-- Bar 5 -->
+<div class="flex flex-col items-center gap-2 flex-1 group cursor-pointer">
+<div class="w-full bg-gray-100 dark:bg-white/5 rounded-t-sm relative h-32 flex items-end overflow-hidden">
+<div class="w-full bg-primary/30 group-hover:bg-primary transition-all duration-300 rounded-t-sm" style="height: 60%"></div>
+</div>
+<span class="text-[10px] font-medium text-gray-400 uppercase">F</span>
+</div>
+<!-- Bar 6 -->
+<div class="flex flex-col items-center gap-2 flex-1 group cursor-pointer">
+<div class="w-full bg-gray-100 dark:bg-white/5 rounded-t-sm relative h-32 flex items-end overflow-hidden">
+<div class="w-full bg-primary/30 group-hover:bg-primary transition-all duration-300 rounded-t-sm" style="height: 10%"></div>
+</div>
+<span class="text-[10px] font-medium text-gray-400 uppercase">S</span>
+</div>
+<!-- Bar 7 -->
+<div class="flex flex-col items-center gap-2 flex-1 group cursor-pointer">
+<div class="w-full bg-gray-100 dark:bg-white/5 rounded-t-sm relative h-32 flex items-end overflow-hidden">
+<div class="w-full bg-primary/30 group-hover:bg-primary transition-all duration-300 rounded-t-sm" style="height: 0%"></div>
+</div>
+<span class="text-[10px] font-medium text-gray-400 uppercase">S</span>
+</div>
+</div>
+</section>
+<!-- Entries Section -->
+<section class="space-y-4">
+<div class="flex items-center justify-between sticky top-[68px] z-40 bg-background-light dark:bg-background-dark py-2">
+<h3 class="text-lg font-bold">Recent Entries</h3>
+<!-- Filter Chips -->
+<div class="flex bg-gray-200 dark:bg-surface-dark p-1 rounded-lg">
+<button class="px-3 py-1 text-xs font-semibold rounded-md bg-white dark:bg-border-dark shadow-sm text-gray-900 dark:text-white">All</button>
+<button class="px-3 py-1 text-xs font-medium rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">Pending</button>
+<button class="px-3 py-1 text-xs font-medium rounded-md text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors">Approved</button>
+</div>
+</div>
+<!-- List Items -->
+<div class="space-y-3">
+<!-- Entry Card: Pending -->
+<div class="bg-white dark:bg-surface-dark p-4 rounded-xl border border-gray-100 dark:border-border-dark shadow-sm flex items-center justify-between group active:scale-[0.99] transition-transform">
+<div class="flex gap-4 items-center">
+<div class="flex flex-col items-center justify-center w-12 h-12 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10">
+<span class="text-[10px] font-bold text-gray-400 uppercase">Oct</span>
+<span class="text-lg font-bold text-gray-900 dark:text-white leading-none">24</span>
+</div>
+<div class="flex flex-col">
+<span class="text-sm font-semibold text-gray-900 dark:text-white">Q4 Finance Report</span>
+<div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+<span class="material-symbols-outlined text-[14px]">schedule</span>
+                                    18:00 - 20:30
+                                </div>
+</div>
+</div>
+<div class="flex flex-col items-end gap-1">
+<span class="text-base font-bold text-gray-900 dark:text-white font-mono">+2.5h</span>
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                                Pending
+                            </span>
+</div>
+</div>
+<!-- Entry Card: Approved -->
+<div class="bg-white dark:bg-surface-dark p-4 rounded-xl border border-gray-100 dark:border-border-dark shadow-sm flex items-center justify-between group active:scale-[0.99] transition-transform">
+<div class="flex gap-4 items-center">
+<div class="flex flex-col items-center justify-center w-12 h-12 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10">
+<span class="text-[10px] font-bold text-gray-400 uppercase">Oct</span>
+<span class="text-lg font-bold text-gray-900 dark:text-white leading-none">22</span>
+</div>
+<div class="flex flex-col">
+<span class="text-sm font-semibold text-gray-900 dark:text-white">System Maintenance</span>
+<div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+<span class="material-symbols-outlined text-[14px]">schedule</span>
+                                    17:30 - 21:30
+                                </div>
+</div>
+</div>
+<div class="flex flex-col items-end gap-1">
+<span class="text-base font-bold text-gray-900 dark:text-white font-mono">+4.0h</span>
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                Approved
+                            </span>
+</div>
+</div>
+<!-- Entry Card: Approved -->
+<div class="bg-white dark:bg-surface-dark p-4 rounded-xl border border-gray-100 dark:border-border-dark shadow-sm flex items-center justify-between group active:scale-[0.99] transition-transform">
+<div class="flex gap-4 items-center">
+<div class="flex flex-col items-center justify-center w-12 h-12 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10">
+<span class="text-[10px] font-bold text-gray-400 uppercase">Oct</span>
+<span class="text-lg font-bold text-gray-900 dark:text-white leading-none">20</span>
+</div>
+<div class="flex flex-col">
+<span class="text-sm font-semibold text-gray-900 dark:text-white">Client Meeting Prep</span>
+<div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+<span class="material-symbols-outlined text-[14px]">schedule</span>
+                                    18:00 - 19:30
+                                </div>
+</div>
+</div>
+<div class="flex flex-col items-end gap-1">
+<span class="text-base font-bold text-gray-900 dark:text-white font-mono">+1.5h</span>
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                Approved
+                            </span>
+</div>
+</div>
+<!-- Entry Card: Rejected -->
+<div class="bg-white dark:bg-surface-dark p-4 rounded-xl border border-gray-100 dark:border-border-dark shadow-sm flex items-center justify-between group active:scale-[0.99] transition-transform opacity-75">
+<div class="flex gap-4 items-center">
+<div class="flex flex-col items-center justify-center w-12 h-12 rounded-lg bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10">
+<span class="text-[10px] font-bold text-gray-400 uppercase">Oct</span>
+<span class="text-lg font-bold text-gray-900 dark:text-white leading-none">15</span>
+</div>
+<div class="flex flex-col">
+<span class="text-sm font-semibold text-gray-900 dark:text-white line-through decoration-red-500/50">Early Arrival</span>
+<div class="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+<span class="material-symbols-outlined text-[14px]">schedule</span>
+                                    07:30 - 08:30
+                                </div>
+</div>
+</div>
+<div class="flex flex-col items-end gap-1">
+<span class="text-base font-bold text-gray-500 dark:text-gray-400 font-mono">+1.0h</span>
+<span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-red-500/10 text-red-600 dark:text-red-400 border border-red-500/20">
+                                Rejected
+                            </span>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Bottom Navigation -->
+<nav class="fixed bottom-0 w-full max-w-md bg-background-light dark:bg-background-dark border-t border-gray-200 dark:border-border-dark flex justify-between items-center px-6 py-3 pb-6 safe-area-bottom z-50">
+<button class="flex flex-col items-center gap-1 text-gray-400 dark:text-gray-500 hover:text-primary dark:hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-2xl">home</span>
+<span class="text-[10px] font-medium">Home</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-primary dark:text-primary">
+<span class="material-symbols-outlined text-2xl fill-1">timer</span>
+<span class="text-[10px] font-medium">Overtime</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-gray-400 dark:text-gray-500 hover:text-primary dark:hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-2xl">calendar_month</span>
+<span class="text-[10px] font-medium">Schedule</span>
+</button>
+<button class="flex flex-col items-center gap-1 text-gray-400 dark:text-gray-500 hover:text-primary dark:hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-2xl">person</span>
+<span class="text-[10px] font-medium">Profile</span>
+</button>
+</nav>
+</div>
+</body></html>

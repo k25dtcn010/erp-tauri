@@ -14,21 +14,11 @@ import {
   Play,
   Square,
   Coffee,
-  Camera,
-  Loader2,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import {
-  Drawer,
-  DrawerClose,
-  DrawerContent,
-  DrawerDescription,
-  DrawerFooter,
-  DrawerHeader,
-  DrawerTitle,
-} from "@/components/ui/drawer";
+
 import { useEffect, useState, useRef } from "react";
 import {
   checkPermissions,
@@ -43,6 +33,7 @@ import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
 import { cn } from "@/lib/utils";
+import { FaceVerificationModal } from "@/components/dashboard/FaceVerificationModal";
 
 // Fix Leaflet's default icon path issues with webpack/vite
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -73,10 +64,6 @@ export function EmployeeDashboard() {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const [isCheckInModalOpen, setIsCheckInModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<string>("check-in");
-  const [cameraError, setCameraError] = useState<string | null>(null);
-  const [isVerifying, setIsVerifying] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
 
   // Update current time every second
   useEffect(() => {
@@ -105,39 +92,6 @@ export function EmployeeDashboard() {
     };
   }, [workStatus]);
 
-  const startCamera = async () => {
-    setCameraError(null);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user" },
-      });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        streamRef.current = stream;
-      }
-    } catch (err) {
-      console.error("Error accessing camera:", err);
-      setCameraError(
-        "Could not access camera. Please ensure permissions are granted.",
-      );
-    }
-  };
-
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
-  };
-
-  useEffect(() => {
-    if (isCheckInModalOpen) {
-      startCamera();
-    } else {
-      stopCamera();
-    }
-  }, [isCheckInModalOpen]);
-
   const handleStartWork = () => {
     setModalMode("check-in");
     setIsCheckInModalOpen(true);
@@ -148,50 +102,29 @@ export function EmployeeDashboard() {
     setIsCheckInModalOpen(true);
   };
 
-  const handleCameraConfirm = () => {
-    setIsVerifying(true);
+  const handleVerified = (photoDataUrl: string) => {
+    console.log(
+      `${modalMode} photo captured:`,
+      photoDataUrl.substring(0, 50) + "...",
+    );
+    // Here you would typically upload photoDataUrl to your server
 
-    // Simulate verification delay
-    setTimeout(() => {
-      // Capture photo
-      if (videoRef.current) {
-        const canvas = document.createElement("canvas");
-        canvas.width = videoRef.current.videoWidth;
-        canvas.height = videoRef.current.videoHeight;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          // Flip horizontally to match the mirrored video feed
-          ctx.translate(canvas.width, 0);
-          ctx.scale(-1, 1);
-          ctx.drawImage(videoRef.current, 0, 0);
-          const photoDataUrl = canvas.toDataURL("image/jpeg");
-          console.log(
-            `${modalMode} photo captured:`,
-            photoDataUrl.substring(0, 50) + "...",
-          );
-          // Here you would typically upload photoDataUrl to your server
-        }
+    setIsCheckInModalOpen(false);
+
+    if (modalMode === "check-in") {
+      setWorkStatus("working");
+      if (!startTime) {
+        setStartTime(new Date());
       }
-
-      stopCamera();
-      setIsCheckInModalOpen(false);
-      setIsVerifying(false);
-
-      if (modalMode === "check-in") {
-        setWorkStatus("working");
-        if (!startTime) {
-          setStartTime(new Date());
-        }
-      } else if (modalMode === "pause") {
-        setWorkStatus("paused");
-      } else if (modalMode === "resume") {
-        setWorkStatus("working");
-      } else {
-        setWorkStatus("idle");
-        setStartTime(null);
-        setElapsedSeconds(0);
-      }
-    }, 2000);
+    } else if (modalMode === "pause") {
+      setWorkStatus("paused");
+    } else if (modalMode === "resume") {
+      setWorkStatus("working");
+    } else {
+      setWorkStatus("idle");
+      setStartTime(null);
+      setElapsedSeconds(0);
+    }
   };
 
   const handlePauseWork = () => {
@@ -269,63 +202,6 @@ export function EmployeeDashboard() {
       }
     };
   }, []);
-
-  const getModalConfig = () => {
-    switch (modalMode) {
-      case "check-in":
-        return {
-          title: "Face Verification Check In",
-          confirmText: "Confirm Check In",
-          color: "emerald",
-          borderColor: "border-emerald-500",
-          buttonColor: "bg-emerald-600 hover:bg-emerald-700",
-          scanColor: "via-emerald-500/10",
-          glowColor: "text-emerald-500",
-        };
-      case "check-out":
-        return {
-          title: "Face Verification Check Out",
-          confirmText: "Confirm Check Out",
-          color: "rose",
-          borderColor: "border-rose-500",
-          buttonColor: "bg-rose-600 hover:bg-rose-700",
-          scanColor: "via-rose-500/10",
-          glowColor: "text-rose-500",
-        };
-      case "pause":
-        return {
-          title: "Verify to Pause Work",
-          confirmText: "Confirm Pause",
-          color: "amber",
-          borderColor: "border-amber-500",
-          buttonColor: "bg-amber-600 hover:bg-amber-700",
-          scanColor: "via-amber-500/10",
-          glowColor: "text-amber-500",
-        };
-      case "resume":
-        return {
-          title: "Verify to Resume Work",
-          confirmText: "Confirm Resume",
-          color: "emerald",
-          borderColor: "border-emerald-500",
-          buttonColor: "bg-emerald-600 hover:bg-emerald-700",
-          scanColor: "via-emerald-500/10",
-          glowColor: "text-emerald-500",
-        };
-      default:
-        return {
-          title: "Face Verification",
-          confirmText: "Confirm",
-          color: "emerald",
-          borderColor: "border-emerald-500",
-          buttonColor: "bg-emerald-600 hover:bg-emerald-700",
-          scanColor: "via-emerald-500/10",
-          glowColor: "text-emerald-500",
-        };
-    }
-  };
-
-  const modalConfig = getModalConfig();
 
   return (
     <div className="flex flex-col min-h-screen bg-white dark:bg-[#1a1d23] font-sans">
@@ -666,78 +542,13 @@ export function EmployeeDashboard() {
           </div>
         </section>
 
-        <Drawer open={isCheckInModalOpen} onOpenChange={setIsCheckInModalOpen}>
-          <DrawerContent>
-            <div className="mx-auto w-full max-w-sm">
-              <DrawerHeader>
-                <DrawerTitle>{modalConfig.title}</DrawerTitle>
-                <DrawerDescription>
-                  Please position your face within the frame to verify your
-                  identity.
-                </DrawerDescription>
-              </DrawerHeader>
-              <div className="p-4 flex flex-col items-center justify-center">
-                <div
-                  className={`relative h-64 w-64 rounded-full overflow-hidden border-4 ${modalConfig.borderColor} shadow-xl bg-black ${modalConfig.glowColor} ${isVerifying ? "animate-border-glow" : ""}`}
-                >
-                  {cameraError ? (
-                    <div className="absolute inset-0 flex items-center justify-center bg-gray-900 text-white p-4 text-center">
-                      <div className="flex flex-col items-center gap-2">
-                        <Camera className="h-8 w-8 text-red-500" />
-                        <p className="text-xs text-red-400">{cameraError}</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <video
-                        ref={videoRef}
-                        autoPlay
-                        playsInline
-                        muted
-                        className="h-full w-full object-cover transform scale-x-[-1]"
-                      />
-                      {/* Overlay scanning effect */}
-                      <div
-                        className={`absolute inset-0 bg-gradient-to-b from-transparent ${modalConfig.scanColor} to-transparent animate-scan pointer-events-none`}
-                      ></div>
-                    </>
-                  )}
-                </div>
-                <div className="mt-4 text-center">
-                  <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                    Current Time
-                  </p>
-                  <p className="text-2xl font-bold text-slate-900 dark:text-white">
-                    {formatTime(currentTime)}
-                  </p>
-                </div>
-              </div>
-              <DrawerFooter>
-                <Button
-                  onClick={handleCameraConfirm}
-                  disabled={isVerifying}
-                  className={`w-full ${modalConfig.buttonColor} text-white h-12 text-lg`}
-                >
-                  {isVerifying ? (
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  ) : (
-                    <Camera className="mr-2 h-5 w-5" />
-                  )}
-                  {isVerifying ? "Verifying..." : modalConfig.confirmText}
-                </Button>
-                <DrawerClose asChild>
-                  <Button
-                    variant="outline"
-                    className="w-full"
-                    disabled={isVerifying}
-                  >
-                    Cancel
-                  </Button>
-                </DrawerClose>
-              </DrawerFooter>
-            </div>
-          </DrawerContent>
-        </Drawer>
+        <FaceVerificationModal
+          isOpen={isCheckInModalOpen}
+          onOpenChange={setIsCheckInModalOpen}
+          mode={modalMode}
+          currentTime={currentTime}
+          onVerified={handleVerified}
+        />
       </div>
     </div>
   );

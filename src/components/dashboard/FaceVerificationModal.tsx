@@ -17,8 +17,186 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import { useEffect, useState, useRef, useCallback } from "react";
+import { useEffect, useState, useRef, useCallback, memo } from "react";
 import { useGPUPixel } from "@/hooks/useGPUPixel";
+
+// Hoisted outside component to avoid recreation on every render (rendering-hoist-jsx)
+const MODAL_CONFIGS = {
+  "check-in": {
+    title: "Face Verification Check In",
+    confirmText: "Confirm Check In",
+    color: "emerald",
+    borderColor: "border-emerald-500",
+    buttonColor: "bg-emerald-600 hover:bg-emerald-700",
+    scanColor: "via-emerald-500/10",
+    glowColor: "text-emerald-500",
+  },
+  "check-out": {
+    title: "Face Verification Check Out",
+    confirmText: "Confirm Check Out",
+    color: "rose",
+    borderColor: "border-rose-500",
+    buttonColor: "bg-rose-600 hover:bg-rose-700",
+    scanColor: "via-rose-500/10",
+    glowColor: "text-rose-500",
+  },
+  pause: {
+    title: "Verify to Pause Work",
+    confirmText: "Confirm Pause",
+    color: "amber",
+    borderColor: "border-amber-500",
+    buttonColor: "bg-amber-600 hover:bg-amber-700",
+    scanColor: "via-amber-500/10",
+    glowColor: "text-amber-500",
+  },
+  resume: {
+    title: "Verify to Resume Work",
+    confirmText: "Confirm Resume",
+    color: "emerald",
+    borderColor: "border-emerald-500",
+    buttonColor: "bg-emerald-600 hover:bg-emerald-700",
+    scanColor: "via-emerald-500/10",
+    glowColor: "text-emerald-500",
+  },
+} as const;
+
+const DEFAULT_CONFIG = {
+  title: "Face Verification",
+  confirmText: "Confirm",
+  color: "emerald",
+  borderColor: "border-emerald-500",
+  buttonColor: "bg-emerald-600 hover:bg-emerald-700",
+  scanColor: "via-emerald-500/10",
+  glowColor: "text-emerald-500",
+} as const;
+
+type ModalConfigKey = keyof typeof MODAL_CONFIGS;
+
+// Memoized CameraControls component (rerender-memo)
+interface CameraControlsProps {
+  devices: MediaDeviceInfo[];
+  toggleCamera: () => void;
+  isGPUPixelAvailable: boolean;
+  beautyEnabled: boolean;
+  toggleBeauty: () => void;
+  hasFlash: boolean;
+  isFlashOn: boolean;
+  isUsingGPUPixel: boolean;
+  toggleFlash: () => void;
+}
+
+const CameraControls = memo(function CameraControls({
+  devices,
+  toggleCamera,
+  isGPUPixelAvailable,
+  beautyEnabled,
+  toggleBeauty,
+  hasFlash,
+  isFlashOn,
+  isUsingGPUPixel,
+  toggleFlash,
+}: CameraControlsProps) {
+  return (
+    <div className="mt-4 flex items-center justify-center gap-6">
+      {/* Switch Camera - always show, disable if only 1 camera */}
+      <button
+        onClick={toggleCamera}
+        disabled={devices.length < 2}
+        className={`flex flex-col items-center gap-1.5 group ${
+          devices.length < 2 ? "opacity-40 cursor-not-allowed" : ""
+        }`}
+      >
+        <div
+          className={`h-11 w-11 rounded-full flex items-center justify-center border transition-all ${
+            devices.length < 2
+              ? "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+              : "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 group-hover:bg-gray-200 dark:group-hover:bg-gray-700 group-active:scale-95"
+          }`}
+        >
+          <SwitchCamera className="h-5 w-5 text-gray-600 dark:text-gray-300" />
+        </div>
+        <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400">
+          {devices.length > 1 ? "Flip" : "1 Camera"}
+        </span>
+      </button>
+
+      {/* Beauty Toggle - show when GPUPixel available */}
+      {isGPUPixelAvailable && (
+        <button
+          onClick={toggleBeauty}
+          className="flex flex-col items-center gap-1.5 group"
+        >
+          <div
+            className={`h-11 w-11 rounded-full flex items-center justify-center border transition-all ${
+              beautyEnabled
+                ? "bg-pink-500 border-pink-400 text-white group-active:scale-95"
+                : "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 group-hover:bg-gray-200 dark:group-hover:bg-gray-700 group-active:scale-95"
+            }`}
+          >
+            <Sparkles
+              className={`h-5 w-5 ${
+                beautyEnabled
+                  ? "fill-current text-white"
+                  : "text-gray-600 dark:text-gray-300"
+              }`}
+            />
+          </div>
+          <span
+            className={`text-[10px] font-medium ${
+              beautyEnabled
+                ? "text-pink-600 dark:text-pink-400"
+                : "text-gray-500 dark:text-gray-400"
+            }`}
+          >
+            {beautyEnabled ? "Beauty On" : "Beauty"}
+          </span>
+        </button>
+      )}
+
+      {/* Flash Toggle - always show, disable if no flash */}
+      <button
+        onClick={toggleFlash}
+        disabled={!hasFlash || isUsingGPUPixel}
+        className={`flex flex-col items-center gap-1.5 group ${
+          !hasFlash || isUsingGPUPixel ? "opacity-40 cursor-not-allowed" : ""
+        }`}
+      >
+        <div
+          className={`h-11 w-11 rounded-full flex items-center justify-center border transition-all ${
+            !hasFlash || isUsingGPUPixel
+              ? "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+              : isFlashOn
+                ? "bg-yellow-500 border-yellow-400 text-white group-active:scale-95"
+                : "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 group-hover:bg-gray-200 dark:group-hover:bg-gray-700 group-active:scale-95"
+          }`}
+        >
+          <Zap
+            className={`h-5 w-5 ${
+              isFlashOn && hasFlash && !isUsingGPUPixel
+                ? "fill-current text-white"
+                : "text-gray-600 dark:text-gray-300"
+            }`}
+          />
+        </div>
+        <span
+          className={`text-[10px] font-medium ${
+            isFlashOn && hasFlash && !isUsingGPUPixel
+              ? "text-yellow-600 dark:text-yellow-400"
+              : "text-gray-500 dark:text-gray-400"
+          }`}
+        >
+          {!hasFlash
+            ? "No Flash"
+            : isUsingGPUPixel
+              ? "N/A"
+              : isFlashOn
+                ? "On"
+                : "Flash"}
+        </span>
+      </button>
+    </div>
+  );
+});
 
 interface FaceVerificationModalProps {
   isOpen: boolean;
@@ -246,16 +424,18 @@ export function FaceVerificationModal({
     }
   };
 
+  // Use functional setState for stable callback (rerender-functional-setstate)
   const toggleBeauty = useCallback(() => {
-    const newValue = !beautyEnabled;
-    setBeautyEnabled(newValue);
-
-    if (newValue) {
-      setBeauty(3, 4); // Default beauty params
-    } else {
-      setBeauty(0, 0); // Disable beauty
-    }
-  }, [beautyEnabled, setBeauty]);
+    setBeautyEnabled((prev) => {
+      const newValue = !prev;
+      if (newValue) {
+        setBeauty(3, 4); // Default beauty params
+      } else {
+        setBeauty(0, 0); // Disable beauty
+      }
+      return newValue;
+    });
+  }, [setBeauty]);
 
   // Handle modal open/close
   useEffect(() => {
@@ -349,62 +529,8 @@ export function FaceVerificationModal({
     });
   };
 
-  const getModalConfig = () => {
-    switch (mode) {
-      case "check-in":
-        return {
-          title: "Face Verification Check In",
-          confirmText: "Confirm Check In",
-          color: "emerald",
-          borderColor: "border-emerald-500",
-          buttonColor: "bg-emerald-600 hover:bg-emerald-700",
-          scanColor: "via-emerald-500/10",
-          glowColor: "text-emerald-500",
-        };
-      case "check-out":
-        return {
-          title: "Face Verification Check Out",
-          confirmText: "Confirm Check Out",
-          color: "rose",
-          borderColor: "border-rose-500",
-          buttonColor: "bg-rose-600 hover:bg-rose-700",
-          scanColor: "via-rose-500/10",
-          glowColor: "text-rose-500",
-        };
-      case "pause":
-        return {
-          title: "Verify to Pause Work",
-          confirmText: "Confirm Pause",
-          color: "amber",
-          borderColor: "border-amber-500",
-          buttonColor: "bg-amber-600 hover:bg-amber-700",
-          scanColor: "via-amber-500/10",
-          glowColor: "text-amber-500",
-        };
-      case "resume":
-        return {
-          title: "Verify to Resume Work",
-          confirmText: "Confirm Resume",
-          color: "emerald",
-          borderColor: "border-emerald-500",
-          buttonColor: "bg-emerald-600 hover:bg-emerald-700",
-          scanColor: "via-emerald-500/10",
-          glowColor: "text-emerald-500",
-        };
-      default:
-        return {
-          title: "Face Verification",
-          confirmText: "Confirm",
-          color: "emerald",
-          borderColor: "border-emerald-500",
-          buttonColor: "bg-emerald-600 hover:bg-emerald-700",
-          scanColor: "via-emerald-500/10",
-          glowColor: "text-emerald-500",
-        };
-    }
-  };
-
-  const modalConfig = getModalConfig();
+  // Use hoisted config map for better performance (js-cache-function-results)
+  const modalConfig = MODAL_CONFIGS[mode as ModalConfigKey] ?? DEFAULT_CONFIG;
 
   // Determine loading/error states
   const isUsingGPUPixel = isGPUPixelActive || isGPUPixelLoading;
@@ -542,107 +668,19 @@ export function FaceVerificationModal({
             </div>
 
             {/* Camera Controls Bar - Always Visible when camera active */}
+            {/* Use memoized CameraControls component (rerender-memo) */}
             {!isLoading && !hasError && verificationStatus === "idle" && (
-              <div className="mt-4 flex items-center justify-center gap-6">
-                {/* Switch Camera - always show, disable if only 1 camera */}
-                <button
-                  onClick={toggleCamera}
-                  disabled={devices.length < 2}
-                  className={`flex flex-col items-center gap-1.5 group ${
-                    devices.length < 2 ? "opacity-40 cursor-not-allowed" : ""
-                  }`}
-                >
-                  <div
-                    className={`h-11 w-11 rounded-full flex items-center justify-center border transition-all ${
-                      devices.length < 2
-                        ? "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700"
-                        : "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 group-hover:bg-gray-200 dark:group-hover:bg-gray-700 group-active:scale-95"
-                    }`}
-                  >
-                    <SwitchCamera className="h-5 w-5 text-gray-600 dark:text-gray-300" />
-                  </div>
-                  <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400">
-                    {devices.length > 1 ? "Flip" : "1 Camera"}
-                  </span>
-                </button>
-
-                {/* Beauty Toggle - show when GPUPixel available */}
-                {isGPUPixelAvailable && (
-                  <button
-                    onClick={toggleBeauty}
-                    className="flex flex-col items-center gap-1.5 group"
-                  >
-                    <div
-                      className={`h-11 w-11 rounded-full flex items-center justify-center border transition-all ${
-                        beautyEnabled
-                          ? "bg-pink-500 border-pink-400 text-white group-active:scale-95"
-                          : "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 group-hover:bg-gray-200 dark:group-hover:bg-gray-700 group-active:scale-95"
-                      }`}
-                    >
-                      <Sparkles
-                        className={`h-5 w-5 ${
-                          beautyEnabled
-                            ? "fill-current text-white"
-                            : "text-gray-600 dark:text-gray-300"
-                        }`}
-                      />
-                    </div>
-                    <span
-                      className={`text-[10px] font-medium ${
-                        beautyEnabled
-                          ? "text-pink-600 dark:text-pink-400"
-                          : "text-gray-500 dark:text-gray-400"
-                      }`}
-                    >
-                      {beautyEnabled ? "Beauty On" : "Beauty"}
-                    </span>
-                  </button>
-                )}
-
-                {/* Flash Toggle - always show, disable if no flash */}
-                <button
-                  onClick={toggleFlash}
-                  disabled={!hasFlash || isUsingGPUPixel}
-                  className={`flex flex-col items-center gap-1.5 group ${
-                    !hasFlash || isUsingGPUPixel
-                      ? "opacity-40 cursor-not-allowed"
-                      : ""
-                  }`}
-                >
-                  <div
-                    className={`h-11 w-11 rounded-full flex items-center justify-center border transition-all ${
-                      !hasFlash || isUsingGPUPixel
-                        ? "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700"
-                        : isFlashOn
-                          ? "bg-yellow-500 border-yellow-400 text-white group-active:scale-95"
-                          : "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 group-hover:bg-gray-200 dark:group-hover:bg-gray-700 group-active:scale-95"
-                    }`}
-                  >
-                    <Zap
-                      className={`h-5 w-5 ${
-                        isFlashOn && hasFlash && !isUsingGPUPixel
-                          ? "fill-current text-white"
-                          : "text-gray-600 dark:text-gray-300"
-                      }`}
-                    />
-                  </div>
-                  <span
-                    className={`text-[10px] font-medium ${
-                      isFlashOn && hasFlash && !isUsingGPUPixel
-                        ? "text-yellow-600 dark:text-yellow-400"
-                        : "text-gray-500 dark:text-gray-400"
-                    }`}
-                  >
-                    {!hasFlash
-                      ? "No Flash"
-                      : isUsingGPUPixel
-                        ? "N/A"
-                        : isFlashOn
-                          ? "On"
-                          : "Flash"}
-                  </span>
-                </button>
-              </div>
+              <CameraControls
+                devices={devices}
+                toggleCamera={toggleCamera}
+                isGPUPixelAvailable={isGPUPixelAvailable}
+                beautyEnabled={beautyEnabled}
+                toggleBeauty={toggleBeauty}
+                hasFlash={hasFlash}
+                isFlashOn={isFlashOn}
+                isUsingGPUPixel={isUsingGPUPixel}
+                toggleFlash={toggleFlash}
+              />
             )}
 
             <div className="mt-6 text-center space-y-1">

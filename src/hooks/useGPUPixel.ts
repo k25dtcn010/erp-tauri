@@ -148,14 +148,19 @@ export function useGPUPixel(options: UseGPUPixelOptions = {}): UseGPUPixelReturn
         };
     }, []); // Empty deps - only run once
 
-    // Cleanup intervals/timeouts on unmount
+    // Consolidated cleanup on unmount (single effect instead of multiple)
     useEffect(() => {
         return () => {
+            // Clear intervals/timeouts
             if (checkIntervalRef.current) {
                 clearInterval(checkIntervalRef.current);
             }
             if (timeoutRef.current) {
                 clearTimeout(timeoutRef.current);
+            }
+            // Stop camera if active
+            if (window.GPUPixelAdapter?.isActive) {
+                window.GPUPixelAdapter.stopCamera();
             }
         };
     }, []);
@@ -285,14 +290,7 @@ export function useGPUPixel(options: UseGPUPixelOptions = {}): UseGPUPixelReturn
         }
     }, []);
 
-    // Cleanup on unmount
-    useEffect(() => {
-        return () => {
-            if (window.GPUPixelAdapter?.isActive) {
-                window.GPUPixelAdapter.stopCamera();
-            }
-        };
-    }, []);
+    // Note: Cleanup is handled in the consolidated useEffect above
 
     return {
         canvasRef,

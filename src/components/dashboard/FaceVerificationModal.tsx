@@ -3,9 +3,9 @@ import {
   Loader2,
   SwitchCamera,
   Zap,
-  ZapOff,
   AlertCircle,
   CheckCircle2,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -18,6 +18,7 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { useEffect, useState, useRef, useCallback } from "react";
+import { useGPUPixel } from "@/hooks/useGPUPixel";
 
 interface FaceVerificationModalProps {
   isOpen: boolean;
@@ -26,6 +27,8 @@ interface FaceVerificationModalProps {
   currentTime: Date;
   onVerified: (photoDataUrl: string) => void;
 }
+
+const CANVAS_ID = "face-verification-canvas";
 
 export function FaceVerificationModal({
   isOpen,
@@ -40,23 +43,74 @@ export function FaceVerificationModal({
   >("idle");
   const [isLoadingCamera, setIsLoadingCamera] = useState(false);
   const [flashActive, setFlashActive] = useState(false);
+  const [beautyEnabled, setBeautyEnabled] = useState(true);
 
-  // Camera capabilities
+  // Camera capabilities for non-GPUPixel mode
   const [hasFlash, setHasFlash] = useState(false);
   const [isFlashOn, setIsFlashOn] = useState(false);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [currentDeviceId, setCurrentDeviceId] = useState<string>("");
 
+  // Refs
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const hasStartedRef = useRef(false);
 
-  const startCamera = useCallback(async (deviceId?: string) => {
+  // GPUPixel hook
+  const {
+    isLoading: isGPUPixelLoading,
+    isActive: isGPUPixelActive,
+    error: gpuPixelError,
+    isGPUPixelAvailable,
+    startCamera: startGPUPixelCamera,
+    stopCamera: stopGPUPixelCamera,
+    pauseCamera: pauseGPUPixelCamera,
+    capture: captureGPUPixel,
+    setBeauty,
+  } = useGPUPixel({
+    canvasId: CANVAS_ID,
+    smoothing: 3,
+    whitening: 4,
+  });
+
+  // Stop all camera resources
+  const stopAllCameras = useCallback(() => {
+    // Stop GPUPixel
+    stopGPUPixelCamera();
+
+    // Stop native stream
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => {
+        track.stop();
+      });
+      streamRef.current = null;
+    }
+
+    // Cancel animation frame
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+
+    setIsFlashOn(false);
+    hasStartedRef.current = false;
+  }, [stopGPUPixelCamera]);
+
+  // Start native camera (fallback or device switching)
+  const startNativeCamera = useCallback(async (deviceId?: string) => {
     setCameraError(null);
     setIsLoadingCamera(true);
 
     // Stop existing stream if any
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
     }
 
     try {
@@ -78,51 +132,96 @@ export function FaceVerificationModal({
       }
 
       const track = stream.getVideoTracks()[0];
-      const capabilities = track.getCapabilities() as any;
+      const capabilities = track.getCapabilities() as Record<string, unknown>;
       setHasFlash(!!capabilities?.torch);
 
       const settings = track.getSettings();
       if (settings.deviceId) {
         setCurrentDeviceId(settings.deviceId);
       }
+
+      // Draw video to canvas for display
+      if (canvasRef.current && videoRef.current) {
+        const drawLoop = () => {
+          if (videoRef.current && canvasRef.current && streamRef.current) {
+            const ctx = canvasRef.current.getContext("2d");
+            if (
+              ctx &&
+              videoRef.current.videoWidth &&
+              videoRef.current.videoHeight
+            ) {
+              canvasRef.current.width = videoRef.current.videoWidth;
+              canvasRef.current.height = videoRef.current.videoHeight;
+              ctx.drawImage(
+                videoRef.current,
+                0,
+                0,
+                canvasRef.current.width,
+                canvasRef.current.height,
+              );
+            }
+            animationFrameRef.current = requestAnimationFrame(drawLoop);
+          }
+        };
+        videoRef.current.onloadedmetadata = () => {
+          videoRef.current?.play();
+          drawLoop();
+        };
+      }
     } catch (err) {
       console.error("Error accessing camera:", err);
-      if (deviceId) {
-        try {
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-          });
-          if (videoRef.current) {
-            videoRef.current.srcObject = stream;
-            streamRef.current = stream;
-          }
-        } catch (retryErr) {
-          setCameraError(
-            "Could not access camera. Please ensure permissions are granted.",
-          );
-        }
-      } else {
-        setCameraError(
-          "Could not access camera. Please ensure permissions are granted.",
-        );
-      }
+      setCameraError(
+        "Could not access camera. Please ensure permissions are granted.",
+      );
     } finally {
       setIsLoadingCamera(false);
     }
   }, []);
 
-  const stopCamera = useCallback(() => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => {
-        track.stop();
-      });
-      streamRef.current = null;
+  // Main camera start function
+  const startCamera = useCallback(async () => {
+    // Prevent double start
+    if (hasStartedRef.current) {
+      return;
     }
-    setIsFlashOn(false);
-  }, []);
+    hasStartedRef.current = true;
+
+    setCameraError(null);
+
+    // Get device list first
+    try {
+      const deviceInfos = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = deviceInfos.filter((d) => d.kind === "videoinput");
+      setDevices(videoDevices);
+    } catch {
+      // Ignore enumeration errors
+    }
+
+    // Try GPUPixel first if available
+    if (isGPUPixelAvailable && beautyEnabled) {
+      console.log(
+        "[FaceVerification] Starting camera with GPUPixel beauty filter",
+      );
+      startGPUPixelCamera();
+      return;
+    }
+
+    // Fallback to native camera
+    await startNativeCamera();
+  }, [
+    isGPUPixelAvailable,
+    beautyEnabled,
+    startGPUPixelCamera,
+    startNativeCamera,
+  ]);
 
   const toggleCamera = async () => {
     if (devices.length < 2) return;
+
+    // Need to stop GPUPixel and use native for device switching
+    if (isGPUPixelActive) {
+      stopGPUPixelCamera();
+    }
 
     const currentIndex = devices.findIndex(
       (d) => d.deviceId === currentDeviceId,
@@ -130,7 +229,7 @@ export function FaceVerificationModal({
     const nextIndex = (currentIndex + 1) % devices.length;
     const nextDevice = devices[nextIndex];
 
-    await startCamera(nextDevice.deviceId);
+    await startNativeCamera(nextDevice.deviceId);
   };
 
   const toggleFlash = async () => {
@@ -139,7 +238,7 @@ export function FaceVerificationModal({
     const track = streamRef.current.getVideoTracks()[0];
     try {
       await track.applyConstraints({
-        advanced: [{ torch: !isFlashOn } as any],
+        advanced: [{ torch: !isFlashOn } as MediaTrackConstraintSet],
       });
       setIsFlashOn(!isFlashOn);
     } catch (err) {
@@ -147,41 +246,84 @@ export function FaceVerificationModal({
     }
   };
 
+  const toggleBeauty = useCallback(() => {
+    const newValue = !beautyEnabled;
+    setBeautyEnabled(newValue);
+
+    if (newValue) {
+      setBeauty(3, 4); // Default beauty params
+    } else {
+      setBeauty(0, 0); // Disable beauty
+    }
+  }, [beautyEnabled, setBeauty]);
+
+  // Handle modal open/close
   useEffect(() => {
     if (isOpen) {
+      // Reset state
       setVerificationStatus("idle");
-      startCamera();
+      hasStartedRef.current = false;
+
+      // Small delay to ensure canvas is mounted
+      const timer = setTimeout(() => {
+        startCamera();
+      }, 100);
+
+      return () => clearTimeout(timer);
     } else {
-      stopCamera();
+      stopAllCameras();
     }
+  }, [isOpen]); // Only depend on isOpen
+
+  // Cleanup on unmount
+  useEffect(() => {
     return () => {
-      stopCamera();
+      stopAllCameras();
     };
-  }, [isOpen, startCamera, stopCamera]);
+  }, [stopAllCameras]);
 
   const handleCameraConfirm = () => {
     setVerificationStatus("verifying");
+
+    // Pause camera during verification
+    if (isGPUPixelActive) {
+      pauseGPUPixelCamera();
+    }
 
     // Simulate verification delay
     setTimeout(() => {
       // 1. Capture Logic
       let photoDataUrl = "";
-      if (videoRef.current) {
-        const canvas = document.createElement("canvas");
-        canvas.width = videoRef.current.videoWidth;
-        canvas.height = videoRef.current.videoHeight;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          const track = streamRef.current?.getVideoTracks()[0];
-          const facingMode = track?.getSettings().facingMode;
 
-          if (facingMode === "user" || !facingMode) {
-            ctx.translate(canvas.width, 0);
-            ctx.scale(-1, 1);
+      // Try GPUPixel capture first
+      if (isGPUPixelActive) {
+        const captured = captureGPUPixel();
+        if (captured) {
+          photoDataUrl = captured;
+        }
+      }
+
+      // Fallback to canvas or video capture
+      if (!photoDataUrl) {
+        if (canvasRef.current) {
+          photoDataUrl = canvasRef.current.toDataURL("image/jpeg");
+        } else if (videoRef.current) {
+          const canvas = document.createElement("canvas");
+          canvas.width = videoRef.current.videoWidth;
+          canvas.height = videoRef.current.videoHeight;
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            const track = streamRef.current?.getVideoTracks()[0];
+            const facingMode = track?.getSettings().facingMode;
+
+            if (facingMode === "user" || !facingMode) {
+              ctx.translate(canvas.width, 0);
+              ctx.scale(-1, 1);
+            }
+
+            ctx.drawImage(videoRef.current, 0, 0);
+            photoDataUrl = canvas.toDataURL("image/jpeg");
           }
-
-          ctx.drawImage(videoRef.current, 0, 0);
-          photoDataUrl = canvas.toDataURL("image/jpeg");
         }
       }
 
@@ -264,6 +406,11 @@ export function FaceVerificationModal({
 
   const modalConfig = getModalConfig();
 
+  // Determine loading/error states
+  const isUsingGPUPixel = isGPUPixelActive || isGPUPixelLoading;
+  const isLoading = isLoadingCamera || isGPUPixelLoading;
+  const hasError = cameraError || gpuPixelError;
+
   return (
     <Drawer open={isOpen} onOpenChange={onOpenChange}>
       <DrawerContent>
@@ -273,11 +420,14 @@ export function FaceVerificationModal({
             <DrawerDescription>
               Please position your face within the frame to verify your
               identity.
+              {beautyEnabled && isGPUPixelAvailable && (
+                <span className="ml-1 text-pink-500">✨ Beauty mode on</span>
+              )}
             </DrawerDescription>
           </DrawerHeader>
 
           <div className="p-4 flex flex-col items-center justify-center">
-            {/* Camera FrameContainer */}
+            {/* Camera Frame Container */}
             <div
               className={`relative h-72 w-72 rounded-full overflow-hidden border-4 ${
                 verificationStatus === "success"
@@ -287,21 +437,27 @@ export function FaceVerificationModal({
                 verificationStatus === "verifying" ? "animate-border-glow" : ""
               } group transition-all duration-500`}
             >
-              {/* Video Element - Always Mounted */}
+              {/* Hidden Video Element for native fallback */}
               <video
                 ref={videoRef}
                 autoPlay
                 playsInline
                 muted
-                onLoadedMetadata={() => videoRef.current?.play()}
-                className={`h-full w-full object-cover transition-transform duration-300 ${
+                className="hidden"
+              />
+
+              {/* Display Canvas - Used by GPUPixel or native fallback */}
+              <canvas
+                ref={canvasRef}
+                id={CANVAS_ID}
+                className={`absolute inset-0 h-full w-full object-cover transition-transform duration-300 ${
                   devices
                     .find((d) => d.deviceId === currentDeviceId)
                     ?.label.toLowerCase()
                     .includes("back")
                     ? ""
                     : "transform scale-x-[-1]"
-                }`}
+                } ${isLoading || hasError ? "invisible" : "visible"}`}
               />
 
               {/* Shutter/Flash Effect */}
@@ -340,23 +496,32 @@ export function FaceVerificationModal({
               </div>
 
               {/* Loading Overlay */}
-              {isLoadingCamera && (
+              {isLoading && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 text-white p-4 text-center z-20">
                   <Loader2 className="h-8 w-8 text-primary animate-spin mb-2" />
-                  <p className="text-xs text-gray-400">Starting Camera...</p>
+                  <p className="text-xs text-gray-400">
+                    {isGPUPixelLoading
+                      ? "Loading Beauty Filter..."
+                      : "Starting Camera..."}
+                  </p>
                 </div>
               )}
 
               {/* Error Overlay */}
-              {cameraError && (
+              {hasError && (
                 <div className="absolute inset-0 flex items-center justify-center bg-gray-900 text-white p-4 text-center z-20">
                   <div className="flex flex-col items-center gap-2">
                     <AlertCircle className="h-8 w-8 text-red-500" />
-                    <p className="text-xs text-red-400">{cameraError}</p>
+                    <p className="text-xs text-red-400">
+                      {cameraError || gpuPixelError}
+                    </p>
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => startCamera()}
+                      onClick={() => {
+                        hasStartedRef.current = false;
+                        startCamera();
+                      }}
                       className="mt-2 h-7 text-xs border-red-500/30 hover:bg-red-900/20 text-red-300"
                     >
                       Retry
@@ -366,52 +531,119 @@ export function FaceVerificationModal({
               )}
 
               {/* Overlays (only visible when active and inactive error/success) */}
-              {!isLoadingCamera &&
-                !cameraError &&
-                verificationStatus !== "success" && (
-                  <>
-                    {/* Overlay scanning effect */}
-                    <div
-                      className={`absolute inset-0 bg-gradient-to-b from-transparent ${modalConfig.scanColor} to-transparent animate-scan pointer-events-none z-10`}
-                    ></div>
-
-                    {/* Camera Controls Overlay */}
-                    <div className="absolute bottom-4 left-0 right-0 flex justify-center gap-4 z-20 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                      {devices.length > 1 && (
-                        <Button
-                          size="icon"
-                          variant="secondary"
-                          className="h-9 w-9 rounded-full bg-black/50 backdrop-blur-sm border border-white/10 hover:bg-black/70 text-white"
-                          onClick={toggleCamera}
-                          disabled={verificationStatus === "verifying"}
-                        >
-                          <SwitchCamera className="h-4 w-4" />
-                        </Button>
-                      )}
-
-                      {hasFlash && (
-                        <Button
-                          size="icon"
-                          variant="secondary"
-                          className={`h-9 w-9 rounded-full backdrop-blur-sm border border-white/10 ${
-                            isFlashOn
-                              ? "bg-yellow-500/80 text-white hover:bg-yellow-500"
-                              : "bg-black/50 text-white hover:bg-black/70"
-                          }`}
-                          onClick={toggleFlash}
-                          disabled={verificationStatus === "verifying"}
-                        >
-                          {isFlashOn ? (
-                            <ZapOff className="h-4 w-4" />
-                          ) : (
-                            <Zap className="h-4 w-4" />
-                          )}
-                        </Button>
-                      )}
-                    </div>
-                  </>
-                )}
+              {!isLoading && !hasError && verificationStatus !== "success" && (
+                <>
+                  {/* Overlay scanning effect */}
+                  <div
+                    className={`absolute inset-0 bg-gradient-to-b from-transparent ${modalConfig.scanColor} to-transparent animate-scan pointer-events-none z-10`}
+                  ></div>
+                </>
+              )}
             </div>
+
+            {/* Camera Controls Bar - Always Visible when camera active */}
+            {!isLoading && !hasError && verificationStatus === "idle" && (
+              <div className="mt-4 flex items-center justify-center gap-6">
+                {/* Switch Camera - always show, disable if only 1 camera */}
+                <button
+                  onClick={toggleCamera}
+                  disabled={devices.length < 2}
+                  className={`flex flex-col items-center gap-1.5 group ${
+                    devices.length < 2 ? "opacity-40 cursor-not-allowed" : ""
+                  }`}
+                >
+                  <div
+                    className={`h-11 w-11 rounded-full flex items-center justify-center border transition-all ${
+                      devices.length < 2
+                        ? "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+                        : "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 group-hover:bg-gray-200 dark:group-hover:bg-gray-700 group-active:scale-95"
+                    }`}
+                  >
+                    <SwitchCamera className="h-5 w-5 text-gray-600 dark:text-gray-300" />
+                  </div>
+                  <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400">
+                    {devices.length > 1 ? "Flip" : "1 Camera"}
+                  </span>
+                </button>
+
+                {/* Beauty Toggle - show when GPUPixel available */}
+                {isGPUPixelAvailable && (
+                  <button
+                    onClick={toggleBeauty}
+                    className="flex flex-col items-center gap-1.5 group"
+                  >
+                    <div
+                      className={`h-11 w-11 rounded-full flex items-center justify-center border transition-all ${
+                        beautyEnabled
+                          ? "bg-pink-500 border-pink-400 text-white group-active:scale-95"
+                          : "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 group-hover:bg-gray-200 dark:group-hover:bg-gray-700 group-active:scale-95"
+                      }`}
+                    >
+                      <Sparkles
+                        className={`h-5 w-5 ${
+                          beautyEnabled
+                            ? "fill-current text-white"
+                            : "text-gray-600 dark:text-gray-300"
+                        }`}
+                      />
+                    </div>
+                    <span
+                      className={`text-[10px] font-medium ${
+                        beautyEnabled
+                          ? "text-pink-600 dark:text-pink-400"
+                          : "text-gray-500 dark:text-gray-400"
+                      }`}
+                    >
+                      {beautyEnabled ? "Beauty On" : "Beauty"}
+                    </span>
+                  </button>
+                )}
+
+                {/* Flash Toggle - always show, disable if no flash */}
+                <button
+                  onClick={toggleFlash}
+                  disabled={!hasFlash || isUsingGPUPixel}
+                  className={`flex flex-col items-center gap-1.5 group ${
+                    !hasFlash || isUsingGPUPixel
+                      ? "opacity-40 cursor-not-allowed"
+                      : ""
+                  }`}
+                >
+                  <div
+                    className={`h-11 w-11 rounded-full flex items-center justify-center border transition-all ${
+                      !hasFlash || isUsingGPUPixel
+                        ? "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+                        : isFlashOn
+                          ? "bg-yellow-500 border-yellow-400 text-white group-active:scale-95"
+                          : "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 group-hover:bg-gray-200 dark:group-hover:bg-gray-700 group-active:scale-95"
+                    }`}
+                  >
+                    <Zap
+                      className={`h-5 w-5 ${
+                        isFlashOn && hasFlash && !isUsingGPUPixel
+                          ? "fill-current text-white"
+                          : "text-gray-600 dark:text-gray-300"
+                      }`}
+                    />
+                  </div>
+                  <span
+                    className={`text-[10px] font-medium ${
+                      isFlashOn && hasFlash && !isUsingGPUPixel
+                        ? "text-yellow-600 dark:text-yellow-400"
+                        : "text-gray-500 dark:text-gray-400"
+                    }`}
+                  >
+                    {!hasFlash
+                      ? "No Flash"
+                      : isUsingGPUPixel
+                        ? "N/A"
+                        : isFlashOn
+                          ? "On"
+                          : "Flash"}
+                  </span>
+                </button>
+              </div>
+            )}
 
             <div className="mt-6 text-center space-y-1">
               <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -427,9 +659,7 @@ export function FaceVerificationModal({
             <Button
               onClick={handleCameraConfirm}
               disabled={
-                verificationStatus !== "idle" ||
-                !!cameraError ||
-                isLoadingCamera
+                verificationStatus !== "idle" || !!hasError || isLoading
               }
               className={`w-full ${
                 verificationStatus === "success"

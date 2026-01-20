@@ -49,6 +49,14 @@
   padding-top: env(safe-area-inset-top);
 }
 
+@utility pl-safe {
+  padding-left: env(safe-area-inset-left);
+}
+
+@utility pr-safe {
+  padding-right: env(safe-area-inset-right);
+}
+
 :root {
   --radius: 0.65rem;
   --background: oklch(1 0 0);

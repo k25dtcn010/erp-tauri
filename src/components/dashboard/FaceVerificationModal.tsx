@@ -539,9 +539,9 @@ export function FaceVerificationModal({
 
   return (
     <Drawer open={isOpen} onOpenChange={onOpenChange}>
-      <DrawerContent>
-        <div className="mx-auto w-full max-w-sm">
-          <DrawerHeader>
+      <DrawerContent className="max-h-[90vh] flex flex-col">
+        <div className="mx-auto w-full max-w-sm flex flex-col h-full overflow-hidden">
+          <DrawerHeader className="flex-none">
             <DrawerTitle>{modalConfig.title}</DrawerTitle>
             <DrawerDescription>
               Please position your face within the frame to verify your
@@ -552,10 +552,10 @@ export function FaceVerificationModal({
             </DrawerDescription>
           </DrawerHeader>
 
-          <div className="p-4 flex flex-col items-center justify-center">
+          <div className="flex-1 overflow-y-auto min-h-0 p-4 flex flex-col items-center custom-scrollbar">
             {/* Camera Frame Container */}
             <div
-              className={`relative h-72 w-72 rounded-full overflow-hidden border-4 ${
+              className={`relative shrink-0 h-56 w-56 sm:h-64 sm:w-64 md:h-72 md:w-72 rounded-full overflow-hidden border-4 ${
                 verificationStatus === "success"
                   ? "border-green-500 shadow-green-500/50"
                   : modalConfig.borderColor
@@ -683,17 +683,17 @@ export function FaceVerificationModal({
               />
             )}
 
-            <div className="mt-6 text-center space-y-1">
-              <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+            <div className="mt-3 text-center space-y-0.5">
+              <p className="text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
                 Current Time
               </p>
-              <p className="text-3xl font-bold text-slate-900 dark:text-white font-mono">
+              <p className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white font-mono">
                 {formatTime(currentTime)}
               </p>
             </div>
           </div>
 
-          <DrawerFooter className="pt-2">
+          <DrawerFooter className="flex-none pt-4 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]">
             <Button
               onClick={handleCameraConfirm}
               disabled={

@@ -32,7 +32,7 @@ export function BottomNav() {
     {
       to: "/",
       icon: LayoutDashboard,
-      label: "Chấm công",
+      label: "Trang chủ",
     },
     {
       to: "/tasks",

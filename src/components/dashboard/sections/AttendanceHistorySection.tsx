@@ -203,7 +203,7 @@ export const AttendanceHistorySection = memo(function AttendanceHistorySection({
       <Button
         variant="ghost"
         className="w-full h-12 rounded-xl bg-blue-50/50 dark:bg-blue-900/10 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/20 font-bold gap-2 text-sm border border-blue-100/50 dark:border-blue-900/30"
-        onClick={() => navigate("/attendance-history")}
+        onClick={() => navigate("/attendance")}
       >
         Xem toàn bộ lịch sử
         <ChevronRight className="h-4 w-4" />

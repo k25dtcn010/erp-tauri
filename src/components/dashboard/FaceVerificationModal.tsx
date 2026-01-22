@@ -58,6 +58,15 @@ const MODAL_CONFIGS = {
     scanColor: "via-emerald-500/10",
     glowColor: "text-emerald-500",
   },
+  "group-attendance": {
+    title: "Chấm công nhóm",
+    confirmText: "Xác nhận chấm công nhóm",
+    color: "blue",
+    borderColor: "border-blue-500",
+    buttonColor: "bg-blue-600 hover:bg-blue-700",
+    scanColor: "via-blue-500/10",
+    glowColor: "text-blue-500",
+  },
 } as const;
 
 const DEFAULT_CONFIG = {

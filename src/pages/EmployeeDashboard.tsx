@@ -11,6 +11,10 @@ import {
   Position,
 } from "@tauri-apps/plugin-geolocation";
 import { FaceVerificationModal } from "@/components/dashboard/FaceVerificationModal";
+import {
+  GroupAttendanceModal,
+  Employee,
+} from "@/components/dashboard/GroupAttendanceModal";
 import { GreetingSection } from "@/components/dashboard/sections/GreetingSection";
 import { AttendanceSection } from "@/components/dashboard/sections/AttendanceSection";
 import { AttendanceHistorySection } from "@/components/dashboard/sections/AttendanceHistorySection";
@@ -18,6 +22,7 @@ import { OvertimeSection } from "@/components/dashboard/sections/OvertimeSection
 import { LeaveSection } from "@/components/dashboard/sections/LeaveSection";
 import { useNavigate } from "react-router-dom";
 import { PageContainer } from "@/components/layout/PageContainer";
+import { toast } from "sonner";
 
 export function EmployeeDashboard() {
   const navigate = useNavigate();
@@ -32,7 +37,42 @@ export function EmployeeDashboard() {
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const [isCheckInModalOpen, setIsCheckInModalOpen] = useState(false);
+  const [isGroupModalOpen, setIsGroupModalOpen] = useState(false);
+  const [selectedGroupIds, setSelectedGroupIds] = useState<number[]>([]);
   const [modalMode, setModalMode] = useState<string>("check-in");
+
+  const mockEmployees: Employee[] = [
+    {
+      id: 101,
+      name: "Trần Văn An",
+      role: "Kỹ thuật viên",
+      avatar: "https://i.pravatar.cc/150?u=101",
+    },
+    {
+      id: 102,
+      name: "Nguyễn Thị Bình",
+      role: "Kỹ thuật viên",
+      avatar: "https://i.pravatar.cc/150?u=102",
+    },
+    {
+      id: 103,
+      name: "Lê Hoàng Long",
+      role: "Công công",
+      avatar: "https://i.pravatar.cc/150?u=103",
+    },
+    {
+      id: 104,
+      name: "Phạm Minh Tuấn",
+      role: "Giám sát",
+      avatar: "https://i.pravatar.cc/150?u=104",
+    },
+    {
+      id: 105,
+      name: "Vũ Thu Hà",
+      role: "Kỹ thuật viên",
+      avatar: "https://i.pravatar.cc/150?u=105",
+    },
+  ];
 
   const recentHistory = [
     {
@@ -135,6 +175,16 @@ export function EmployeeDashboard() {
     setIsCheckInModalOpen(true);
   }, []);
 
+  const handleGroupAttendance = useCallback(() => {
+    setIsGroupModalOpen(true);
+  }, []);
+
+  const handleGroupConfirm = useCallback((selectedIds: number[]) => {
+    setSelectedGroupIds(selectedIds);
+    setModalMode("group-attendance");
+    setIsCheckInModalOpen(true);
+  }, []);
+
   const handleVerified = useCallback(
     (photoDataUrl: string) => {
       console.log(
@@ -143,8 +193,19 @@ export function EmployeeDashboard() {
       );
       setIsCheckInModalOpen(false);
 
+      if (modalMode === "group-attendance") {
+        console.log("Processing group attendance for:", selectedGroupIds);
+        // Simulate API calls
+        toast.success(`Đã chấm công cho ${selectedGroupIds.length} nhân viên`);
+        setSelectedGroupIds([]);
+        // We also check-in the current user if they aren't working? 
+        // Or maybe just the group. Usually supervisor is already checked in.
+        return;
+      }
+
       if (modalMode === "check-in") {
         setWorkStatus("working");
+        toast.success("Vào ca thành công");
       } else if (modalMode === "pause") {
         setWorkStatus("paused");
       } else if (modalMode === "resume") {
@@ -152,9 +213,10 @@ export function EmployeeDashboard() {
       } else {
         setWorkStatus("idle");
         setElapsedSeconds(0);
+        toast.success("Ra ca thành công");
       }
     },
-    [modalMode],
+    [modalMode, selectedGroupIds],
   );
 
   const startTracking = useCallback(async () => {
@@ -259,6 +321,7 @@ export function EmployeeDashboard() {
         elapsedSeconds={elapsedSeconds}
         onCheckIn={handleStartWork}
         onCheckOut={handleEndWork}
+        onGroupAttendance={handleGroupAttendance}
         location={location}
         locationLoading={loading}
         onRefreshLocation={startTracking}
@@ -289,6 +352,13 @@ export function EmployeeDashboard() {
         mode={modalMode}
         currentTime={currentTime}
         onVerified={handleVerified}
+      />
+
+      <GroupAttendanceModal
+        isOpen={isGroupModalOpen}
+        onOpenChange={setIsGroupModalOpen}
+        employees={mockEmployees}
+        onConfirm={handleGroupConfirm}
       />
     </PageContainer>
   );

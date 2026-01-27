@@ -1,9 +1,26 @@
+import {
+  getStorage,
+  setStorage,
+  getLocation,
+  getDeviceInfo,
+} from "zmp-sdk/apis";
+import {
+  savePhoto,
+  getPhoto,
+  deletePhoto as deletePhotoFromDB,
+} from "@/lib/indexed-db";
+
 export interface AttendanceRecord {
   id: string;
-  type: "check-in" | "check-out";
+  type: "check-in" | "check-out" | "pause" | "resume";
   timestamp: number;
   synced: boolean;
-  photoDataUrl?: string; // Optional: Store photo if needed and size permits
+  location?: {
+    latitude: number;
+    longitude: number;
+  };
+  deviceInfo?: any;
+  photoId?: string; // ID to retrieve from IndexedDB
 }
 
 const STORAGE_KEY = "offline_attendance_records";
@@ -13,94 +30,169 @@ export const OfflineAttendanceService = {
     return navigator.onLine;
   },
 
-  getRecords: (): AttendanceRecord[] => {
+  getRecords: async (): Promise<AttendanceRecord[]> => {
     try {
-      const data = localStorage.getItem(STORAGE_KEY);
-      return data ? JSON.parse(data) : [];
+      const data = await getStorage({ keys: [STORAGE_KEY] });
+      return data[STORAGE_KEY] || [];
     } catch (e) {
-      console.error("Error reading offline records", e);
+      console.error("Error reading offline records from native storage", e);
       return [];
     }
   },
 
-  saveRecord: (record: Omit<AttendanceRecord, "id" | "synced">) => {
-    const records = OfflineAttendanceService.getRecords();
+  saveRecord: async (
+    record: Omit<AttendanceRecord, "id" | "synced">,
+    photoDataUrl?: string,
+  ) => {
+    const records = await OfflineAttendanceService.getRecords();
+    const id =
+      self.crypto && self.crypto.randomUUID
+        ? self.crypto.randomUUID()
+        : Date.now().toString() + Math.random().toString(36).substring(2);
+
+    // Capture GPS and Device info if not provided
+    let location = record.location;
+    let deviceInfo = record.deviceInfo;
+
+    try {
+      if (!location) {
+        const locResponse = await getLocation({});
+        location = {
+          latitude: Number(locResponse.latitude),
+          longitude: Number(locResponse.longitude),
+        };
+      }
+    } catch (e) {
+      console.warn("Failed to get location", e);
+    }
+
+    try {
+      if (!deviceInfo) {
+        const deviceResponse = await getDeviceInfo({});
+        deviceInfo = deviceResponse;
+      }
+    } catch (e) {
+      console.warn("Failed to get device info", e);
+    }
+
     const newRecord: AttendanceRecord = {
       ...record,
-      id:
-        self.crypto && self.crypto.randomUUID
-          ? self.crypto.randomUUID()
-          : Date.now().toString() + Math.random().toString(36).substring(2),
+      id,
       synced: false,
+      location,
+      deviceInfo,
+      photoId: photoDataUrl ? id : undefined,
     };
 
     try {
+      // 1. Save photo to IndexedDB
+      if (photoDataUrl) {
+        await savePhoto(id, photoDataUrl);
+      }
+
+      // 2. Save metadata to Native Storage
       records.push(newRecord);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+      await setStorage({
+        data: {
+          [STORAGE_KEY]: records,
+        },
+      });
       return true;
     } catch (e) {
-      console.error("Storage quota exceeded", e);
+      console.error("Error saving record", e);
       return false;
     }
   },
 
-  clearRecords: () => {
-    localStorage.removeItem(STORAGE_KEY);
+  getPhoto: async (id: string): Promise<string | null> => {
+    return await getPhoto(id);
   },
 
   syncRecords: async (): Promise<number> => {
     if (!navigator.onLine) return 0;
 
-    const records = OfflineAttendanceService.getRecords();
+    const records = await OfflineAttendanceService.getRecords();
     const pending = records.filter((r) => !r.synced);
 
     if (pending.length === 0) return 0;
 
     console.log("[Sync] Uploading pending records:", pending);
 
-    // Simulate network latency
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    // In a real app, you'd iterate and call your API
+    let successCount = 0;
+    for (const record of pending) {
+      try {
+        const photo = record.photoId ? await getPhoto(record.photoId) : null;
+        // Simulate API call
+        await new Promise((resolve) => setTimeout(resolve, 800));
 
-    // Determine successful syncs (simulate 100% success for bulk sync for now)
-    // In real scenario, we might iterate and try each
-    const successIds = pending.map((p) => p.id);
+        // Success: remove photo from IndexedDB and mark as synced/remove from metadata
+        if (record.photoId) {
+          await deletePhotoFromDB(record.photoId);
+        }
+        successCount++;
+      } catch (e) {
+        console.error(`Failed to sync record ${record.id}`, e);
+      }
+    }
 
-    // Update storage
-    const remaining = records.filter((r) => !successIds.includes(r.id));
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(remaining));
+    // Update storage: remove synced records
+    // For simplicity in this demo, we remove them from the list
+    const remaining = records.filter(
+      (r) => !pending.some((p) => p.id === r.id),
+    );
+    await setStorage({
+      data: {
+        [STORAGE_KEY]: remaining,
+      },
+    });
 
-    return successIds.length;
+    return successCount;
   },
 
   syncRecord: async (id: string): Promise<boolean> => {
     if (!navigator.onLine) throw new Error("No network connection");
 
-    // FIND record
-    const records = OfflineAttendanceService.getRecords();
+    const records = await OfflineAttendanceService.getRecords();
     const record = records.find((r) => r.id === id);
 
     if (!record) return false;
 
     console.log("[Sync] Uploading single record:", record);
 
-    // Simulate API call with latency
+    const photo = record.photoId ? await getPhoto(record.photoId) : null;
+
+    // Simulate API call
     await new Promise((resolve) => setTimeout(resolve, 1000));
 
-    // Simulate random failure for demo (10% chance)
-    if (Math.random() < 0.1) {
-      throw new Error("Network timeout");
+    // Success: Remove photo and metadata
+    if (record.photoId) {
+      await deletePhotoFromDB(record.photoId);
     }
 
-    // Success: Remove from storage
     const remaining = records.filter((r) => r.id !== id);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(remaining));
+    await setStorage({
+      data: {
+        [STORAGE_KEY]: remaining,
+      },
+    });
 
     return true;
   },
 
-  deleteRecord: (id: string) => {
-    const records = OfflineAttendanceService.getRecords();
+  deleteRecord: async (id: string) => {
+    const records = await OfflineAttendanceService.getRecords();
+    const record = records.find((r) => r.id === id);
+
+    if (record && record.photoId) {
+      await deletePhotoFromDB(record.photoId);
+    }
+
     const remaining = records.filter((r) => r.id !== id);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(remaining));
+    await setStorage({
+      data: {
+        [STORAGE_KEY]: remaining,
+      },
+    });
   },
 };

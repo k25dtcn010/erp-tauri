@@ -37,44 +37,51 @@ export function PageContainer({
   return (
     <div
       className={cn(
-        "flex-1 flex flex-col h-full overflow-y-auto no-scrollbar bg-white dark:bg-[#1a1d23] font-sans pb-24",
+        "flex-1 flex flex-col min-h-screen bg-white dark:bg-[#141415] font-sans relative",
         containerClassName,
       )}
     >
-      {/* Sticky Header */}
-      <header className="sticky top-0 z-50 bg-white/80 dark:bg-[#1a1d23]/80 backdrop-blur-xl border-b border-gray-100 dark:border-white/5 pt-safe transition-all duration-300">
-        <div className="max-w-2xl mx-auto w-full">
+      {/* Fixed Header refactor to match zmp-ui */}
+      <header className="fixed top-0 left-0 right-0 z-[999] bg-white dark:bg-[#141415] transition-all duration-300 after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-full after:h-[1px] after:bg-[#e9ebed] dark:after:bg-[#36383a]">
+        <div className="min-h-[calc(var(--zaui-safe-area-inset-top,0px)+44px)] px-3 pt-[calc(var(--zaui-safe-area-inset-top,0px)+10px)] pb-[10px] pr-[103px] flex items-center gap-2">
           {header ? (
-            <div className="px-6 pt-4">{header}</div>
+            header
           ) : (
-            <div className="flex items-center justify-between px-6 pt-4">
-              <div className="flex items-center gap-4">
-                {leftAction ? leftAction : <div className="w-11" />}
+            <>
+              {leftAction && (
+                <div className="flex-none h-6 flex items-center">
+                  {leftAction}
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
                 {typeof title === "string" ? (
-                  <h1 className="text-sm font-black tracking-tight text-slate-900 dark:text-white uppercase tracking-[0.2em]">
+                  <div className="text-[18px] font-medium leading-[24px] truncate text-[#141415] dark:text-[#f4f5f6]">
                     {title}
-                  </h1>
+                  </div>
                 ) : (
                   title
                 )}
               </div>
-              <div className="flex items-center gap-2">
-                {rightAction ? rightAction : <div className="w-11" />}
-              </div>
-            </div>
+              {rightAction && (
+                <div className="flex-none flex items-center">{rightAction}</div>
+              )}
+            </>
           )}
-          {headerExtra ? <div className=" pb-3">{headerExtra}</div> : null}
         </div>
+        {headerExtra ? <div className="pb-3 px-3">{headerExtra}</div> : null}
       </header>
 
-      {/* Main Content Area */}
+      {/* Main Content Area - Scrollable with zmp-ui styles */}
       <main
         className={cn(
-          "flex-1 max-w-2xl mx-auto w-full px-2 py-6 space-y-8",
+          "flex-1 overflow-y-auto no-scrollbar",
+          "pt-[calc(var(--zaui-safe-area-inset-top,0px)+81px)] pb-[calc(var(--zaui-safe-area-inset-bottom,0px)+81px)]",
           contentClassName,
         )}
       >
-        {children}
+        <div className="max-w-2xl mx-auto w-full px-2 space-y-8">
+          {children}
+        </div>
       </main>
     </div>
   );

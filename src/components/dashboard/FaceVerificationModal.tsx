@@ -11,7 +11,12 @@ import { Button } from "../ui/button";
 import { Sheet, Box, Text } from "zmp-ui";
 import { useEffect, useState, useRef, useCallback, memo } from "react";
 import { useGPUPixel } from "../../hooks/useGPUPixel";
-import { requestCameraPermission } from "zmp-sdk/apis";
+import {
+  requestCameraPermission,
+  getLocation,
+  getDeviceInfo,
+} from "zmp-sdk/apis";
+import { OfflineAttendanceService } from "../../services/offline-attendance";
 
 // --- CONFIGURATIONS ---
 const MODAL_CONFIGS = {
@@ -197,7 +202,10 @@ interface FaceVerificationModalProps {
   onOpenChange: (open: boolean) => void;
   mode: string;
   currentTime: Date;
-  onVerified: (photoDataUrl: string) => void;
+  onVerified: (
+    photoDataUrl: string,
+    metadata: { location?: any; deviceInfo?: any },
+  ) => void;
 }
 
 export function FaceVerificationModal({
@@ -212,6 +220,7 @@ export function FaceVerificationModal({
   const [verificationStatus, setVerificationStatus] = useState<
     "idle" | "verifying" | "success"
   >("idle");
+  const [capturedImage, setCapturedImage] = useState<string | null>(null);
   const [flashActive, setFlashActive] = useState(false);
 
   // State: Camera Features
@@ -536,58 +545,85 @@ export function FaceVerificationModal({
     }
   }, [mediaStream, hasFlash, isFlashOn]);
 
-  const handleCapture = () => {
+  const handleCapture = async () => {
     console.log("[Camera] Capturing photo");
-    setVerificationStatus("verifying");
 
     // UI Flash effect
     setFlashActive(true);
     setTimeout(() => setFlashActive(false), 300);
 
-    setTimeout(() => {
-      // Capture from the appropriate canvas
-      let sourceCanvas: HTMLCanvasElement | null = null;
+    // 1. Capture immediately from the appropriate canvas
+    let sourceCanvas: HTMLCanvasElement | null = null;
 
-      if (beautyEnabled && isGPUPixelReady && displayCanvasRef.current) {
-        // Use GPUPixel processed canvas
-        sourceCanvas = displayCanvasRef.current;
-        console.log("[Capture] Using GPUPixel canvas");
-      } else if (videoSourceRef.current && captureCanvasRef.current) {
-        // Fallback: capture directly from video
-        const video = videoSourceRef.current;
-        const canvas = captureCanvasRef.current;
-
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          if (facing === "front") {
-            ctx.translate(canvas.width, 0);
-            ctx.scale(-1, 1);
-          }
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-        }
-
-        sourceCanvas = canvas;
-        console.log("[Capture] Using video canvas (fallback)");
+    if (beautyEnabled && isGPUPixelReady && displayCanvasRef.current) {
+      sourceCanvas = displayCanvasRef.current;
+      console.log("[Capture] Using GPUPixel canvas");
+    } else if (videoSourceRef.current && captureCanvasRef.current) {
+      const video = videoSourceRef.current;
+      const canvas = captureCanvasRef.current;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       }
+      sourceCanvas = canvas;
+      console.log("[Capture] Using video canvas (fallback)");
+    }
 
-      if (!sourceCanvas) {
-        console.error("[Capture] No valid canvas source!");
-        setCameraError("Không thể chụp ảnh. Vui lòng thử lại.");
-        setVerificationStatus("idle");
-        return;
-      }
+    if (!sourceCanvas) {
+      setCameraError("Không thể chụp ảnh. Vui lòng thử lại.");
+      return;
+    }
 
-      const dataUrl = sourceCanvas.toDataURL("image/jpeg", 0.9);
-      console.log("[Camera] Photo captured");
+    const dataUrl = sourceCanvas.toDataURL("image/jpeg", 0.9);
+    setCapturedImage(dataUrl);
+    setVerificationStatus("verifying");
+
+    try {
+      // Fetch metadata in parallel with verification simulation
+      const [location, deviceInfo] = await Promise.all([
+        getLocation({}).catch(() => null),
+        getDeviceInfo({}).catch(() => null),
+        new Promise((resolve) => setTimeout(resolve, 1500)), // Minimum simulation time
+      ]);
 
       setVerificationStatus("success");
+
+      // SAVE TO POSTPONE STORAGE IMMEDIATELY
+      const metadata = {
+        location: location
+          ? {
+              latitude: Number(location.latitude),
+              longitude: Number(location.longitude),
+            }
+          : undefined,
+        deviceInfo,
+      };
+
+      await OfflineAttendanceService.saveRecord(
+        {
+          type: (mode as any) || "check-in",
+          timestamp: Date.now(),
+          location: metadata.location,
+          deviceInfo: metadata.deviceInfo,
+        },
+        dataUrl,
+      );
+
+      console.log("[Camera] Saved record to offline storage");
+
       setTimeout(() => {
-        onVerified(dataUrl);
-      }, 1500);
-    }, 1500);
+        onVerified(dataUrl, metadata);
+      }, 1000);
+    } catch (err) {
+      console.error("[Capture] Metadata capture error:", err);
+      // Still proceed but without metadata if essential
+      setVerificationStatus("success");
+      setTimeout(() => {
+        onVerified(dataUrl, {});
+      }, 1000);
+    }
   };
 
   // --- LIFECYCLE ---
@@ -598,6 +634,7 @@ export function FaceVerificationModal({
 
     if (isOpen) {
       setVerificationStatus("idle");
+      setCapturedImage(null);
 
       const timer = setTimeout(() => {
         if (isMountedRef.current) {
@@ -641,11 +678,11 @@ export function FaceVerificationModal({
 
   const modalConfig = MODAL_CONFIGS[mode as ModalConfigKey] ?? DEFAULT_CONFIG;
   const isBackCamera = facing === "back";
-  const showError = !!cameraError || !!gpuError;
+  const showError = !!cameraError; // Chỉ hiển thị lỗi nếu không truy cập được camera
   const showLoading =
     !showError &&
     (isCameraLoading ||
-      (beautyEnabled && !isGPUPixelReady) ||
+      (beautyEnabled && !isGPUPixelReady && !gpuError) || // Chỉ hiện loading beauty nếu chưa lỗi
       (isOpen && !mediaStream));
 
   return (
@@ -703,6 +740,18 @@ export function FaceVerificationModal({
 
             {/* Capture Canvas (hidden, for fallback capture) */}
             <canvas ref={captureCanvasRef} className="hidden" />
+
+            {/* Captured Image Overlay (Freeze frame during verification) */}
+            {capturedImage && verificationStatus !== "idle" && (
+              <img
+                src={capturedImage}
+                alt="Captured"
+                className={`absolute inset-0 h-full w-full object-cover ${
+                  !isBackCamera ? "transform scale-x-[-1]" : ""
+                }`}
+                style={{ zIndex: 5 }}
+              />
+            )}
 
             {/* Shutter Effect */}
             <div
@@ -785,19 +834,23 @@ export function FaceVerificationModal({
           </div>
 
           {/* CONTROLS */}
-          {!showError && verificationStatus === "idle" && (
-            <CameraControls
-              devices={devices}
-              toggleCamera={handleToggleCamera}
-              isGPUPixelReady={isGPUPixelReady}
-              beautyEnabled={beautyEnabled}
-              toggleBeauty={() => setBeautyEnabled(!beautyEnabled)}
-              hasFlash={hasFlash}
-              isFlashOn={isFlashOn}
-              toggleFlash={handleToggleFlash}
-              isLoading={showLoading}
-            />
-          )}
+          {!showError &&
+            (verificationStatus === "idle" ||
+              verificationStatus === "verifying") && (
+              <CameraControls
+                devices={devices}
+                toggleCamera={handleToggleCamera}
+                isGPUPixelReady={isGPUPixelReady && !gpuError} // Disable toggle if errored
+                beautyEnabled={beautyEnabled && !gpuError}
+                toggleBeauty={() => {
+                  if (!gpuError) setBeautyEnabled(!beautyEnabled);
+                }}
+                hasFlash={hasFlash}
+                isFlashOn={isFlashOn}
+                toggleFlash={handleToggleFlash}
+                isLoading={showLoading || verificationStatus === "verifying"}
+              />
+            )}
 
           <Box className="mt-4 text-center space-y-1">
             <Text className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">

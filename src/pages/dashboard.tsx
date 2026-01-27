@@ -33,8 +33,8 @@ const DashboardPage: React.FC = () => {
   const [isSyncSheetOpen, setIsSyncSheetOpen] = useState(false);
   const { openSnackbar } = useSnackbar();
 
-  const updatePendingCount = () => {
-    const records = OfflineAttendanceService.getRecords();
+  const updatePendingCount = async () => {
+    const records = await OfflineAttendanceService.getRecords();
     setPendingSync(records.length);
   };
 
@@ -76,56 +76,30 @@ const DashboardPage: React.FC = () => {
     setIsFaceModalOpen(true);
   };
 
-  const onVerified = (photoDataUrl: string) => {
+  const onVerified = async (
+    photoDataUrl: string,
+    metadata: { location?: any; deviceInfo?: any },
+  ) => {
     console.log("Verified with photo:", photoDataUrl.substring(0, 50) + "...");
     setIsFaceModalOpen(false);
 
+    // Refresh pending count since modal just saved a record
+    updatePendingCount();
+
     if (modalMode === "check-in") {
       setWorkStatus("working");
-
-      if (!isOnline) {
-        OfflineAttendanceService.saveRecord({
-          type: "check-in",
-          timestamp: Date.now(),
-          photoDataUrl: photoDataUrl,
-        });
-        setPendingSync((prev) => prev + 1);
-        openSnackbar({
-          type: "warning",
-          text: "Đã lưu check-in offline. Sẽ đồng bộ khi có mạng.",
-          duration: 3000,
-        });
-      } else {
-        // TODO: Call API directly if online
-        openSnackbar({
-          type: "success",
-          text: "Vào ca thành công!",
-          duration: 3000,
-        });
-      }
+      openSnackbar({
+        type: "success",
+        text: isOnline ? "Vào ca thành công!" : "Đã lưu check-in (Offline)",
+        duration: 3000,
+      });
     } else {
       setWorkStatus("idle");
-
-      if (!isOnline) {
-        OfflineAttendanceService.saveRecord({
-          type: "check-out",
-          timestamp: Date.now(),
-          photoDataUrl: photoDataUrl,
-        });
-        setPendingSync((prev) => prev + 1);
-        openSnackbar({
-          type: "warning",
-          text: "Đã lưu check-out offline. Sẽ đồng bộ khi có mạng.",
-          duration: 3000,
-        });
-      } else {
-        // TODO: Call API directly if online
-        openSnackbar({
-          type: "success",
-          text: "Ra ca thành công!",
-          duration: 3000,
-        });
-      }
+      openSnackbar({
+        type: "success",
+        text: isOnline ? "Ra ca thành công!" : "Đã lưu check-out (Offline)",
+        duration: 3000,
+      });
     }
   };
 
@@ -264,12 +238,14 @@ const DashboardPage: React.FC = () => {
           size="sm"
           variant="ghost"
           className="text-xs text-gray-400"
-          onClick={() => {
-            OfflineAttendanceService.saveRecord({
-              type: Math.random() > 0.5 ? "check-in" : "check-out",
-              timestamp: Date.now() - Math.floor(Math.random() * 86400000),
-              photoDataUrl: "https://via.placeholder.com/150",
-            });
+          onClick={async () => {
+            await OfflineAttendanceService.saveRecord(
+              {
+                type: Math.random() > 0.5 ? "check-in" : "check-out",
+                timestamp: Date.now() - Math.floor(Math.random() * 86400000),
+              },
+              "https://via.placeholder.com/150",
+            );
             updatePendingCount();
           }}
         >

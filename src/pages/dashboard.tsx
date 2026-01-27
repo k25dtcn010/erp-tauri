@@ -231,27 +231,6 @@ const DashboardPage: React.FC = () => {
         onClose={() => setIsSyncSheetOpen(false)}
         onSyncComplete={updatePendingCount}
       />
-
-      {/* DEBUG: Temporary button to test UI */}
-      <div className="p-4 flex justify-center opacity-50 hover:opacity-100">
-        <Button
-          size="sm"
-          variant="ghost"
-          className="text-xs text-gray-400"
-          onClick={async () => {
-            await OfflineAttendanceService.saveRecord(
-              {
-                type: Math.random() > 0.5 ? "check-in" : "check-out",
-                timestamp: Date.now() - Math.floor(Math.random() * 86400000),
-              },
-              "https://via.placeholder.com/150",
-            );
-            updatePendingCount();
-          }}
-        >
-          [Debug] Tạo dữ liệu pending mẫu
-        </Button>
-      </div>
     </PageContainer>
   );
 };

@@ -7,91 +7,507 @@ import {
   Button,
   useSnackbar,
   useNavigate,
+  Icon,
+  Avatar,
+  List,
 } from "zmp-ui";
 
 const { OTP } = Input;
 
+// --- Types ---
+type LoginStep = "username" | "company" | "password" | "changePassword";
+
+interface UserCompany {
+  id: string;
+  name: string;
+  isPrimary: boolean;
+  role?: string;
+  employeeName: string;
+  avatarUrl?: string;
+}
+
+// --- Mock Data ---
+const MOCK_COMPANIES: Record<
+  string,
+  { companies: UserCompany[]; mustChangePassword?: boolean }
+> = {
+  user1: {
+    companies: [
+      {
+        id: "c1",
+        name: "Công ty Công Nghệ A",
+        isPrimary: true,
+        employeeName: "Nguyễn Văn A",
+        avatarUrl: "https://i.pravatar.cc/150?u=user1",
+        role: "Nhân viên",
+      },
+    ],
+    mustChangePassword: false,
+  },
+  user2: {
+    companies: [
+      {
+        id: "c1",
+        name: "Công ty Công Nghệ A",
+        isPrimary: true,
+        employeeName: "Trần Thị B",
+        avatarUrl: "https://i.pravatar.cc/150?u=user2",
+        role: "Quản lý",
+      },
+      {
+        id: "c2",
+        name: "Công ty Bất Động Sản B",
+        isPrimary: false,
+        employeeName: "Trần Thị B",
+        avatarUrl: "https://i.pravatar.cc/150?u=user2",
+        role: "Giám đốc",
+      },
+    ],
+  },
+  user3: {
+    companies: [
+      {
+        id: "c3",
+        name: "Startup C",
+        isPrimary: true,
+        employeeName: "Lê Văn C",
+        avatarUrl: "https://i.pravatar.cc/150?u=user3",
+      },
+    ],
+    mustChangePassword: true,
+  },
+};
+
 const LoginPage: React.FC = () => {
-  const [username, setUsername] = useState("");
-  const [otp, setOtp] = useState("");
-  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { openSnackbar } = useSnackbar();
 
-  const handleLogin = () => {
-    if (!username || otp.length < 4) {
-      openSnackbar({
-        type: "error",
-        text: "Vui lòng nhập đầy đủ thông tin",
-        duration: 2000,
-      });
+  // --- State ---
+  const [step, setStep] = useState<LoginStep>("username");
+  const [loading, setLoading] = useState(false);
+
+  // Data State
+  const [username, setUsername] = useState("");
+  const [companies, setCompanies] = useState<UserCompany[]>([]);
+  const [selectedCompany, setSelectedCompany] = useState<UserCompany | null>(
+    null,
+  );
+  const [employeeInfo, setEmployeeInfo] = useState<{
+    name: string;
+    avatar?: string;
+  } | null>(null);
+
+  // Password State
+  const [password, setPassword] = useState("");
+
+  // Change Password State
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+
+  // --- Handlers ---
+  const handleUsernameSubmit = async () => {
+    if (!username.trim()) {
+      openSnackbar({ type: "error", text: "Vui lòng nhập tên đăng nhập" });
       return;
     }
 
     setLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      setLoading(false);
+    // Simulate API delay
+    await new Promise((r) => setTimeout(r, 800));
+
+    const data = MOCK_COMPANIES[username];
+    setLoading(false);
+
+    if (data) {
+      setCompanies(data.companies);
+
+      // Set employee info from first company result
+      if (data.companies.length > 0) {
+        setEmployeeInfo({
+          name: data.companies[0].employeeName,
+          avatar: data.companies[0].avatarUrl,
+        });
+      }
+
+      if (data.mustChangePassword) {
+        setStep("changePassword");
+      } else if (data.companies.length > 1) {
+        setStep("company");
+      } else if (data.companies.length === 1) {
+        setSelectedCompany(data.companies[0]);
+        setStep("password");
+      } else {
+        // No companies found but valid user? Edge case.
+        openSnackbar({
+          type: "error",
+          text: "Tài khoản chưa được gán vào công ty nào.",
+        });
+      }
+    } else {
       openSnackbar({
-        type: "success",
-        text: "Đăng nhập thành công!",
-        duration: 2000,
+        type: "error",
+        text: "Không tìm thấy người dùng (Thử user1, user2, user3)",
       });
+    }
+  };
+
+  const handleCompanySelect = (company: UserCompany) => {
+    setSelectedCompany(company);
+    setStep("password");
+  };
+
+  const handleLogin = async () => {
+    if (password.length !== 6) {
+      openSnackbar({ type: "warning", text: "Mật khẩu phải đủ 6 ký tự" });
+      return;
+    }
+
+    setLoading(true);
+    await new Promise((r) => setTimeout(r, 1000));
+    setLoading(false);
+
+    // Mock Login Check
+    if (password === "123456") {
+      // Mock simple password
+      openSnackbar({ type: "success", text: "Đăng nhập thành công!" });
       navigate("/");
-    }, 1500);
+    } else {
+      openSnackbar({ type: "error", text: "Mật khẩu không đúng" });
+      setPassword(""); // Clear password on error
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      openSnackbar({ type: "warning", text: "Vui lòng điền đầy đủ thông tin" });
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      openSnackbar({ type: "error", text: "Mật khẩu mới không khớp" });
+      return;
+    }
+    if (newPassword.length < 6) {
+      openSnackbar({ type: "error", text: "Mật khẩu phải có ít nhất 6 ký tự" });
+      return;
+    }
+
+    setLoading(true);
+    await new Promise((r) => setTimeout(r, 1000));
+    setLoading(false);
+
+    // Mock Success
+    openSnackbar({
+      type: "success",
+      text: "Đổi mật khẩu thành công. Vui lòng đăng nhập lại.",
+    });
+
+    // Reset to login flow
+    handleBack();
+  };
+
+  const handleBack = () => {
+    setStep("username");
+    setCompanies([]);
+    setSelectedCompany(null);
+    setEmployeeInfo(null);
+    setPassword("");
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+  };
+
+  // --- Render Helpers ---
+
+  const renderUserInfo = () => {
+    if (!employeeInfo && !username) return null;
+    return (
+      <Box className="bg-gray-100 rounded-xl p-4 mb-6 flex items-center border border-gray-200">
+        <Box className="w-12 h-12 rounded-full bg-yellow-400 flex items-center justify-center mr-4 overflow-hidden">
+          {employeeInfo?.avatar ? (
+            <img
+              src={employeeInfo.avatar}
+              alt="Avatar"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <Text className="font-bold text-xl text-black">
+              {(employeeInfo?.name || username)[0].toUpperCase()}
+            </Text>
+          )}
+        </Box>
+        <Box className="flex-1">
+          <Text className="font-bold text-base">
+            {employeeInfo?.name || username}
+          </Text>
+          {step === "password" && selectedCompany && (
+            <Text className="text-gray-500 text-sm">
+              {selectedCompany.name}
+            </Text>
+          )}
+        </Box>
+        <Button
+          icon={<Icon icon="zi-edit-text" />}
+          size="small"
+          variant="tertiary"
+          onClick={handleBack}
+          className="rounded-full w-8 h-8 p-0"
+        />
+      </Box>
+    );
   };
 
   return (
-    <Page className="flex flex-col bg-white">
-      <Box p={4} mt={8} textAlign="center">
-        <Text.Title size="xLarge">Đăng nhập</Text.Title>
-        <Text className="text-gray-500 mt-2">Hệ thống Quản lý Chấm công</Text>
-      </Box>
+    <Page className="flex flex-col bg-white h-full justify-center">
+      <Box p={6} className="w-full max-w-md mx-auto">
+        {/* Header Section */}
+        <Box className="text-center mb-8">
+          {step === "username" && (
+            <>
+              <Box className="flex justify-center mb-6">
+                <Icon icon="zi-lock" className="text-yellow-400 text-6xl" />
+              </Box>
+              <Text.Title size="xLarge" className="font-bold mb-2">
+                Đăng Nhập
+              </Text.Title>
+              <Text className="text-gray-500">
+                Vui lòng nhập tên đăng nhập để tiếp tục
+              </Text>
+            </>
+          )}
 
-      <Box p={4} className="space-y-4">
-        <Box>
-          <Text size="small" className="font-semibold mb-1">
-            Tên đăng nhập
-          </Text>
-          <Input
-            placeholder="Nhập tên đăng nhập"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            clearable
-          />
+          {step === "company" && (
+            <>
+              <Text.Title size="xLarge" className="font-bold mb-2">
+                Chọn Công Ty
+              </Text.Title>
+              <Text className="text-gray-500">
+                Chọn công ty bạn muốn truy cập
+              </Text>
+            </>
+          )}
+
+          {step === "password" && (
+            <>
+              <Text.Title size="xLarge" className="font-bold mb-2">
+                Nhập Mật Khẩu
+              </Text.Title>
+              <Text className="text-gray-500">
+                Truy cập an toàn vào tài khoản của bạn
+              </Text>
+            </>
+          )}
+          {step === "changePassword" && (
+            <>
+              <Text.Title size="xLarge" className="font-bold mb-2">
+                Đổi Mật Khẩu
+              </Text.Title>
+              <Text className="text-gray-500">
+                Bạn cần đổi mật khẩu để tiếp tục
+              </Text>
+            </>
+          )}
         </Box>
 
-        <Box>
-          <Text size="small" className="font-semibold mb-1">
-            Mật khẩu (OTP)
-          </Text>
-          <Box className="flex justify-center mt-2">
-            <OTP
-              otpLength={6}
-              value={otp}
-              defaultValue=""
-              onChange={(val) => setOtp(val.target.value)}
-              show={false}
-            />
+        {/* User Info (Skipped for Username step) */}
+        {step !== "username" && renderUserInfo()}
+
+        {/* Step 1: Username */}
+        {step === "username" && (
+          <Box className="space-y-6">
+            <Box>
+              <Text size="small" className="font-semibold mb-1">
+                Tên đăng nhập
+              </Text>
+              <Input
+                placeholder="Nhập tên đăng nhập (ví dụ: user1)"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                clearable
+                className="h-12 text-lg rounded-xl"
+              />
+            </Box>
+            <Button
+              fullWidth
+              size="large"
+              loading={loading}
+              onClick={handleUsernameSubmit}
+              className="bg-yellow-400 text-black hover:bg-yellow-500 rounded-xl font-bold"
+            >
+              Tiếp tục
+            </Button>
           </Box>
-        </Box>
+        )}
 
-        <Box mt={6}>
-          <Button
-            fullWidth
-            variant="primary"
-            loading={loading}
-            onClick={handleLogin}
-          >
-            Đăng nhập
-          </Button>
-        </Box>
-      </Box>
+        {/* Step 2: Company Selection */}
+        {step === "company" && (
+          <Box className="space-y-4 max-h-[60vh] overflow-y-auto">
+            {companies.map((company) => (
+              <Box
+                key={company.id}
+                onClick={() => handleCompanySelect(company)}
+                className={`p-4 rounded-xl border-2 flex items-center cursor-pointer transition-all ${
+                  selectedCompany?.id === company.id
+                    ? "border-yellow-400 bg-yellow-50"
+                    : "border-gray-200 hover:border-yellow-200"
+                }`}
+              >
+                <Box
+                  className={`w-10 h-10 rounded-lg flex items-center justify-center mr-4 ${
+                    selectedCompany?.id === company.id
+                      ? "bg-yellow-400"
+                      : "bg-gray-100"
+                  }`}
+                >
+                  <Icon
+                    icon="zi-location"
+                    className={
+                      selectedCompany?.id === company.id
+                        ? "text-black"
+                        : "text-gray-500"
+                    }
+                  />
+                </Box>
+                <Box className="flex-1">
+                  <Box className="flex items-center">
+                    <Text className="font-bold mr-2">{company.name}</Text>
+                    {company.isPrimary && (
+                      <span className="bg-yellow-400 text-[10px] font-bold px-2 py-0.5 rounded-full text-black">
+                        MẶC ĐỊNH
+                      </span>
+                    )}
+                  </Box>
+                  {company.role && (
+                    <Text size="small" className="text-gray-500">
+                      {company.role}
+                    </Text>
+                  )}
+                </Box>
+                {selectedCompany?.id === company.id && (
+                  <Icon
+                    icon="zi-check-circle-solid"
+                    className="text-yellow-400"
+                  />
+                )}
+              </Box>
+            ))}
+          </Box>
+        )}
 
-      <Box p={4} textAlign="center" className="mt-auto">
-        <Text size="xSmall" className="text-gray-400">
-          © 2026 Timekeeping App
-        </Text>
+        {/* Step 3: Password */}
+        {step === "password" && (
+          <Box className="space-y-6">
+            <Box>
+              <Text
+                size="small"
+                className="font-semibold mb-2 text-center block"
+              >
+                Mật khẩu (6 chữ số)
+              </Text>
+              <Box className="flex justify-center">
+                <OTP
+                  otpLength={6}
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (e.target.value.length === 6) {
+                      // small delay to allow UI update before submit
+                      setTimeout(
+                        () => document.getElementById("btn-login")?.click(),
+                        100,
+                      );
+                    }
+                  }}
+                  className="bg-transparent"
+                />
+              </Box>
+            </Box>
+            <Button
+              id="btn-login"
+              fullWidth
+              size="large"
+              loading={loading}
+              onClick={handleLogin}
+              disabled={password.length !== 6}
+              className="bg-yellow-400 text-black hover:bg-yellow-500 rounded-xl font-bold"
+            >
+              Đăng Nhập
+            </Button>
+            <Box className="text-center">
+              <Text className="text-yellow-600 font-bold cursor-pointer">
+                Quên mật khẩu?
+              </Text>
+            </Box>
+          </Box>
+        )}
+
+        {/* Change Password Step */}
+        {step === "changePassword" && (
+          <Box className="space-y-4">
+            <Box>
+              <Text size="small" className="font-semibold mb-1">
+                Mật khẩu hiện tại
+              </Text>
+              <Box className="flex justify-center">
+                <OTP
+                  otpLength={6}
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                />
+              </Box>
+            </Box>
+            <Box>
+              <Text size="small" className="font-semibold mb-1">
+                Mật khẩu mới
+              </Text>
+              <Box className="flex justify-center">
+                <OTP
+                  otpLength={6}
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                />
+              </Box>
+            </Box>
+            <Box>
+              <Text size="small" className="font-semibold mb-1">
+                Nhập lại mật khẩu mới
+              </Text>
+              <Box className="flex justify-center">
+                <OTP
+                  otpLength={6}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                />
+              </Box>
+            </Box>
+
+            <Box className="flex gap-4 mt-6">
+              <Button
+                fullWidth
+                variant="secondary"
+                onClick={() => handleBack()}
+                disabled={loading}
+              >
+                Quay lại
+              </Button>
+              <Button
+                fullWidth
+                loading={loading}
+                onClick={handleChangePassword}
+                className="bg-yellow-400 text-black font-bold"
+              >
+                Đổi Mật Khẩu
+              </Button>
+            </Box>
+          </Box>
+        )}
+
+        {/* Footer for Version */}
+        <Box className="mt-8 text-center">
+          <Text size="xSmall" className="text-gray-400">
+            Phiên bản 1.0.0
+          </Text>
+        </Box>
       </Box>
     </Page>
   );

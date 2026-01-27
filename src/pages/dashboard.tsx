@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Page, Header, useSnackbar } from "zmp-ui";
+import { useSnackbar } from "zmp-ui";
 import { GreetingSection } from "@/components/dashboard/sections/GreetingSection";
 import { AttendanceSection } from "@/components/dashboard/sections/AttendanceSection";
 import { AttendanceHistorySection } from "@/components/dashboard/sections/AttendanceHistorySection";
@@ -7,9 +7,18 @@ import { OvertimeSection } from "@/components/dashboard/sections/OvertimeSection
 import { LeaveSection } from "@/components/dashboard/sections/LeaveSection";
 import { FaceVerificationModal } from "@/components/dashboard/FaceVerificationModal";
 import { OfflineAttendanceService } from "@/services/offline-attendance";
-import { Wifi, WifiOff, RefreshCw, ChevronRight } from "lucide-react";
+import {
+  Wifi,
+  WifiOff,
+  RefreshCw,
+  ChevronRight,
+  Bell,
+  LayoutDashboard,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { UnsyncedRecordsSheet } from "@/components/dashboard/UnsyncedRecordsSheet";
+import { PageContainer } from "@/components/layout/PageContainer";
 
 const DashboardPage: React.FC = () => {
   const [workStatus, setWorkStatus] = useState<"idle" | "working" | "paused">(
@@ -145,13 +154,47 @@ const DashboardPage: React.FC = () => {
   ];
 
   return (
-    <Page className="bg-gray-50/50">
-      <Header
-        title="Trang chủ"
-        showBackIcon={false}
-        textColor={isOnline ? "blue" : "red"}
-      />
+    <PageContainer
+      header={
+        <div className="flex items-center justify-between w-full px-4 py-2">
+          <div className="w-16 shrink-0" />
 
+          <div className="flex items-center gap-3 bg-gray-50/50 dark:bg-white/5 pl-1 pr-3 py-1 rounded-2xl border border-gray-100 dark:border-white/5 shrink-0 shadow-sm">
+            <div className="relative shrink-0">
+              <Avatar className="h-8 w-8 border-2 border-white dark:border-gray-800 shadow-sm">
+                <AvatarImage src="https://i.pravatar.cc/150?u=a" alt="User" />
+                <AvatarFallback className="bg-orange-100 text-orange-600 font-bold text-[10px]">
+                  AD
+                </AvatarFallback>
+              </Avatar>
+              <div className="absolute -bottom-0.5 -right-0.5 bg-green-500 h-2.5 w-2.5 rounded-full border-2 border-white dark:border-gray-800" />
+            </div>
+
+            <div className="flex flex-col min-w-[80px]">
+              <h1 className="text-[11px] font-black text-slate-900 dark:text-white leading-tight uppercase tracking-tight">
+                Tổng quan
+              </h1>
+              <p className="text-[8px] font-bold text-orange-500 uppercase tracking-widest opacity-80">
+                Dashboard
+              </p>
+            </div>
+
+            <div className="w-px h-4 bg-gray-200 dark:bg-white/10 mx-1" />
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 rounded-lg hover:bg-gray-200/50 dark:hover:bg-white/10 relative shrink-0"
+            >
+              <Bell className="h-3.5 w-3.5 text-gray-500" />
+              <span className="absolute top-1 right-1 h-1.5 w-1.5 bg-red-500 rounded-full border border-white dark:border-[#1a1d23]" />
+            </Button>
+          </div>
+
+          <div className="w-16 shrink-0" />
+        </div>
+      }
+    >
       {/* Network Status Indicator */}
       {!isOnline && (
         <div className="bg-red-500 text-white py-2 text-xs font-bold flex items-center justify-between">
@@ -233,7 +276,7 @@ const DashboardPage: React.FC = () => {
           [Debug] Tạo dữ liệu pending mẫu
         </Button>
       </div>
-    </Page>
+    </PageContainer>
   );
 };
 

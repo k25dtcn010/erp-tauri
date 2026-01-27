@@ -45,9 +45,9 @@ export function PageContainer({
       <header className="sticky top-0 z-50 bg-white/80 dark:bg-[#1a1d23]/80 backdrop-blur-xl border-b border-gray-100 dark:border-white/5 pt-safe transition-all duration-300">
         <div className="max-w-2xl mx-auto w-full">
           {header ? (
-            <div className="px-6 py-4">{header}</div>
+            <div className="px-6 pt-4">{header}</div>
           ) : (
-            <div className="flex items-center justify-between px-6 py-4">
+            <div className="flex items-center justify-between px-6 pt-4">
               <div className="flex items-center gap-4">
                 {leftAction ? leftAction : <div className="w-11" />}
                 {typeof title === "string" ? (

@@ -18,7 +18,8 @@
     "login": "zmp login",
     "start": "zmp start",
     "deploy": "zmp deploy",
-    "tauri": "tauri"
+    "tauri": "tauri",
+    "build": "vite build"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.1.11",

@@ -17,6 +17,7 @@ import {
   getDeviceInfo,
 } from "zmp-sdk/apis";
 import { OfflineAttendanceService } from "../../services/offline-attendance";
+import { WatermarkService } from "../../lib/watermark";
 
 // --- CONFIGURATIONS ---
 const MODAL_CONFIGS = {
@@ -241,8 +242,8 @@ export function FaceVerificationModal({
   const videoSourceRef = useRef<HTMLVideoElement>(null); // Hidden video source
   const isMountedRef = useRef(false);
   const streamRef = useRef<MediaStream | null>(null);
-  const keepAliveIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const aggressivePlayIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const keepAliveIntervalRef = useRef<any>(null);
+  const aggressivePlayIntervalRef = useRef<any>(null);
   const wakeLockRef = useRef<any>(null);
 
   // --- GPUPixel Hook Integration ---
@@ -581,21 +582,41 @@ export function FaceVerificationModal({
     setVerificationStatus("verifying");
 
     try {
-      // Fetch metadata in parallel with verification simulation
+      // 1. Fetch metadata in parallel with verification simulation
       const [location, deviceInfo] = await Promise.all([
         getLocation({}).catch(() => null),
         getDeviceInfo({}).catch(() => null),
-        new Promise((resolve) => setTimeout(resolve, 1500)), // Minimum simulation time
+        new Promise((resolve) => setTimeout(resolve, 500)), // Minimum simulation time
       ]);
+
+      const lat = location ? Number(location.latitude) : 0;
+      const lon = location ? Number(location.longitude) : 0;
+
+      // 2. Get address from OSM (Reverse Geocoding)
+      let addressStr = "";
+      if (lat && lon) {
+        addressStr =
+          (await WatermarkService.getAddressFromCoordinates(lat, lon)) || "";
+      }
+
+      // 3. APPLY WATERMARK
+      // We use the raw dataUrl captured from canvas
+      const watermarkedDataUrl = await WatermarkService.addWatermark(dataUrl, {
+        employeeCode: "NV-001", // This should be replaced with actual employee info if available
+        latitude: lat,
+        longitude: lon,
+        address: addressStr,
+        timestamp: new Date(),
+      });
 
       setVerificationStatus("success");
 
-      // SAVE TO POSTPONE STORAGE IMMEDIATELY
+      // 4. SAVE TO POSTPONE STORAGE IMMEDIATELY
       const metadata = {
         location: location
           ? {
-              latitude: Number(location.latitude),
-              longitude: Number(location.longitude),
+              latitude: lat,
+              longitude: lon,
             }
           : undefined,
         deviceInfo,
@@ -608,17 +629,20 @@ export function FaceVerificationModal({
           location: metadata.location,
           deviceInfo: metadata.deviceInfo,
         },
-        dataUrl,
+        watermarkedDataUrl, // LƯU ẢNH ĐÃ CÓ WATERMARK
       );
 
-      console.log("[Camera] Saved record to offline storage");
+      console.log("[Camera] Saved watermarked record to offline storage");
+
+      // Set captured image to the watermarked version for UI feedback
+      setCapturedImage(watermarkedDataUrl);
 
       setTimeout(() => {
-        onVerified(dataUrl, metadata);
+        onVerified(watermarkedDataUrl, metadata);
       }, 1000);
     } catch (err) {
-      console.error("[Capture] Metadata capture error:", err);
-      // Still proceed but without metadata if essential
+      console.error("[Capture] Error during watermark/capture:", err);
+      // Fallback: Still proceed but maybe without watermark
       setVerificationStatus("success");
       setTimeout(() => {
         onVerified(dataUrl, {});

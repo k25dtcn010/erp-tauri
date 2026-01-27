@@ -15,6 +15,7 @@ import AttendanceHistoryPage from "@/pages/attendance-history";
 import LeavePage from "@/pages/leave";
 import OvertimePage from "@/pages/overtime";
 import SettingsPage from "@/pages/settings";
+import UnderDevelopmentPage from "@/pages/under-development";
 import BottomNav from "./BottomNav";
 
 const Layout = () => {
@@ -34,6 +35,7 @@ const Layout = () => {
                 <Route path="/leave" element={<LeavePage />}></Route>
                 <Route path="/overtime" element={<OvertimePage />}></Route>
                 <Route path="/settings" element={<SettingsPage />}></Route>
+                <Route path="*" element={<UnderDevelopmentPage />}></Route>
               </AnimationRoutes>
               <BottomNav />
             </Box>

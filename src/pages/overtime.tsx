@@ -53,6 +53,14 @@ const OvertimePage: React.FC = () => {
   const [filterStatus, setFilterStatus] = useState("all");
   const [isSheetVisible, setIsSheetVisible] = useState(false);
 
+  // Check for action=new in URL to open sheet automatically
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("action") === "new") {
+      setIsSheetVisible(true);
+    }
+  }, []);
+
   const chartData = [
     { day: "Thứ 2", hours: 2 },
     { day: "Thứ 3", hours: 3.75 },
@@ -156,7 +164,7 @@ const OvertimePage: React.FC = () => {
         onBackClick={() => navigate(-1)}
       />
 
-      <Box className="px-4 py-4 space-y-6 pb-32">
+      <Box className="mb-32">
         <Tabs
           activeKey={activeTab}
           onChange={(key) => setActiveTab(key)}
@@ -173,7 +181,7 @@ const OvertimePage: React.FC = () => {
           >
             <div className="mt-4 space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-400">
               {/* Main Stats Hero Card */}
-              <Card className="relative overflow-hidden border-none bg-gradient-to-br from-purple-600 to-purple-800 text-white shadow-xl shadow-purple-500/20 rounded-[2.5rem] p-8">
+              <Card className="relative overflow-hidden border-none bg-gradient-to-br from-purple-600 to-purple-800 text-white shadow-xl shadow-purple-500/20 rounded-2xl p-8">
                 <div className="flex justify-between items-start mb-10">
                   <div className="space-y-1">
                     <div className="flex items-center gap-2">
@@ -230,7 +238,7 @@ const OvertimePage: React.FC = () => {
                   <span>Biểu đồ hàng tuần</span>
                   <TrendingUp className="h-3.5 w-3.5 opacity-50" />
                 </h3>
-                <Card className="p-6 border-gray-100 dark:border-[#353A45] bg-white dark:bg-[#262A31] shadow-sm rounded-3xl overflow-hidden">
+                <Card className="p-6 border-gray-100 dark:border-[#353A45] bg-white dark:bg-[#262A31] shadow-sm rounded-2xl overflow-hidden">
                   <div className="h-48 w-full">
                     <ChartContainer
                       config={chartConfig}
@@ -283,7 +291,7 @@ const OvertimePage: React.FC = () => {
                 {otTypes.map((type, idx) => (
                   <Card
                     key={idx}
-                    className="p-5 border-gray-100 dark:border-[#353A45] bg-white dark:bg-[#262A31] shadow-sm hover:shadow-md transition-all duration-300 rounded-3xl"
+                    className="p-5 border-gray-100 dark:border-[#353A45] bg-white dark:bg-[#262A31] shadow-sm hover:shadow-md transition-all duration-300 rounded-2xl"
                   >
                     <div className="flex items-center gap-5">
                       <div
@@ -320,7 +328,7 @@ const OvertimePage: React.FC = () => {
               </div>
 
               {/* Info Box */}
-              <div className="bg-purple-50/50 dark:bg-purple-500/5 rounded-[1.5rem] border border-purple-100/50 dark:border-purple-500/10 p-5 flex gap-4 transition-colors">
+              <div className="bg-purple-50/50 dark:bg-purple-500/5 rounded-2xl border border-purple-100/50 dark:border-purple-500/10 p-5 flex gap-4 transition-colors">
                 <div className="h-10 w-10 rounded-full bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center text-purple-600 dark:text-purple-400 shrink-0">
                   <Info className="h-5 w-5" />
                 </div>
@@ -347,7 +355,7 @@ const OvertimePage: React.FC = () => {
           >
             <div className="mt-4 space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-400">
               {/* Filter Bar */}
-              <div className="overflow-x-auto no-scrollbar py-2 -mx-4 px-4 flex items-center gap-3 mb-2">
+              <div className="overflow-x-auto no-scrollbar py-2 -mx-1 px-1 flex items-center gap-3 mb-2">
                 {[
                   { label: "Tất cả", value: "all" },
                   { label: "Chờ duyệt", value: "pending" },
@@ -358,7 +366,7 @@ const OvertimePage: React.FC = () => {
                     key={filter.value}
                     onClick={() => setFilterStatus(filter.value)}
                     className={cn(
-                      "whitespace-nowrap px-4 py-2 rounded-full text-xs font-bold transition-all border shrink-0",
+                      "whitespace-nowrap  py-2 rounded-full text-xs font-bold transition-all border shrink-0",
                       filterStatus === filter.value
                         ? "bg-purple-600 border-purple-600 text-white shadow-md shadow-purple-500/20"
                         : "bg-white dark:bg-[#262A31] border-gray-100 dark:border-gray-800 text-gray-500 dark:text-gray-400",
@@ -374,7 +382,7 @@ const OvertimePage: React.FC = () => {
                   <Card
                     key={idx}
                     className={cn(
-                      "p-5 border-gray-100 dark:border-[#353A45] bg-white dark:bg-[#262A31] shadow-sm relative overflow-hidden transition-all hover:shadow-md rounded-[2rem]",
+                      "p-5 border-gray-100 dark:border-[#353A45] bg-white dark:bg-[#262A31] shadow-sm relative overflow-hidden transition-all hover:shadow-md rounded-2xl",
                       req.dimmed && "opacity-60 grayscale-[0.3]",
                     )}
                   >
@@ -450,36 +458,47 @@ const OvertimePage: React.FC = () => {
       <Sheet
         visible={isSheetVisible}
         onClose={() => setIsSheetVisible(false)}
-        autoHeight
         mask
         handler
         swipeToClose
       >
-        <Box
-          className="bg-white dark:bg-[#1a1d23] overflow-hidden"
-          style={{ minHeight: "80vh" }}
-        >
-          <Box className="p-8 pb-4 bg-white dark:bg-[#262A31] border-b border-gray-100 dark:border-[#353A45]">
-            <Text className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-4">
-              <div className="h-12 w-12 rounded-[1.25rem] bg-purple-500/10 flex items-center justify-center text-purple-500">
-                <Plus className="h-6 w-6" />
+        <div className="flex flex-col h-[85vh] w-full max-w-3xl mx-auto bg-white dark:bg-[#1a1d23] sm:rounded-t-[2rem] overflow-hidden relative text-left">
+          {/* Header */}
+          <div className="px-5 py-4 border-b border-gray-100 dark:border-[#353A45] flex items-center justify-between shrink-0 bg-white/95 dark:bg-[#1a1d23]/95 backdrop-blur-sm z-20">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-600 shadow-sm">
+                <Plus className="h-5 w-5" />
               </div>
-              Yêu cầu tăng ca mới
-            </Text>
-          </Box>
+              <div>
+                <h3 className="text-lg font-black text-slate-900 dark:text-white leading-tight">
+                  Tăng ca mới
+                </h3>
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  Tạo yêu cầu tăng ca
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={() => setIsSheetVisible(false)}
+              className="h-8 w-8 rounded-full bg-gray-50 dark:bg-gray-800 flex items-center justify-center text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            >
+              <XCircle className="h-5 w-5" />
+            </button>
+          </div>
 
-          <Box className="flex-1 overflow-y-auto p-8 space-y-8 pb-32">
-            <div className="space-y-4">
-              <label className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-3 ml-1">
-                <div className="h-5 w-5 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500">
-                  <PieChart className="h-3 w-3" />
-                </div>
-                Loại tăng ca
+          {/* Body */}
+          <div className="flex-1 overflow-y-auto overflow-x-hidden p-5 space-y-6 pb-24">
+            {/* Overtime Type */}
+            <div className="space-y-3">
+              <label className="text-[11px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                <PieChart className="h-3.5 w-3.5 text-purple-500" />
+                Loại hình
               </label>
               <ZSelect
-                placeholder="Chọn loại hình tăng ca"
+                placeholder="Chọn loại hình"
                 closeOnSelect
-                className="grow w-full h-14 bg-white dark:bg-[#262A31] border-gray-100 dark:border-[#353A45] rounded-2xl px-2 font-bold text-slate-700 dark:text-slate-200 shadow-sm transition-all focus:ring-2 focus:ring-purple-500/20 zaui-select-custom"
+                className="h-12 text-sm font-bold bg-transparent"
+                mask
               >
                 <Option value="normal" title="Ngày thường (x1.5)" />
                 <Option value="weekend" title="Cuối tuần (x2.0)" />
@@ -487,98 +506,103 @@ const OvertimePage: React.FC = () => {
               </ZSelect>
             </div>
 
-            <div className="space-y-4">
-              <label className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-3 ml-1">
-                <div className="h-5 w-5 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500">
-                  <CalendarDays className="h-3 w-3" />
+            {/* Date & Time Group */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              <div className="space-y-3">
+                <label className="text-[11px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                  <CalendarDays className="h-3.5 w-3.5 text-blue-500" />
+                  Ngày thực hiện
+                </label>
+                <div className="relative">
+                  <input
+                    type="date"
+                    className="w-full h-12 rounded-xl border border-gray-200 dark:border-gray-700  bg-white dark:bg-[#262A31] font-bold text-sm text-slate-700 dark:text-slate-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 outline-none transition-all shadow-sm"
+                  />
                 </div>
-                Ngày thực hiện
-              </label>
-              <input
-                type="date"
-                className="flex h-14 w-full rounded-2xl border border-gray-100 dark:border-[#353A45] bg-white dark:bg-[#262A31] px-6 py-2 text-sm font-bold shadow-sm transition-all focus:ring-2 focus:ring-purple-500/20 outline-none text-slate-900 dark:text-white"
-              />
-            </div>
+              </div>
 
-            <div className="space-y-4">
-              <label className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-3 ml-1">
-                <div className="h-5 w-5 rounded-full bg-orange-500/10 flex items-center justify-center text-orange-500">
-                  <Clock className="h-3 w-3" />
-                </div>
-                Khung giờ
-              </label>
-              <div className="grid grid-cols-2 gap-6">
-                <div className="space-y-2.5">
-                  <span className="text-[10px] font-black text-slate-400 ml-2 uppercase tracking-widest">
-                    Từ giờ
-                  </span>
-                  <input
-                    type="time"
-                    className="flex h-14 w-full rounded-2xl border border-gray-100 dark:border-[#353A45] bg-white dark:bg-[#262A31] px-6 py-2 text-sm font-bold shadow-sm transition-all focus:ring-2 focus:ring-purple-500/20 outline-none text-slate-900 dark:text-white"
-                  />
-                </div>
-                <div className="space-y-2.5">
-                  <span className="text-[10px] font-black text-slate-400 ml-2 uppercase tracking-widest">
-                    Đến giờ
-                  </span>
-                  <input
-                    type="time"
-                    className="flex h-14 w-full rounded-2xl border border-gray-100 dark:border-[#353A45] bg-white dark:bg-[#262A31] px-6 py-2 text-sm font-bold shadow-sm transition-all focus:ring-2 focus:ring-purple-500/20 outline-none text-slate-900 dark:text-white"
-                  />
+              <div className="space-y-3">
+                <label className="text-[11px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                  <Clock className="h-3.5 w-3.5 text-orange-500" />
+                  Thời gian
+                </label>
+                <div className="flex items-center gap-3">
+                  <div className="relative flex-1">
+                    <input
+                      type="time"
+                      className="w-full h-12 rounded-xl border border-gray-200 dark:border-gray-700 px-3 bg-white dark:bg-[#262A31] font-bold text-sm text-slate-700 dark:text-slate-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 outline-none transition-all shadow-sm text-center"
+                    />
+                  </div>
+                  <span className="text-slate-300 font-black">-</span>
+                  <div className="relative flex-1">
+                    <input
+                      type="time"
+                      className="w-full h-12 rounded-xl border border-gray-200 dark:border-gray-700 px-3 bg-white dark:bg-[#262A31] font-bold text-sm text-slate-700 dark:text-slate-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 outline-none transition-all shadow-sm text-center"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="space-y-4">
-              <label className="text-xs font-black uppercase tracking-[0.2em] text-slate-400 flex items-center gap-3 ml-1">
-                <div className="h-5 w-5 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-500">
-                  <FileText className="h-3 w-3" />
-                </div>
-                Lý do tăng ca
+            {/* Reason */}
+            <div className="space-y-3">
+              <label className="text-[11px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                <FileText className="h-3.5 w-3.5 text-emerald-500" />
+                Lý do
               </label>
               <textarea
                 placeholder="Nhập lý do chi tiết..."
-                className="w-full min-h-32 bg-white dark:bg-[#262A31] border border-gray-100 dark:border-[#353A45] rounded-[2rem] p-6 font-medium resize-none shadow-sm focus:ring-2 focus:ring-purple-500/20 outline-none"
+                className="w-full min-h-[120px] rounded-2xl border border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-[#262A31] font-medium text-sm text-slate-700 dark:text-slate-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 outline-none resize-none transition-all shadow-sm"
               />
             </div>
 
-            <div className="p-6 bg-purple-500/5 dark:bg-purple-500/[0.03] border border-purple-500/20 dark:border-purple-500/10 rounded-[2rem] flex items-center justify-between shadow-inner">
-              <div className="flex items-center gap-4">
-                <div className="h-10 w-10 rounded-2xl bg-purple-500/10 flex items-center justify-center text-purple-500 shadow-sm">
-                  <TrendingUp className="h-6 w-6" />
+            {/* Estimate Box - Elegant Design */}
+            <div className="p-5 rounded-2xl bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 border border-purple-100 dark:border-purple-500/20 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-4 w-full sm:w-auto">
+                <div className="h-10 w-10 rounded-xl bg-white dark:bg-purple-500/20 flex items-center justify-center text-purple-600 shadow-sm shrink-0">
+                  <Zap className="h-5 w-5" />
                 </div>
                 <div>
-                  <p className="text-[10px] font-black text-purple-600/60 dark:text-purple-500/60 uppercase tracking-widest">
-                    Dự kiến thanh toán
-                  </p>
-                  <p className="text-sm font-black text-purple-700 dark:text-purple-400">
-                    Hệ số áp dụng: <span className="text-lg">x1.5</span>
+                  <div className="flex items-center gap-2">
+                    <p className="text-[10px] font-black text-purple-600/70 dark:text-purple-400/70 uppercase tracking-widest">
+                      Dự kiến
+                    </p>
+                    <span className="text-[10px] font-bold bg-white dark:bg-purple-900/40 px-2 py-0.5 rounded-full text-purple-600 dark:text-purple-300 border border-purple-200 dark:border-purple-500/30">
+                      x1.5
+                    </span>
+                  </div>
+                  <p className="text-sm font-black text-purple-900 dark:text-white mt-0.5">
+                    2.5 giờ công
                   </p>
                 </div>
               </div>
-              <Badge
-                variant="outline"
-                className="bg-white dark:bg-purple-900/20 border-purple-500/20 text-purple-600 dark:text-purple-400 font-bold px-4 py-1.5 rounded-full"
-              >
-                Ước tính
-              </Badge>
+              <div className="w-full sm:w-auto mt-2 sm:mt-0 pt-3 sm:pt-0 border-t sm:border-t-0 border-purple-200/50 flex justify-between sm:block text-right">
+                <span className="text-xs font-bold text-slate-500 block">
+                  Cộng lương
+                </span>
+                <span className="text-lg font-black text-purple-600 dark:text-purple-400">
+                  ~350.000đ
+                </span>
+              </div>
             </div>
+          </div>
 
-            <div className="flex flex-row gap-4 mt-8 pb-10">
-              <ZButton
-                variant="secondary"
-                className="flex-1 h-14 rounded-2xl font-black transition-colors uppercase tracking-widest text-xs"
+          {/* Footer - Sticky with safe area */}
+          <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-100 dark:border-[#353A45] bg-white dark:bg-[#1a1d23] z-30 pb-safe">
+            <div className="flex gap-3 max-w-3xl mx-auto">
+              <button
                 onClick={() => setIsSheetVisible(false)}
+                className="flex-1 h-12 rounded-xl bg-gray-50 dark:bg-gray-800 text-slate-600 dark:text-slate-300 font-bold text-xs uppercase tracking-wider hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
               >
                 Hủy bỏ
-              </ZButton>
-              <ZButton className="flex-[2.5] h-14 rounded-2xl font-black gap-3 shadow-2xl shadow-purple-500/30 bg-purple-600 text-white border-none uppercase tracking-widest text-xs">
+              </button>
+              <button className="flex-[2] h-12 rounded-xl bg-purple-600 text-white font-bold text-xs uppercase tracking-wider shadow-lg shadow-purple-500/30 flex items-center justify-center gap-2 hover:bg-purple-700 transition-all active:scale-[0.98]">
                 <Send className="h-4 w-4" />
                 Gửi yêu cầu
-              </ZButton>
+              </button>
             </div>
-          </Box>
-        </Box>
+          </div>
+        </div>
       </Sheet>
     </Page>
   );

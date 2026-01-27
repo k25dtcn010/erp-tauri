@@ -118,7 +118,7 @@ const BottomNav = () => {
                     </div>
                     <span
                       className={cn(
-                        "text-[10px] font-black uppercase tracking-widest transition-all duration-300",
+                        "text-[10px] font-black uppercase tracking-widest transition-all duration-300 text-center",
                         isActive ? "opacity-100 translate-y-0" : "opacity-60",
                       )}
                     >
@@ -177,7 +177,7 @@ const BottomNav = () => {
                   </div>
                   <span
                     className={cn(
-                      "text-[10px] font-black uppercase tracking-widest transition-all duration-300",
+                      "text-[10px] font-black uppercase tracking-widest transition-all duration-300 text-center",
                       isSheetOpen ? "opacity-100 translate-y-0" : "opacity-60",
                     )}
                   >
@@ -251,30 +251,12 @@ const BottomNav = () => {
         swipeToClose
       >
         <div className="bg-white dark:bg-[#1a1d23] p-8 pb-12 space-y-10 rounded-t-[3rem]">
-          <div className="flex flex-row items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-black text-slate-900 dark:text-white flex items-center gap-2">
-                <Sparkles className="h-6 w-6 text-orange-500" />
-                Tiện ích
-              </h2>
-              <p className="font-medium text-slate-500 text-sm">
-                Khám phá các phân hệ quản trị
-              </p>
-            </div>
-            <Button
-              variant="tertiary"
-              type="neutral"
-              className="rounded-full h-10 w-10 p-0"
-              onClick={() => setIsSheetOpen(false)}
-            >
-              <Icon icon="zi-close" />
-            </Button>
-          </div>
+          {/* Removed Header as requested */}
 
           <section>
-            <div className="flex items-center gap-2 mb-6 px-1">
+            <div className="flex items-center justify-center gap-2 mb-6 px-1">
               <div className="w-1.5 h-4 bg-orange-500 rounded-full" />
-              <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">
+              <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400 text-center">
                 Quản trị HRM
               </h3>
             </div>
@@ -324,7 +306,7 @@ const BottomNav = () => {
                   >
                     <app.icon className="h-7 w-7" />
                   </div>
-                  <span className="text-[10px] font-black uppercase tracking-tighter text-slate-600 dark:text-gray-400">
+                  <span className="text-[10px] font-black uppercase tracking-tighter text-slate-600 dark:text-gray-400 text-center">
                     {app.label}
                   </span>
                 </div>
@@ -333,9 +315,9 @@ const BottomNav = () => {
           </section>
 
           <section>
-            <div className="flex items-center gap-2 mb-6 px-1">
+            <div className="flex items-center justify-center gap-2 mb-6 px-1">
               <div className="w-1.5 h-4 bg-blue-500 rounded-full" />
-              <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">
+              <h3 className="text-[11px] font-black uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400 text-center">
                 Khác
               </h3>
             </div>
@@ -364,7 +346,13 @@ const BottomNav = () => {
                   key={idx}
                   className="flex flex-col items-center gap-3 cursor-pointer"
                   onClick={() => {
-                    if (app.label === "Cài đặt") {
+                    if (app.label === "Nhân sự") {
+                      navigate("/users");
+                      setIsSheetOpen(false);
+                    } else if (app.label === "Thảo luận") {
+                      navigate("/discussions");
+                      setIsSheetOpen(false);
+                    } else if (app.label === "Cài đặt") {
                       navigate("/settings");
                       setIsSheetOpen(false);
                     }
@@ -379,7 +367,7 @@ const BottomNav = () => {
                   >
                     <app.icon className="h-7 w-7" />
                   </div>
-                  <span className="text-[10px] font-black uppercase tracking-tighter text-slate-600 dark:text-gray-400">
+                  <span className="text-[10px] font-black uppercase tracking-tighter text-slate-600 dark:text-gray-400 text-center">
                     {app.label}
                   </span>
                 </div>

@@ -239,7 +239,7 @@ const AttendanceHistoryPage = () => {
       }
     >
       {/* Month Selector using ZaUI Select */}
-      <Box className="px-1">
+      <Box>
         <Select
           label="Thời gian"
           placeholder="Chọn tháng"
@@ -258,7 +258,7 @@ const AttendanceHistoryPage = () => {
       </Box>
 
       {/* Stats Summary Card (Shadcn) */}
-      <Card className="p-5 border-none bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-500/30 rounded-3xl">
+      <Card className="p-5 border-none bg-gradient-to-br from-blue-600 to-blue-700 text-white shadow-lg shadow-blue-500/30 rounded-2xl">
         <div className="flex items-center gap-3 mb-6">
           <div className="p-1.5 rounded-lg bg-white/20">
             <TrendingUp className="h-4 w-4" />
@@ -305,7 +305,7 @@ const AttendanceHistoryPage = () => {
       </Card>
 
       {/* Filter Bar (Shadcn/Custom) */}
-      <div className="overflow-x-auto no-scrollbar py-2 -mx-4 px-4 flex items-center gap-3">
+      <div className="overflow-x-auto no-scrollbar py-2 -mx-1 px-1 flex items-center gap-3">
         {[
           { label: "Tất cả", value: "all" },
           { label: "Bình thường", value: "normal" },
@@ -317,7 +317,7 @@ const AttendanceHistoryPage = () => {
             key={filter.value}
             onClick={() => setFilterStatus(filter.value)}
             className={cn(
-              "whitespace-nowrap px-4 py-2 rounded-full text-xs font-bold transition-all border shrink-0",
+              "whitespace-nowrap  py-2 rounded-full text-xs font-bold transition-all border shrink-0",
               filterStatus === filter.value
                 ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-500/20"
                 : "bg-white dark:bg-[#262A31] border-gray-100 dark:border-gray-800 text-gray-500 dark:text-gray-400",
@@ -330,7 +330,7 @@ const AttendanceHistoryPage = () => {
 
       {/* Calendar Section (Shadcn Card) */}
       <div className="space-y-4">
-        <Card className="p-6 border-none shadow-sm bg-white dark:bg-[#262A31] rounded-3xl">
+        <Card className="p-6 border-none shadow-sm bg-white dark:bg-[#262A31] rounded-2xl">
           <div className="grid grid-cols-7 gap-y-6 gap-x-2">
             {["CN", "T2", "T3", "T4", "T5", "T6", "T7"].map((day) => (
               <div

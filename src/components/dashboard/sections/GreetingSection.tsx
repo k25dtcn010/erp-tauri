@@ -87,7 +87,7 @@ export const GreetingSection = memo(function GreetingSection({
   return (
     <div
       className={cn(
-        "p-4 rounded-2xl border bg-gradient-to-br transition-all duration-300 mx-4 mt-4",
+        "p-4 rounded-2xl border bg-gradient-to-br transition-all duration-300 mt-4",
         greetingData.bgClass,
         greetingData.borderClass,
       )}

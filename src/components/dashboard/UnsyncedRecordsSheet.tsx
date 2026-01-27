@@ -107,13 +107,12 @@ export const UnsyncedRecordsSheet: React.FC<UnsyncedRecordsSheetProps> = ({
     <Sheet
       visible={isOpen}
       onClose={onClose}
-      autoHeight
       mask
       swipeToClose
       title="Dữ liệu chưa đồng bộ"
     >
-      <Box className="p-4 flex flex-col h-[60vh]">
-        <div className="flex-1 overflow-y-auto no-scrollbar space-y-3">
+      <Box className="p-4 flex flex-col" style={{ height: "70vh" }}>
+        <div className="flex-1 overflow-y-auto space-y-3 pb-4">
           {records.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 text-gray-400">
               <CheckCircle className="w-12 h-12 mb-2 text-green-500" />

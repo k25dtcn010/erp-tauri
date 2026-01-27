@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Briefcase, Clock, FileClock } from "lucide-react";
+import { Briefcase, Clock, FileClock, Plus } from "lucide-react";
 import { useNavigate } from "zmp-ui";
 import { Card } from "@/components/ui/card";
 
@@ -36,7 +36,7 @@ export const OvertimeSection = memo(function OvertimeSection({
 
       {/* Stats Summary Card */}
       <Card
-        className="p-5 border-none bg-gradient-to-br from-purple-500 to-purple-600 text-white shadow-lg shadow-purple-500/20 rounded-3xl cursor-pointer active:scale-[0.98] transition-all"
+        className="p-5 border-none bg-gradient-to-br from-purple-500 to-purple-600 text-white shadow-lg shadow-purple-500/20 rounded-2xl cursor-pointer active:scale-[0.98] transition-all"
         onClick={() => navigate("/overtime")}
       >
         <div className="grid grid-cols-2 divide-x divide-white/20">
@@ -73,6 +73,22 @@ export const OvertimeSection = memo(function OvertimeSection({
           </div>
         </div>
       </Card>
+
+      {/* Create Request Button */}
+      <button
+        onClick={() => navigate("/overtime?action=new")}
+        className="h-16 w-full pl-5 pr-8 rounded-[2rem] shadow-lg shadow-purple-500/20 hover:shadow-purple-500/30 active:scale-[0.98] transition-all flex items-center gap-4 text-sm font-black bg-purple-600 text-white border-none group"
+      >
+        <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center group-hover:rotate-90 transition-transform duration-300 shrink-0">
+          <Plus className="h-6 w-6" />
+        </div>
+        <div className="flex flex-col items-start leading-tight whitespace-nowrap">
+          <span className="text-[10px] uppercase font-bold text-purple-100/80 tracking-widest block text-left">
+            Tạo mới
+          </span>
+          <span className="block text-left text-base">Yêu cầu tăng ca</span>
+        </div>
+      </button>
     </div>
   );
 });

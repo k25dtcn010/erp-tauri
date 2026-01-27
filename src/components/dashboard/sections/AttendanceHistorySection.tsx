@@ -94,7 +94,7 @@ export const AttendanceHistorySection = memo(function AttendanceHistorySection({
   };
 
   return (
-    <div className="flex flex-col gap-4 px-4 mt-8 pb-10">
+    <div className="flex flex-col gap-4  mt-8 pb-10">
       {/* Section Header */}
       <div className="flex items-center gap-3 px-1">
         <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400">
@@ -106,7 +106,7 @@ export const AttendanceHistorySection = memo(function AttendanceHistorySection({
       </div>
 
       {/* Stats Summary Card */}
-      <Card className="p-5 border-none bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/20 rounded-[2rem] overflow-hidden relative group">
+      <Card className="p-5 border-none bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/20 rounded-2xl overflow-hidden relative group">
         <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl group-hover:scale-150 transition-transform duration-700" />
         <div className="grid grid-cols-3 divide-x divide-white/20 relative z-10">
           <div className="flex flex-col items-center gap-2">
@@ -158,7 +158,7 @@ export const AttendanceHistorySection = memo(function AttendanceHistorySection({
             renderItem={(item: HistoryItem) => {
               const config = getStatusConfig(item.status);
               return (
-                <div key={item.id} className="mb-3 px-1">
+                <div key={item.id} className="mb-3">
                   <Card className="p-4 border-none bg-white dark:bg-slate-900 shadow-sm hover:shadow-md transition-all duration-300 rounded-2xl active:scale-[0.98]">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-4">

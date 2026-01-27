@@ -36,7 +36,7 @@ export const LeaveSection = memo(function LeaveSection({
 
       {/* Main Stats Card */}
       <Card
-        className="p-5 border-none bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-lg shadow-orange-500/30 rounded-3xl cursor-pointer active:scale-[0.98] transition-all"
+        className="p-5 border-none bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-lg shadow-orange-500/30 rounded-2xl cursor-pointer active:scale-[0.98] transition-all"
         onClick={() => navigate("/leave")}
       >
         <div className="flex justify-between items-start">

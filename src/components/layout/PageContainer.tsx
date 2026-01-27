@@ -63,14 +63,14 @@ export function PageContainer({
               </div>
             </div>
           )}
-          {headerExtra ? <div className="px-4 pb-3">{headerExtra}</div> : null}
+          {headerExtra ? <div className=" pb-3">{headerExtra}</div> : null}
         </div>
       </header>
 
       {/* Main Content Area */}
       <main
         className={cn(
-          "flex-1 max-w-2xl mx-auto w-full px-4 py-6 space-y-8",
+          "flex-1 max-w-2xl mx-auto w-full px-2 py-6 space-y-8",
           contentClassName,
         )}
       >

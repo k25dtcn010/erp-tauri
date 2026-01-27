@@ -154,7 +154,7 @@ const DashboardPage: React.FC = () => {
 
       {/* Network Status Indicator */}
       {!isOnline && (
-        <div className="bg-red-500 text-white px-4 py-2 text-xs font-bold flex items-center justify-between">
+        <div className="bg-red-500 text-white py-2 text-xs font-bold flex items-center justify-between">
           <div className="flex items-center gap-2">
             <WifiOff className="h-3 w-3" />
             <span>Đang offline. Dữ liệu sẽ được lưu cục bộ.</span>
@@ -165,7 +165,7 @@ const DashboardPage: React.FC = () => {
       {/* Pending Sync Indicator */}
       {pendingSync > 0 && (
         <div
-          className="bg-orange-500 text-white px-4 py-2 text-xs font-bold flex items-center justify-between cursor-pointer active:opacity-80 transition-opacity"
+          className="bg-orange-500 text-white py-2 text-xs font-bold flex items-center justify-between cursor-pointer active:opacity-80 transition-opacity"
           onClick={() => setIsSyncSheetOpen(true)}
         >
           <div className="flex items-center gap-2">
@@ -189,7 +189,7 @@ const DashboardPage: React.FC = () => {
         onCheckOut={handleCheckOut}
       />
 
-      <div className="grid grid-cols-1 gap-6 px-4 mt-4">
+      <div className="grid grid-cols-1 gap-6">
         <OvertimeSection totalOTHours={12.5} pendingOTRequests={2} />
         <LeaveSection totalLeaveDays={12} entitlementLeaveDays={8} />
       </div>

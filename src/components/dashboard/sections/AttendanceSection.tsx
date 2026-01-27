@@ -24,7 +24,7 @@ export function AttendanceSection({
   const isWorking = workStatus === "working" || workStatus === "paused";
 
   return (
-    <div className="flex flex-col gap-4 px-4 mt-6">
+    <div className="flex flex-col gap-4  mt-6">
       {/* Section Header */}
       <div className="flex items-center gap-3">
         <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400">
@@ -36,7 +36,7 @@ export function AttendanceSection({
       </div>
 
       {/* Main Stats Card */}
-      <Card className="p-5 border-none bg-gradient-to-br from-blue-500 to-blue-700 text-white shadow-lg shadow-blue-500/30 rounded-3xl overflow-hidden relative">
+      <Card className="p-5 border-none bg-gradient-to-br from-blue-500 to-blue-700 text-white shadow-lg shadow-blue-500/30 rounded-2xl overflow-hidden relative">
         <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl opacity-50" />
         <div className="flex justify-between items-start relative z-10">
           <div className="flex flex-col">

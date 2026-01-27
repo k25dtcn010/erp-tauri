@@ -11,7 +11,7 @@ import { Button } from "../ui/button";
 import { Sheet, Box, Text } from "zmp-ui";
 import { useEffect, useState, useRef, useCallback, memo } from "react";
 import { useGPUPixel } from "../../hooks/useGPUPixel";
-import { createCameraContext, requestCameraPermission, FacingMode } from "zmp-sdk/apis";
+import { requestCameraPermission } from "zmp-sdk/apis";
 
 // --- CONFIGURATIONS ---
 const MODAL_CONFIGS = {
@@ -212,7 +212,7 @@ export function FaceVerificationModal({
   const [verificationStatus, setVerificationStatus] = useState<
     "idle" | "verifying" | "success"
   >("idle");
-  const [flashActive, setFlashActive] = useState(false); // UI Flash effect
+  const [flashActive, setFlashActive] = useState(false);
 
   // State: Camera Features
   const [beautyEnabled, setBeautyEnabled] = useState(true);
@@ -227,189 +227,361 @@ export function FaceVerificationModal({
   const [isCameraLoading, setIsCameraLoading] = useState(false);
 
   // Refs
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const videoTargetRef = useRef<HTMLVideoElement>(null);
-  const cameraInstanceRef = useRef<any>(null);
+  const displayCanvasRef = useRef<HTMLCanvasElement>(null); // Canvas for GPUPixel to render
+  const captureCanvasRef = useRef<HTMLCanvasElement>(null); // Canvas for capture
+  const videoSourceRef = useRef<HTMLVideoElement>(null); // Hidden video source
   const isMountedRef = useRef(false);
   const streamRef = useRef<MediaStream | null>(null);
-  const isStartingRef = useRef(false);
-  const devicesRef = useRef<MediaDeviceInfo[]>([]);
+  const keepAliveIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const aggressivePlayIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const wakeLockRef = useRef<any>(null);
 
   // --- GPUPixel Hook Integration ---
-  // Hook now just receives the stream and paints the canvas.
-  // It doesn't care about camera devices or permissions.
   const { isLoaded: isGPUPixelReady, error: gpuError } = useGPUPixel({
-    canvasRef,
+    canvasRef: displayCanvasRef,
     mediaStream,
     smoothing: 3,
     whitening: 4,
     enabled: beautyEnabled, // Toggle beauty processing
   });
 
+  // --- VISIBILITY WORKAROUNDS ---
+
+  const requestWakeLock = useCallback(async () => {
+    if ("wakeLock" in navigator) {
+      try {
+        // @ts-ignore
+        wakeLockRef.current = await navigator.wakeLock.request("screen");
+        console.log("[WakeLock] Screen wake lock acquired");
+      } catch (err) {
+        console.warn("[WakeLock] Failed:", err);
+      }
+    }
+  }, []);
+
+  const releaseWakeLock = useCallback(async () => {
+    if (wakeLockRef.current) {
+      try {
+        await wakeLockRef.current.release();
+        wakeLockRef.current = null;
+        console.log("[WakeLock] Released");
+      } catch (err) {
+        console.warn("[WakeLock] Release failed:", err);
+      }
+    }
+  }, []);
+
   // --- CAMERA LOGIC ---
 
-  const stopCamera = useCallback(async () => {
-    console.log("[FaceVerificationModal] stopCamera called");
-    if (cameraInstanceRef.current) {
-      try {
-        await cameraInstanceRef.current.stop();
-      } catch (e) {
-        console.warn("Zalo Camera Stop Error:", e);
-      }
-      cameraInstanceRef.current = null;
+  const stopCamera = useCallback(() => {
+    console.log("[Camera] Stopping camera...");
+
+    // Clear all intervals
+    if (keepAliveIntervalRef.current) {
+      clearInterval(keepAliveIntervalRef.current);
+      keepAliveIntervalRef.current = null;
     }
 
+    if (aggressivePlayIntervalRef.current) {
+      clearInterval(aggressivePlayIntervalRef.current);
+      aggressivePlayIntervalRef.current = null;
+    }
+
+    // Release wake lock
+    releaseWakeLock();
+
+    // Stop all tracks
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => {
+        console.log(`[Camera] Stopping track: ${track.label}`);
         track.stop();
-        console.log("[FaceVerificationModal] Stopped track:", track.label);
       });
       streamRef.current = null;
     }
+
+    // Clear video element
+    if (videoSourceRef.current) {
+      videoSourceRef.current.pause();
+      videoSourceRef.current.srcObject = null;
+      videoSourceRef.current.load();
+    }
+
     setMediaStream(null);
     setIsFlashOn(false);
     setIsCameraLoading(false);
-    isStartingRef.current = false;
-  }, []);
+  }, [releaseWakeLock]);
 
   const startCamera = useCallback(
     async (deviceId?: string) => {
-      console.log("[FaceVerificationModal] startCamera (Zalo SDK) called", {
-        deviceId,
-        isStarting: isStartingRef.current,
-        isMounted: isMountedRef.current,
-      });
+      if (!isMountedRef.current) return;
 
-      if (isStartingRef.current || !isMountedRef.current) return;
-
-      isStartingRef.current = true;
+      console.log("[Camera] Starting camera...", { deviceId, facing });
       setIsCameraLoading(true);
       setCameraError(null);
 
       try {
-        // 1. Request Zalo Permission
-        await requestCameraPermission({});
+        // 1. Request Zalo permission
+        // await requestCameraPermission({});
 
-        // 2. Get Devices (if first time) - Keep this for the UI indicator
-        if (devicesRef.current.length === 0) {
-          console.log("[FaceVerificationModal] Enumerating devices...");
-          const deviceInfos = await navigator.mediaDevices.enumerateDevices();
-          const videoDevices = deviceInfos.filter(
-            (d) => d.kind === "videoinput",
-          );
-          setDevices(videoDevices);
-          devicesRef.current = videoDevices;
-        }
+        // 2. Request wake lock
+        // await requestWakeLock();
 
-        if (!videoTargetRef.current) {
-          throw new Error("Video target element not found");
-        }
+        // 3. Enumerate devices
+        const deviceInfos = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = deviceInfos.filter((d) => d.kind === "videoinput");
+        setDevices(videoDevices);
+        console.log("[Camera] Found devices:", videoDevices.length);
 
-        console.log("[FaceVerificationModal] Starting Zalo camera...");
-        const camera = createCameraContext({
-          videoElement: videoTargetRef.current,
-          mediaConstraints: {
-            width: 1280,
-            height: 720,
+        // 4. Build constraints - Lower resolution for stability
+        const constraints: MediaStreamConstraints = {
+          audio: false,
+          video: {
+            deviceId: deviceId ? { exact: deviceId } : undefined,
             facingMode: deviceId
               ? undefined
               : facing === "front"
-                ? FacingMode.FRONT
-                : FacingMode.BACK,
-            deviceId: deviceId || undefined,
+                ? "user"
+                : "environment",
+            width: { ideal: 640, max: 1280 },
+            height: { ideal: 480, max: 720 },
+            frameRate: { ideal: 30, max: 30 },
           },
-        });
-        cameraInstanceRef.current = camera;
+        };
 
-        await camera.start();
+        console.log("[Camera] Requesting with constraints:", constraints);
 
-        // 4. Extract Stream for GPUPixel
-        const stream = videoTargetRef.current.srcObject as MediaStream;
+        // 5. Get stream
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
         if (!isMountedRef.current) {
-          if (stream) stream.getTracks().forEach((t) => t.stop());
+          console.log("[Camera] Component unmounted, stopping stream");
+          stream.getTracks().forEach((t) => t.stop());
           return;
         }
 
-        if (!stream) throw new Error("Không thể lấy stream từ camera Zalo");
-
-        console.log("[FaceVerificationModal] Zalo camera started successfully");
-
+        console.log("[Camera] Stream obtained:", stream.id);
         streamRef.current = stream;
+
+        // 6. Setup hidden video element as source for GPUPixel
+        if (videoSourceRef.current) {
+          const video = videoSourceRef.current;
+
+          // Set all attributes
+          video.muted = true;
+          video.playsInline = true;
+          video.autoplay = true;
+          video.setAttribute("playsinline", "true");
+          video.setAttribute("webkit-playsinline", "true");
+          video.setAttribute("x-webkit-airplay", "deny");
+
+          // Set srcObject
+          video.srcObject = stream;
+
+          // Force play
+          const forcePlay = async () => {
+            try {
+              console.log("[Camera] Force playing video...");
+              await video.play();
+              console.log("[Camera] ✅ Video playing");
+            } catch (err) {
+              console.error("[Camera] ❌ Play failed:", err);
+
+              setTimeout(async () => {
+                try {
+                  await video.play();
+                  console.log("[Camera] ✅ Retry play succeeded");
+                } catch (retryErr) {
+                  console.error("[Camera] ❌ Retry failed:", retryErr);
+                  setCameraError(
+                    "Không thể phát video. Hãy chạm vào màn hình.",
+                  );
+                }
+              }, 300);
+            }
+          };
+
+          if (video.readyState >= 2) {
+            await forcePlay();
+          } else {
+            video.onloadedmetadata = forcePlay;
+          }
+
+          // AGGRESSIVE PLAY INTERVAL - 500ms
+          aggressivePlayIntervalRef.current = setInterval(async () => {
+            if (video.paused && streamRef.current?.active) {
+              console.warn("[Camera] 🔄 Video paused, force playing...");
+              try {
+                await video.play();
+                console.log("[Camera] ✅ Resumed");
+              } catch (err) {
+                console.error("[Camera] ❌ Resume failed:", err);
+              }
+            }
+          }, 500);
+
+          // Touch handler
+          const touchPlayHandler = async () => {
+            if (video.paused) {
+              try {
+                await video.play();
+                console.log("[Camera] ✅ Play by touch");
+              } catch (err) {
+                console.error("[Camera] ❌ Touch play failed:", err);
+              }
+            }
+          };
+
+          video.addEventListener("touchstart", touchPlayHandler);
+          video.addEventListener("click", touchPlayHandler);
+        }
+
+        // Set stream to state (this will trigger GPUPixel hook)
         setMediaStream(stream);
 
-        // 5. Check Capabilities
+        // 7. Track capabilities
         const track = stream.getVideoTracks()[0];
-        const settings = track.getSettings();
-        if (settings.deviceId) setCurrentDeviceId(settings.deviceId);
+
+        track.addEventListener("ended", () => {
+          console.error("[Camera] ❌ Track ended!");
+          setCameraError("Camera bị ngắt kết nối.");
+        });
+
+        track.addEventListener("mute", () => {
+          console.warn("[Camera] ⚠️ Track muted");
+        });
 
         const capabilities = track.getCapabilities
           ? track.getCapabilities()
           : {};
+        const settings = track.getSettings();
+
+        console.log("[Camera] Track settings:", settings);
+
         // @ts-ignore
         setHasFlash(!!capabilities.torch);
+
+        if (settings.deviceId) {
+          setCurrentDeviceId(settings.deviceId);
+        }
+
+        // 8. Keep-alive
+        keepAliveIntervalRef.current = setInterval(() => {
+          if (streamRef.current && videoSourceRef.current) {
+            const _ = videoSourceRef.current.currentTime;
+
+            const tracks = streamRef.current.getVideoTracks();
+            tracks.forEach((t) => {
+              if (!t.enabled) {
+                console.warn("[Camera] ⚠️ Re-enabling track");
+                t.enabled = true;
+              }
+            });
+          }
+        }, 1000);
+
+        console.log("[Camera] ✅ Setup complete");
       } catch (err: any) {
-        console.error("[FaceVerificationModal] Zalo Camera Error:", err);
+        console.error("[Camera] ❌ Error:", err);
         let message = "Không thể truy cập camera.";
-        if (err.code === -1401 || err.name === "NotAllowedError")
-          message = "Vui lòng cấp quyền truy cập camera.";
-        else if (err.name === "NotFoundError") message = "Không tìm thấy camera.";
-        else if (err.name === "NotReadableError")
+
+        if (
+          err.name === "NotAllowedError" ||
+          err.name === "PermissionDeniedError"
+        ) {
+          message = "Vui lòng cấp quyền camera trong cài đặt Zalo.";
+        } else if (err.name === "NotFoundError") {
+          message = "Không tìm thấy camera.";
+        } else if (err.name === "NotReadableError") {
           message = "Camera đang được sử dụng bởi ứng dụng khác.";
+        } else if (err.name === "OverconstrainedError") {
+          message = "Thiết bị không hỗ trợ cấu hình này.";
+        }
+
         setCameraError(message);
       } finally {
-        setIsCameraLoading(false);
-        isStartingRef.current = false;
+        if (isMountedRef.current) {
+          setIsCameraLoading(false);
+        }
       }
     },
-    [], // Completely stable
+    [facing, requestWakeLock, releaseWakeLock],
   );
 
   // --- HANDLERS ---
 
   const handleToggleCamera = useCallback(async () => {
-    if (cameraInstanceRef.current) {
-      try {
-        await cameraInstanceRef.current.flip();
-        setFacing((prev) => (prev === "front" ? "back" : "front"));
-        return;
-      } catch (e) {
-        console.warn("Zalo Camera Flip Error, falling back...", e);
+    console.log("[Camera] Toggling camera");
+    stopCamera();
+    setFacing((prev) => (prev === "front" ? "back" : "front"));
+    setTimeout(() => {
+      if (isMountedRef.current) {
+        startCamera();
       }
-    }
-
-    if (devices.length < 2) return;
-    const currentIndex = devices.findIndex(
-      (d) => d.deviceId === currentDeviceId,
-    );
-    const nextIndex = (currentIndex + 1) % devices.length;
-    await startCamera(devices[nextIndex].deviceId);
-  }, [devices, currentDeviceId, startCamera]);
+    }, 300);
+  }, [stopCamera, startCamera]);
 
   const handleToggleFlash = useCallback(async () => {
     if (!mediaStream || !hasFlash) return;
+
     const track = mediaStream.getVideoTracks()[0];
     try {
       await track.applyConstraints({
-        advanced: [{ torch: !isFlashOn } as any],
+        // @ts-ignore
+        advanced: [{ torch: !isFlashOn }],
       });
       setIsFlashOn(!isFlashOn);
+      console.log("[Camera] Flash toggled:", !isFlashOn);
     } catch (err) {
-      console.error("Flash Toggle Error:", err);
+      console.error("[Camera] Flash toggle error:", err);
     }
   }, [mediaStream, hasFlash, isFlashOn]);
 
   const handleCapture = () => {
-    if (!canvasRef.current) return;
-
+    console.log("[Camera] Capturing photo");
     setVerificationStatus("verifying");
 
-    // UI Effect
+    // UI Flash effect
     setFlashActive(true);
     setTimeout(() => setFlashActive(false), 300);
 
     setTimeout(() => {
-      // Capture directly from the canvas that the hook is painting to
-      const dataUrl = canvasRef.current!.toDataURL("image/jpeg", 0.9);
+      // Capture from the appropriate canvas
+      let sourceCanvas: HTMLCanvasElement | null = null;
+
+      if (beautyEnabled && isGPUPixelReady && displayCanvasRef.current) {
+        // Use GPUPixel processed canvas
+        sourceCanvas = displayCanvasRef.current;
+        console.log("[Capture] Using GPUPixel canvas");
+      } else if (videoSourceRef.current && captureCanvasRef.current) {
+        // Fallback: capture directly from video
+        const video = videoSourceRef.current;
+        const canvas = captureCanvasRef.current;
+
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          if (facing === "front") {
+            ctx.translate(canvas.width, 0);
+            ctx.scale(-1, 1);
+          }
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        }
+
+        sourceCanvas = canvas;
+        console.log("[Capture] Using video canvas (fallback)");
+      }
+
+      if (!sourceCanvas) {
+        console.error("[Capture] No valid canvas source!");
+        setCameraError("Không thể chụp ảnh. Vui lòng thử lại.");
+        setVerificationStatus("idle");
+        return;
+      }
+
+      const dataUrl = sourceCanvas.toDataURL("image/jpeg", 0.9);
+      console.log("[Camera] Photo captured");
 
       setVerificationStatus("success");
       setTimeout(() => {
@@ -422,16 +594,16 @@ export function FaceVerificationModal({
 
   useEffect(() => {
     isMountedRef.current = true;
-    console.log("[FaceVerificationModal] useEffect triggered", { isOpen });
-    
+    console.log("[Lifecycle] Modal opened:", isOpen);
+
     if (isOpen) {
       setVerificationStatus("idle");
-      // Delayed start to ensure UI sheet is fully expanded
+
       const timer = setTimeout(() => {
         if (isMountedRef.current) {
           startCamera();
         }
-      }, 500); 
+      }, 300);
 
       return () => {
         clearTimeout(timer);
@@ -447,13 +619,34 @@ export function FaceVerificationModal({
     };
   }, [isOpen, startCamera, stopCamera]);
 
-  // --- RENDER HELPERS ---
+  // Monitor page visibility
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        console.log("[Visibility] Page hidden");
+      } else {
+        console.log("[Visibility] Page visible");
+        if (videoSourceRef.current && streamRef.current?.active) {
+          videoSourceRef.current.play().catch(console.error);
+        }
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () =>
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+  }, []);
+
+  // --- RENDER ---
+
   const modalConfig = MODAL_CONFIGS[mode as ModalConfigKey] ?? DEFAULT_CONFIG;
   const isBackCamera = facing === "back";
-  // showLoading: True if camera is starting, or beauty filter is not ready,
-  // or if the modal is open but we don't have a media stream yet.
   const showError = !!cameraError || !!gpuError;
-  const showLoading = !showError && (isCameraLoading || !isGPUPixelReady || (isOpen && !mediaStream));
+  const showLoading =
+    !showError &&
+    (isCameraLoading ||
+      (beautyEnabled && !isGPUPixelReady) ||
+      (isOpen && !mediaStream));
 
   return (
     <Sheet
@@ -472,15 +665,6 @@ export function FaceVerificationModal({
         </Box>
 
         <Box className="flex-1 flex flex-col items-center">
-          {/* Zalo SDK Camera Target (Hidden) */}
-          <video
-            ref={videoTargetRef}
-            className="hidden"
-            style={{ display: "none" }}
-            playsInline
-            muted
-            autoPlay
-          />
           {/* CAMERA CONTAINER */}
           <div
             className={`relative shrink-0 h-56 w-56 sm:h-64 sm:w-64 md:h-72 md:w-72 rounded-full overflow-hidden border-4 ${
@@ -491,28 +675,51 @@ export function FaceVerificationModal({
               verificationStatus === "verifying" ? "animate-border-glow" : ""
             } group transition-all duration-500`}
           >
-            {/* The single canvas used by useGPUPixel */}
-            <canvas
-              ref={canvasRef}
-              className={`absolute inset-0 h-full w-full object-cover transition-transform duration-300 ${
-                !isBackCamera ? "transform scale-x-[-1]" : ""
-              } ${showLoading || showError ? "opacity-0" : "opacity-100"}`}
+            {/* Hidden Video Source (for getUserMedia stream) */}
+            <video
+              ref={videoSourceRef}
+              className="hidden"
+              playsInline
+              muted
+              autoPlay
             />
+
+            {/* Display Canvas (GPUPixel renders here) */}
+            <canvas
+              ref={displayCanvasRef}
+              className={`absolute inset-0 h-full w-full object-cover ${
+                !isBackCamera ? "transform scale-x-[-1]" : ""
+              }`}
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                width: "100%",
+                height: "100%",
+                objectFit: "cover",
+                zIndex: 1,
+              }}
+            />
+
+            {/* Capture Canvas (hidden, for fallback capture) */}
+            <canvas ref={captureCanvasRef} className="hidden" />
 
             {/* Shutter Effect */}
             <div
-              className={`absolute inset-0 rounded-full bg-white pointer-events-none z-30 transition-opacity duration-300 ${
+              className={`absolute inset-0 rounded-full bg-white pointer-events-none transition-opacity duration-300 ${
                 flashActive ? "opacity-100" : "opacity-0"
               }`}
+              style={{ zIndex: 30 }}
             />
 
             {/* Success Overlay */}
             <div
-              className={`absolute inset-0 rounded-full bg-black/70 backdrop-blur-sm z-30 flex flex-col items-center justify-center transition-opacity duration-700 ease-out ${
+              className={`absolute inset-0 rounded-full bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center transition-opacity duration-700 ease-out ${
                 verificationStatus === "success"
                   ? "opacity-100"
                   : "opacity-0 pointer-events-none"
               }`}
+              style={{ zIndex: 30 }}
             >
               <div
                 className={`rounded-full p-3 mb-3 bg-gradient-to-br from-green-400 to-emerald-600 shadow-lg shadow-green-500/40 transition-all duration-500 ease-out ${
@@ -530,19 +737,27 @@ export function FaceVerificationModal({
 
             {/* Loading Overlay */}
             {showLoading && (
-              <div className="absolute inset-0 rounded-full flex flex-col items-center justify-center bg-gray-900 text-white p-4 text-center z-20">
+              <div
+                className="absolute inset-0 rounded-full flex flex-col items-center justify-center bg-gray-900 text-white p-4 text-center"
+                style={{ zIndex: 20 }}
+              >
                 <Loader2 className="h-8 w-8 text-primary animate-spin mb-2" />
                 <p className="text-xs text-gray-400">
                   {isCameraLoading
                     ? "Khởi động camera..."
-                    : "Tải bộ lọc làm đẹp..."}
+                    : beautyEnabled && !isGPUPixelReady
+                      ? "Tải bộ lọc làm đẹp..."
+                      : "Đang tải..."}
                 </p>
               </div>
             )}
 
             {/* Error Overlay */}
             {showError && (
-              <div className="absolute inset-0 rounded-full flex items-center justify-center bg-gray-900 text-white p-4 text-center z-20">
+              <div
+                className="absolute inset-0 rounded-full flex items-center justify-center bg-gray-900 text-white p-4 text-center"
+                style={{ zIndex: 20 }}
+              >
                 <div className="flex flex-col items-center gap-2">
                   <AlertCircle className="h-8 w-8 text-red-500" />
                   <p className="text-xs text-red-400">
@@ -560,11 +775,12 @@ export function FaceVerificationModal({
               </div>
             )}
 
-            {/* Scanning Overlay Effect */}
+            {/* Scanning Overlay */}
             {!showLoading && !showError && verificationStatus !== "success" && (
               <div
-                className={`absolute inset-0 bg-gradient-to-b from-transparent ${modalConfig.scanColor} to-transparent animate-scan pointer-events-none z-10`}
-              ></div>
+                className={`absolute inset-0 bg-gradient-to-b from-transparent ${modalConfig.scanColor} to-transparent animate-scan pointer-events-none`}
+                style={{ zIndex: 10 }}
+              />
             )}
           </div>
 

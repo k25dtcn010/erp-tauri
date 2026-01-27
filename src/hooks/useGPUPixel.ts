@@ -1,20 +1,27 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import blusherUrl from "@/assets/blusher.png";
+import lookupCustomUrl from "@/assets/lookup_custom.png";
+import lookupGrayUrl from "@/assets/lookup_gray.png";
+import lookupLightUrl from "@/assets/lookup_light.png";
+import lookupOriginUrl from "@/assets/lookup_origin.png";
+import lookupSkinUrl from "@/assets/lookup_skin.png";
+import mouthUrl from "@/assets/mouth.png";
+import gpupixelJsContent from "@/assets/gpupixel_app.js?raw";
+import gpupixelWasmUrl from "@/assets/gpupixel.wasm?url";
 
 let wasmModule: any = null;
 let loadPromise: Promise<any> | null = null;
 let glCanvas: HTMLCanvasElement | null = null;
 
-const RESOURCE_FILES = [
-  "blusher.png",
-  "lookup_custom.png",
-  "lookup_gray.png",
-  "lookup_light.png",
-  "lookup_origin.png",
-  "lookup_skin.png",
-  "mouth.png",
+const RESOURCES = [
+  { name: "blusher.png", url: blusherUrl },
+  { name: "lookup_custom.png", url: lookupCustomUrl },
+  { name: "lookup_gray.png", url: lookupGrayUrl },
+  { name: "lookup_light.png", url: lookupLightUrl },
+  { name: "lookup_origin.png", url: lookupOriginUrl },
+  { name: "lookup_skin.png", url: lookupSkinUrl },
+  { name: "mouth.png", url: mouthUrl },
 ];
-
-const BASE_RESOURCE_PATH = "/gpupixel/res";
 
 export const GPUPixelLoader = {
   getModule: () => wasmModule,
@@ -51,6 +58,12 @@ export const GPUPixelLoader = {
       // 2. Setup Config
       const ModuleConfig = {
         canvas: glCanvas,
+        locateFile: (path: string) => {
+          if (path.endsWith(".wasm")) {
+            return gpupixelWasmUrl;
+          }
+          return path;
+        },
         locateCanvasForWebGL: () => glCanvas,
         onRuntimeInitialized: async function () {
           console.log("[GPUPixel] Runtime Initialized. Loading resources...");
@@ -59,27 +72,38 @@ export const GPUPixelLoader = {
 
           try {
             // 3. Virtual FS Setup
+            // Dựa vào file JS: Dùng FS_createPath (có gạch dưới)
             try {
-              m.FS_createPath("/", "gpupixel", true, true);
-              m.FS_createPath("/gpupixel", "res", true, true);
+              // @ts-ignore
+              if (typeof m.FS_createPath === "function") {
+                m.FS_createPath("/", "gpupixel", true, true);
+                m.FS_createPath("/gpupixel", "res", true, true);
+              } else {
+                console.warn("FS_createPath not found on Module");
+              }
             } catch (e) {
-              /* Ignore */
+              /* Ignore path exists error */
             }
 
             // 4. Load Resources
             await Promise.all(
-              RESOURCE_FILES.map(async (filename) => {
-                const resp = await fetch(`${BASE_RESOURCE_PATH}/${filename}`);
-                if (!resp.ok) throw new Error(`404: ${filename}`);
+              RESOURCES.map(async (resItem) => {
+                // Fetch dữ liệu binary từ URL import
+                const resp = await fetch(resItem.url);
+                if (!resp.ok) throw new Error(`404: ${resItem.name}`);
+
                 const buf = await resp.arrayBuffer();
                 const data = new Uint8Array(buf);
+
+                // Dựa vào file JS: Dùng FS_createDataFile (có gạch dưới)
+                // @ts-ignore
                 m.FS_createDataFile(
                   "/gpupixel/res",
-                  filename,
+                  resItem.name,
                   data,
-                  true,
-                  true,
-                  true,
+                  true, // canRead
+                  true, // canWrite
+                  true, // canOwn
                 );
               }),
             );
@@ -89,7 +113,7 @@ export const GPUPixelLoader = {
             if (res < 0) throw new Error(`Init failed code: ${res}`);
 
             console.log("[GPUPixel] Ready.");
-            wasmModule = m; // Lưu instance module chính thức
+            wasmModule = m;
             resolve(m);
           } catch (err) {
             console.error(err);
@@ -103,11 +127,48 @@ export const GPUPixelLoader = {
       window.Module = ModuleConfig;
 
       // 6. Load Script
-      const script = document.createElement("script");
-      script.src = "/gpupixel_app.js";
-      script.onerror = () =>
-        reject(new Error("Failed to load gpupixel_app.js"));
-      document.body.appendChild(script);
+      try {
+        console.log("[GPUPixelLoader] Bắt đầu xử lý script injection...");
+
+        // KỸ THUẬT CHÈN LOG VÀO TRONG MODULE APP
+        // Ta cộng thêm dòng log vào ngay đầu nội dung file JS lấy được
+        const debugHeader = `
+          console.log("%c[Internal-Blob] Bắt đầu thực thi gpupixel_app.js!", "background: #222; color: #bada55");
+          console.log("[Internal-Blob] Kiểm tra window.Module:", window.Module ? "Đã tồn tại" : "Chưa có");
+        `;
+        
+        // Nối chuỗi: Header log + Nội dung gốc
+        const finalJsContent = debugHeader + "\n" + gpupixelJsContent;
+
+        console.log(`[GPUPixelLoader] Đã tạo nội dung script (độ dài: ${finalJsContent.length})`);
+
+        const blob = new Blob([finalJsContent], { type: "text/javascript" });
+        const scriptUrl = URL.createObjectURL(blob);
+
+        console.log("[GPUPixelLoader] Blob URL đã tạo:", scriptUrl);
+
+        const script = document.createElement("script");
+        script.src = scriptUrl;
+        
+        // Log khi script được trình duyệt tải xong (chưa chắc đã chạy xong logic, nhưng đã load file)
+        script.onload = () => {
+          console.log("[GPUPixelLoader] Thẻ <script> đã kích hoạt sự kiện onload.");
+          URL.revokeObjectURL(scriptUrl); // Dọn dẹp bộ nhớ
+        };
+
+        script.onerror = (e) => {
+          console.error("[GPUPixelLoader] Lỗi khi load script từ Blob:", e);
+          URL.revokeObjectURL(scriptUrl);
+          reject(new Error("Failed to inject gpupixel script blob"));
+        };
+
+        console.log("[GPUPixelLoader] Đang append script vào document.body...");
+        document.body.appendChild(script);
+
+      } catch (e) {
+        console.error("[GPUPixelLoader] Exception trong quá trình tạo Blob:", e);
+        reject(e);
+      }
     });
 
     return loadPromise;
@@ -253,12 +314,7 @@ export const useGPUPixel = ({
           // Vẽ lại từ GL Canvas
           const glCanvas = GPUPixelLoader.getGlCanvas();
           if (glCanvas) {
-            // Xóa canvas 2D trước khi vẽ đè lên
             ctx.clearRect(0, 0, width, height);
-            
-            // GPUPixel output có thể bị flip so với video input (thường là mirror ngang).
-            // Để đảm bảo không bị nhảy khi bật/tắt beauty, ta chủ động lật lại glCanvas
-            // nếu nó đang khác với video gốc.
             ctx.save();
             ctx.translate(width, 0);
             ctx.scale(-1, 1); // Lật ngang

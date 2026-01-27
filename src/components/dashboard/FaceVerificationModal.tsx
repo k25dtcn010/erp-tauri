@@ -11,6 +11,7 @@ import { Button } from "../ui/button";
 import { Sheet, Box, Text } from "zmp-ui";
 import { useEffect, useState, useRef, useCallback, memo } from "react";
 import { useGPUPixel } from "../../hooks/useGPUPixel";
+import { createCameraContext, requestCameraPermission, FacingMode } from "zmp-sdk/apis";
 
 // --- CONFIGURATIONS ---
 const MODAL_CONFIGS = {
@@ -222,10 +223,13 @@ export function FaceVerificationModal({
   const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [currentDeviceId, setCurrentDeviceId] = useState<string>("");
+  const [facing, setFacing] = useState<"front" | "back">("front");
   const [isCameraLoading, setIsCameraLoading] = useState(false);
 
   // Refs
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const videoTargetRef = useRef<HTMLVideoElement>(null);
+  const cameraInstanceRef = useRef<any>(null);
   const isMountedRef = useRef(false);
   const streamRef = useRef<MediaStream | null>(null);
   const isStartingRef = useRef(false);
@@ -244,8 +248,17 @@ export function FaceVerificationModal({
 
   // --- CAMERA LOGIC ---
 
-  const stopCamera = useCallback(() => {
+  const stopCamera = useCallback(async () => {
     console.log("[FaceVerificationModal] stopCamera called");
+    if (cameraInstanceRef.current) {
+      try {
+        await cameraInstanceRef.current.stop();
+      } catch (e) {
+        console.warn("Zalo Camera Stop Error:", e);
+      }
+      cameraInstanceRef.current = null;
+    }
+
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => {
         track.stop();
@@ -261,12 +274,12 @@ export function FaceVerificationModal({
 
   const startCamera = useCallback(
     async (deviceId?: string) => {
-      console.log("[FaceVerificationModal] startCamera called", { 
-        deviceId, 
+      console.log("[FaceVerificationModal] startCamera (Zalo SDK) called", {
+        deviceId,
         isStarting: isStartingRef.current,
-        isMounted: isMountedRef.current 
+        isMounted: isMountedRef.current,
       });
-      
+
       if (isStartingRef.current || !isMountedRef.current) return;
 
       isStartingRef.current = true;
@@ -274,57 +287,74 @@ export function FaceVerificationModal({
       setCameraError(null);
 
       try {
-        // 1. Get Devices (if first time)
+        // 1. Request Zalo Permission
+        await requestCameraPermission({});
+
+        // 2. Get Devices (if first time) - Keep this for the UI indicator
         if (devicesRef.current.length === 0) {
           console.log("[FaceVerificationModal] Enumerating devices...");
           const deviceInfos = await navigator.mediaDevices.enumerateDevices();
-          const videoDevices = deviceInfos.filter((d) => d.kind === "videoinput");
+          const videoDevices = deviceInfos.filter(
+            (d) => d.kind === "videoinput",
+          );
           setDevices(videoDevices);
           devicesRef.current = videoDevices;
-          console.log("[FaceVerificationModal] Found devices:", videoDevices.length);
         }
 
-        // 2. Constraints
-        const constraints: MediaStreamConstraints = {
-          video: deviceId
-            ? { deviceId: { exact: deviceId } }
-            : {
-                facingMode: "user",
-                width: { ideal: 1280 }, 
-                height: { ideal: 720 },
-              },
-          audio: false,
-        };
+        if (!videoTargetRef.current) {
+          throw new Error("Video target element not found");
+        }
 
-        // 3. Get Stream
-        console.log("[FaceVerificationModal] Requesting getUserMedia...", constraints);
-        const stream = await navigator.mediaDevices.getUserMedia(constraints);
-        
-        // Final mount check
+        console.log("[FaceVerificationModal] Starting Zalo camera...");
+        const camera = createCameraContext({
+          videoElement: videoTargetRef.current,
+          mediaConstraints: {
+            width: 1280,
+            height: 720,
+            facingMode: deviceId
+              ? undefined
+              : facing === "front"
+                ? FacingMode.FRONT
+                : FacingMode.BACK,
+            deviceId: deviceId || undefined,
+          },
+        });
+        cameraInstanceRef.current = camera;
+
+        await camera.start();
+
+        // 4. Extract Stream for GPUPixel
+        const stream = videoTargetRef.current.srcObject as MediaStream;
         if (!isMountedRef.current) {
-          stream.getTracks().forEach(t => t.stop());
+          if (stream) stream.getTracks().forEach((t) => t.stop());
           return;
         }
 
-        console.log("[FaceVerificationModal] getUserMedia success");
-        
+        if (!stream) throw new Error("Không thể lấy stream từ camera Zalo");
+
+        console.log("[FaceVerificationModal] Zalo camera started successfully");
+
         streamRef.current = stream;
         setMediaStream(stream);
 
-        // 4. Check Capabilities
+        // 5. Check Capabilities
         const track = stream.getVideoTracks()[0];
         const settings = track.getSettings();
         if (settings.deviceId) setCurrentDeviceId(settings.deviceId);
 
-        const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+        const capabilities = track.getCapabilities
+          ? track.getCapabilities()
+          : {};
         // @ts-ignore
         setHasFlash(!!capabilities.torch);
       } catch (err: any) {
-        console.error("[FaceVerificationModal] Camera Error:", err);
+        console.error("[FaceVerificationModal] Zalo Camera Error:", err);
         let message = "Không thể truy cập camera.";
-        if (err.name === "NotAllowedError") message = "Vui lòng cấp quyền truy cập camera.";
+        if (err.code === -1401 || err.name === "NotAllowedError")
+          message = "Vui lòng cấp quyền truy cập camera.";
         else if (err.name === "NotFoundError") message = "Không tìm thấy camera.";
-        else if (err.name === "NotReadableError") message = "Camera đang được sử dụng bởi ứng dụng khác.";
+        else if (err.name === "NotReadableError")
+          message = "Camera đang được sử dụng bởi ứng dụng khác.";
         setCameraError(message);
       } finally {
         setIsCameraLoading(false);
@@ -337,6 +367,16 @@ export function FaceVerificationModal({
   // --- HANDLERS ---
 
   const handleToggleCamera = useCallback(async () => {
+    if (cameraInstanceRef.current) {
+      try {
+        await cameraInstanceRef.current.flip();
+        setFacing((prev) => (prev === "front" ? "back" : "front"));
+        return;
+      } catch (e) {
+        console.warn("Zalo Camera Flip Error, falling back...", e);
+      }
+    }
+
     if (devices.length < 2) return;
     const currentIndex = devices.findIndex(
       (d) => d.deviceId === currentDeviceId,
@@ -409,10 +449,7 @@ export function FaceVerificationModal({
 
   // --- RENDER HELPERS ---
   const modalConfig = MODAL_CONFIGS[mode as ModalConfigKey] ?? DEFAULT_CONFIG;
-  const isBackCamera = devices
-    .find((d) => d.deviceId === currentDeviceId)
-    ?.label.toLowerCase()
-    .includes("back");
+  const isBackCamera = facing === "back";
   // showLoading: True if camera is starting, or beauty filter is not ready,
   // or if the modal is open but we don't have a media stream yet.
   const showError = !!cameraError || !!gpuError;
@@ -435,6 +472,15 @@ export function FaceVerificationModal({
         </Box>
 
         <Box className="flex-1 flex flex-col items-center">
+          {/* Zalo SDK Camera Target (Hidden) */}
+          <video
+            ref={videoTargetRef}
+            className="hidden"
+            style={{ display: "none" }}
+            playsInline
+            muted
+            autoPlay
+          />
           {/* CAMERA CONTAINER */}
           <div
             className={`relative shrink-0 h-56 w-56 sm:h-64 sm:w-64 md:h-72 md:w-72 rounded-full overflow-hidden border-4 ${

@@ -1,308 +1,306 @@
-/**
- * React hook for GPUPixel WASM integration
- * Manages camera with beauty filter processing
- */
+import { useEffect, useRef, useState, useCallback } from "react";
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+let wasmModule: any = null;
+let loadPromise: Promise<any> | null = null;
+let glCanvas: HTMLCanvasElement | null = null;
 
-// Declare global GPUPixelAdapter type
-declare global {
-    interface Window {
-        GPUPixelAdapter?: {
-            wasmModule: unknown;
-            isActive: boolean;
-            videoElement: HTMLVideoElement | null;
-            canvasContext: CanvasRenderingContext2D | null;
-            displayCanvas: HTMLCanvasElement | null;
-            glCanvas: HTMLCanvasElement | null;
-            requestID: number | null;
-            isModuleLoading: boolean;
-            moduleLoadPromise: Promise<unknown> | null;
-            defaultSmoothing: number;
-            defaultWhitening: number;
-            loadModule: (displayCanvasId: string) => Promise<unknown>;
-            init: () => void;
-            startCamera: (canvasId: string) => void;
-            stopCamera: () => void;
-            pauseCamera: () => void;
-            resumeCamera: () => void;
-            capture: (canvasId: string) => string | null;
-            setBeauty: (smooth: number, white: number) => void;
-        };
-    }
-}
+const RESOURCE_FILES = [
+  "blusher.png",
+  "lookup_custom.png",
+  "lookup_gray.png",
+  "lookup_light.png",
+  "lookup_origin.png",
+  "lookup_skin.png",
+  "mouth.png",
+];
 
-interface UseGPUPixelOptions {
-    canvasId?: string;
-    smoothing?: number;
-    whitening?: number;
-    onError?: (error: Error) => void;
-}
+const BASE_RESOURCE_PATH = "/gpupixel/res";
 
-interface UseGPUPixelReturn {
-    canvasRef: React.RefObject<HTMLCanvasElement | null>;
-    isLoading: boolean;
-    isActive: boolean;
-    error: string | null;
-    isGPUPixelAvailable: boolean;
-    startCamera: () => void;
-    stopCamera: () => void;
-    pauseCamera: () => void;
-    resumeCamera: () => void;
-    capture: () => string | null;
-    setBeauty: (smoothing: number, whitening: number) => void;
-}
+export const GPUPixelLoader = {
+  getModule: () => wasmModule,
+  getGlCanvas: () => glCanvas,
 
-// Script loading state (singleton)
-let scriptLoadPromise: Promise<void> | null = null;
-let isScriptLoaded = false;
+  init: async () => {
+    if (wasmModule) return wasmModule;
+    if (loadPromise) return loadPromise;
 
-const loadGPUPixelScript = (): Promise<void> => {
-    if (isScriptLoaded && window.GPUPixelAdapter) {
-        return Promise.resolve();
-    }
+    loadPromise = new Promise((resolve, reject) => {
+      console.log("[GPUPixel] Bắt đầu tải WASM...");
 
-    if (scriptLoadPromise) return scriptLoadPromise;
+      // 1. Tạo Canvas WebGL ẩn
+      if (!document.getElementById("gpupixel_canvas")) {
+        glCanvas = document.createElement("canvas");
+        glCanvas.id = "gpupixel_canvas";
+        glCanvas.width = 1280;
+        glCanvas.height = 720;
+        glCanvas.style.cssText = "position:absolute;left:-9999px;top:-9999px;";
+        document.body.appendChild(glCanvas);
+      } else {
+        glCanvas = document.getElementById(
+          "gpupixel_canvas",
+        ) as HTMLCanvasElement;
+      }
 
-    scriptLoadPromise = new Promise((resolve, reject) => {
-        // Check if already exists
-        if (window.GPUPixelAdapter) {
-            isScriptLoaded = true;
-            resolve();
-            return;
-        }
+      const testCtx =
+        glCanvas.getContext("webgl2") || glCanvas.getContext("webgl");
+      if (!testCtx) {
+        reject(new Error("Trình duyệt không hỗ trợ WebGL"));
+        return;
+      }
 
-        const script = document.createElement('script');
-        script.src = '/gpupixel_adapter.js';
-        script.async = true;
-        script.onload = () => {
-            console.log('[useGPUPixel] Adapter script loaded');
-            isScriptLoaded = true;
-            resolve();
-        };
-        script.onerror = () => {
-            scriptLoadPromise = null;
-            reject(new Error('Failed to load gpupixel_adapter.js'));
-        };
-        document.head.appendChild(script);
+      // 2. Setup Config
+      const ModuleConfig = {
+        canvas: glCanvas,
+        locateCanvasForWebGL: () => glCanvas,
+        onRuntimeInitialized: async function () {
+          console.log("[GPUPixel] Runtime Initialized. Loading resources...");
+          // @ts-ignore
+          const m = window.Module;
+
+          try {
+            // 3. Virtual FS Setup
+            try {
+              m.FS_createPath("/", "gpupixel", true, true);
+              m.FS_createPath("/gpupixel", "res", true, true);
+            } catch (e) {
+              /* Ignore */
+            }
+
+            // 4. Load Resources
+            await Promise.all(
+              RESOURCE_FILES.map(async (filename) => {
+                const resp = await fetch(`${BASE_RESOURCE_PATH}/${filename}`);
+                if (!resp.ok) throw new Error(`404: ${filename}`);
+                const buf = await resp.arrayBuffer();
+                const data = new Uint8Array(buf);
+                m.FS_createDataFile(
+                  "/gpupixel/res",
+                  filename,
+                  data,
+                  true,
+                  true,
+                  true,
+                );
+              }),
+            );
+
+            // 5. Init Core
+            const res = m.ccall("Init", "number", ["string"], ["/gpupixel"]);
+            if (res < 0) throw new Error(`Init failed code: ${res}`);
+
+            console.log("[GPUPixel] Ready.");
+            wasmModule = m; // Lưu instance module chính thức
+            resolve(m);
+          } catch (err) {
+            console.error(err);
+            reject(err);
+          }
+        },
+      };
+
+      // Gán vào window
+      // @ts-ignore
+      window.Module = ModuleConfig;
+
+      // 6. Load Script
+      const script = document.createElement("script");
+      script.src = "/gpupixel_app.js";
+      script.onerror = () =>
+        reject(new Error("Failed to load gpupixel_app.js"));
+      document.body.appendChild(script);
     });
 
-    return scriptLoadPromise;
+    return loadPromise;
+  },
 };
 
-export function useGPUPixel(options: UseGPUPixelOptions = {}): UseGPUPixelReturn {
-    const {
-        canvasId = 'gpupixel-display-canvas',
-        smoothing = 3,
-        whitening = 4,
-        onError,
-    } = options;
-
-    // Use refs to avoid stale closures and prevent re-renders
-    const canvasRef = useRef<HTMLCanvasElement | null>(null);
-    const canvasIdRef = useRef(canvasId);
-    const smoothingRef = useRef(smoothing);
-    const whiteningRef = useRef(whitening);
-    const onErrorRef = useRef(onError);
-    const isStartingRef = useRef(false);
-    const checkIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-    const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    // Update refs when props change
-    canvasIdRef.current = canvasId;
-    smoothingRef.current = smoothing;
-    whiteningRef.current = whitening;
-    onErrorRef.current = onError;
-
-    const [isLoading, setIsLoading] = useState(false);
-    const [isActive, setIsActive] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-    const [isGPUPixelAvailable, setIsGPUPixelAvailable] = useState(false);
-
-    // Load the adapter script - only once on mount
-    useEffect(() => {
-        let mounted = true;
-
-        const init = async () => {
-            try {
-                await loadGPUPixelScript();
-                if (mounted && window.GPUPixelAdapter) {
-                    setIsGPUPixelAvailable(true);
-                    // Set default beauty params
-                    window.GPUPixelAdapter.defaultSmoothing = smoothingRef.current;
-                    window.GPUPixelAdapter.defaultWhitening = whiteningRef.current;
-                }
-            } catch (err) {
-                if (mounted) {
-                    const error = err instanceof Error ? err : new Error('Unknown error');
-                    setError(error.message);
-                    onErrorRef.current?.(error);
-                }
-            }
-        };
-
-        init();
-
-        return () => {
-            mounted = false;
-        };
-    }, []); // Empty deps - only run once
-
-    // Consolidated cleanup on unmount (single effect instead of multiple)
-    useEffect(() => {
-        return () => {
-            // Clear intervals/timeouts
-            if (checkIntervalRef.current) {
-                clearInterval(checkIntervalRef.current);
-            }
-            if (timeoutRef.current) {
-                clearTimeout(timeoutRef.current);
-            }
-            // Stop camera if active
-            if (window.GPUPixelAdapter?.isActive) {
-                window.GPUPixelAdapter.stopCamera();
-            }
-        };
-    }, []);
-
-    const startCamera = useCallback(() => {
-        // Prevent multiple simultaneous starts
-        if (isStartingRef.current) {
-            console.log('[useGPUPixel] Already starting camera, skipping...');
-            return;
-        }
-
-        if (!window.GPUPixelAdapter) {
-            const err = new Error('GPUPixelAdapter not available');
-            setError(err.message);
-            onErrorRef.current?.(err);
-            return;
-        }
-
-        // Check if already active
-        if (window.GPUPixelAdapter.isActive) {
-            console.log('[useGPUPixel] Camera already active');
-            setIsActive(true);
-            setIsLoading(false);
-            return;
-        }
-
-        isStartingRef.current = true;
-        setIsLoading(true);
-        setError(null);
-
-        // Clear any existing intervals
-        if (checkIntervalRef.current) {
-            clearInterval(checkIntervalRef.current);
-        }
-        if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current);
-        }
-
-        // Wait a bit for canvas to be in DOM
-        timeoutRef.current = setTimeout(() => {
-            try {
-                window.GPUPixelAdapter!.startCamera(canvasIdRef.current);
-
-                // Poll for active state
-                checkIntervalRef.current = setInterval(() => {
-                    if (window.GPUPixelAdapter?.isActive) {
-                        setIsActive(true);
-                        setIsLoading(false);
-                        isStartingRef.current = false;
-                        if (checkIntervalRef.current) {
-                            clearInterval(checkIntervalRef.current);
-                            checkIntervalRef.current = null;
-                        }
-                    }
-                }, 100);
-
-                // Timeout after 10 seconds
-                timeoutRef.current = setTimeout(() => {
-                    if (checkIntervalRef.current) {
-                        clearInterval(checkIntervalRef.current);
-                        checkIntervalRef.current = null;
-                    }
-                    isStartingRef.current = false;
-                    if (!window.GPUPixelAdapter?.isActive) {
-                        setIsLoading(false);
-                        // Don't set error, might still work with fallback mode
-                    }
-                }, 10000);
-            } catch (err) {
-                setIsLoading(false);
-                isStartingRef.current = false;
-                const error = err instanceof Error ? err : new Error('Failed to start camera');
-                setError(error.message);
-                onErrorRef.current?.(error);
-            }
-        }, 100);
-    }, []); // No deps needed - using refs
-
-    const stopCamera = useCallback(() => {
-        // Clear intervals
-        if (checkIntervalRef.current) {
-            clearInterval(checkIntervalRef.current);
-            checkIntervalRef.current = null;
-        }
-        if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current);
-            timeoutRef.current = null;
-        }
-
-        isStartingRef.current = false;
-
-        if (window.GPUPixelAdapter) {
-            window.GPUPixelAdapter.stopCamera();
-            setIsActive(false);
-            setIsLoading(false);
-        }
-    }, []);
-
-    const pauseCamera = useCallback(() => {
-        if (window.GPUPixelAdapter) {
-            window.GPUPixelAdapter.pauseCamera();
-        }
-    }, []);
-
-    const resumeCamera = useCallback(() => {
-        if (window.GPUPixelAdapter) {
-            window.GPUPixelAdapter.resumeCamera();
-        }
-    }, []);
-
-    const capture = useCallback((): string | null => {
-        if (window.GPUPixelAdapter) {
-            return window.GPUPixelAdapter.capture(canvasIdRef.current);
-        }
-
-        // Fallback: capture from canvas ref
-        if (canvasRef.current) {
-            return canvasRef.current.toDataURL('image/jpeg');
-        }
-
-        return null;
-    }, []);
-
-    const setBeauty = useCallback((smooth: number, white: number) => {
-        if (window.GPUPixelAdapter) {
-            window.GPUPixelAdapter.setBeauty(smooth, white);
-        }
-    }, []);
-
-    // Note: Cleanup is handled in the consolidated useEffect above
-
-    return {
-        canvasRef,
-        isLoading,
-        isActive,
-        error,
-        isGPUPixelAvailable,
-        startCamera,
-        stopCamera,
-        pauseCamera,
-        resumeCamera,
-        capture,
-        setBeauty,
-    };
+interface UseGPUPixelProps {
+  canvasRef: React.RefObject<HTMLCanvasElement>;
+  mediaStream: MediaStream | null;
+  smoothing?: number;
+  whitening?: number;
+  enabled?: boolean;
 }
+
+export const useGPUPixel = ({
+  canvasRef,
+  mediaStream,
+  smoothing = 3,
+  whitening = 4,
+  enabled = true,
+}: UseGPUPixelProps) => {
+  const [isLoaded, setIsLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const requestRef = useRef<number>();
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  // Refs cho params để tránh dependency loop
+  const paramsRef = useRef({ smoothing, whitening, enabled });
+
+  useEffect(() => {
+    paramsRef.current = { smoothing, whitening, enabled };
+
+    // Cập nhật params realtime nếu đã load
+    const module = GPUPixelLoader.getModule();
+    if (isLoaded && module && module._SetBeautyParams && enabled) {
+      module._SetBeautyParams(smoothing, whitening);
+    }
+  }, [smoothing, whitening, enabled, isLoaded]);
+
+  // 1. Init
+  useEffect(() => {
+    GPUPixelLoader.init()
+      .then(() => setIsLoaded(true))
+      .catch((err) => {
+        console.error("GPUPixel Load Error:", err);
+        setError(err.message);
+      });
+  }, []);
+
+  // 2. Setup Hidden Video
+  useEffect(() => {
+    if (!mediaStream) {
+      if (videoRef.current) {
+        videoRef.current.pause();
+        videoRef.current.srcObject = null;
+      }
+      return;
+    }
+
+    const video = document.createElement("video");
+    video.autoplay = true;
+    video.playsInline = true;
+    video.muted = true;
+    video.srcObject = mediaStream;
+
+    video.onloadedmetadata = () => {
+      video.play().catch((e) => console.warn("Video play interrupted", e));
+    };
+
+    videoRef.current = video;
+
+    return () => {
+      video.pause();
+      video.srcObject = null;
+    };
+  }, [mediaStream]);
+
+  // 3. Render Loop
+  const processFrame = useCallback(() => {
+    const canvas = canvasRef.current;
+    const video = videoRef.current;
+
+    // Nếu chưa sẵn sàng, request frame tiếp theo và thoát
+    if (!canvas || !video || video.readyState < 2) {
+      if (video && video.readyState < 2 && Math.random() < 0.001) {
+        console.log("[useGPUPixel] Video not ready yet (readyState < 2)");
+      }
+      requestRef.current = requestAnimationFrame(processFrame);
+      return;
+    }
+
+    const width = video.videoWidth;
+    const height = video.videoHeight;
+
+    // Sync kích thước
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+      // Sync GL canvas nếu cần thiết (thường module tự handle nhưng ta set lại cho chắc)
+      const glCanvas = GPUPixelLoader.getGlCanvas();
+      if (glCanvas) {
+        glCanvas.width = width;
+        glCanvas.height = height;
+      }
+    }
+
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return; // Should rarely happen
+
+    const module = GPUPixelLoader.getModule();
+    const shouldFilter =
+      isLoaded && module && paramsRef.current.enabled && !error;
+
+    if (shouldFilter) {
+      try {
+        // Vẽ video gốc để lấy dữ liệu
+        ctx.drawImage(video, 0, 0, width, height);
+        const imageData = ctx.getImageData(0, 0, width, height);
+
+        // --- SỬA LỖI Ở ĐÂY ---
+        const dataLen = imageData.data.length;
+        const ptr = module._malloc(dataLen);
+
+        // Tìm kiếm HEAPU8 từ nhiều nguồn: từ module, từ global window, hoặc từ memory buffer
+        let memoryView = module.HEAPU8;
+        if (!memoryView && (window as any).HEAPU8) {
+          memoryView = (window as any).HEAPU8;
+        }
+        if (!memoryView && module.buffer) {
+          memoryView = new Uint8Array(module.buffer);
+        }
+        if (!memoryView && module.wasmMemory) {
+          memoryView = new Uint8Array(module.wasmMemory.buffer);
+        }
+
+        if (memoryView) {
+          // Copy dữ liệu vào WASM Memory một cách an toàn
+          memoryView.set(imageData.data, ptr);
+
+          // Xử lý
+          module._ProcessImage(ptr, width, height);
+
+          // Vẽ lại từ GL Canvas
+          const glCanvas = GPUPixelLoader.getGlCanvas();
+          if (glCanvas) {
+            // Xóa canvas 2D trước khi vẽ đè lên
+            ctx.clearRect(0, 0, width, height);
+            
+            // GPUPixel output có thể bị flip so với video input (thường là mirror ngang).
+            // Để đảm bảo không bị nhảy khi bật/tắt beauty, ta chủ động lật lại glCanvas
+            // nếu nó đang khác với video gốc.
+            ctx.save();
+            ctx.translate(width, 0);
+            ctx.scale(-1, 1); // Lật ngang
+            ctx.drawImage(glCanvas, 0, 0, width, height);
+            ctx.restore();
+          }
+        } else {
+          if (Math.random() < 0.01) {
+            console.warn("WASM Memory (HEAPU8) not found");
+          }
+          // Fallback vẽ thường
+          ctx.drawImage(video, 0, 0, width, height);
+        }
+
+        module._free(ptr);
+        // ---------------------
+      } catch (e) {
+        // Chỉ log error một lần hoặc throttle để tránh treo trình duyệt
+        if (Math.random() < 0.01)
+          console.warn("Render loop error (throttled):", e);
+
+        // Fallback về video gốc để UI không bị đen
+        ctx.drawImage(video, 0, 0, width, height);
+      }
+    } else {
+      // Chế độ không filter (Loading hoặc Disabled)
+      ctx.drawImage(video, 0, 0, width, height);
+    }
+
+    requestRef.current = requestAnimationFrame(processFrame);
+  }, [isLoaded, error]);
+
+  // Kích hoạt loop
+  useEffect(() => {
+    requestRef.current = requestAnimationFrame(processFrame);
+    return () => {
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
+    };
+  }, [processFrame]); // processFrame được memoize, chỉ thay đổi khi isLoaded/error đổi
+
+  return {
+    isLoaded,
+    error,
+  };
+};

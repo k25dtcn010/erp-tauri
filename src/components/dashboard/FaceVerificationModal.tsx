@@ -7,24 +7,16 @@ import {
   CheckCircle2,
   Sparkles,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  Drawer,
-  DrawerClose,
-  DrawerContent,
-  DrawerDescription,
-  DrawerFooter,
-  DrawerHeader,
-  DrawerTitle,
-} from "@/components/ui/drawer";
+import { Button } from "../ui/button";
+import { Sheet, Box, Text } from "zmp-ui";
 import { useEffect, useState, useRef, useCallback, memo } from "react";
-import { useGPUPixel } from "@/hooks/useGPUPixel";
+import { useGPUPixel } from "../../hooks/useGPUPixel";
 
-// Hoisted outside component to avoid recreation on every render (rendering-hoist-jsx)
+// --- CONFIGURATIONS ---
 const MODAL_CONFIGS = {
   "check-in": {
-    title: "Face Verification Check In",
-    confirmText: "Confirm Check In",
+    title: "Xác thực khuôn mặt - Giờ vào",
+    confirmText: "Xác nhận vào ca",
     color: "emerald",
     borderColor: "border-emerald-500",
     buttonColor: "bg-emerald-600 hover:bg-emerald-700",
@@ -32,8 +24,8 @@ const MODAL_CONFIGS = {
     glowColor: "text-emerald-500",
   },
   "check-out": {
-    title: "Face Verification Check Out",
-    confirmText: "Confirm Check Out",
+    title: "Xác thực khuôn mặt - Giờ ra",
+    confirmText: "Xác nhận ra ca",
     color: "rose",
     borderColor: "border-rose-500",
     buttonColor: "bg-rose-600 hover:bg-rose-700",
@@ -41,8 +33,8 @@ const MODAL_CONFIGS = {
     glowColor: "text-rose-500",
   },
   pause: {
-    title: "Verify to Pause Work",
-    confirmText: "Confirm Pause",
+    title: "Xác thực tạm nghỉ",
+    confirmText: "Xác nhận tạm nghỉ",
     color: "amber",
     borderColor: "border-amber-500",
     buttonColor: "bg-amber-600 hover:bg-amber-700",
@@ -50,8 +42,8 @@ const MODAL_CONFIGS = {
     glowColor: "text-amber-500",
   },
   resume: {
-    title: "Verify to Resume Work",
-    confirmText: "Confirm Resume",
+    title: "Xác thực làm lại",
+    confirmText: "Xác nhận làm lại",
     color: "emerald",
     borderColor: "border-emerald-500",
     buttonColor: "bg-emerald-600 hover:bg-emerald-700",
@@ -70,8 +62,8 @@ const MODAL_CONFIGS = {
 } as const;
 
 const DEFAULT_CONFIG = {
-  title: "Face Verification",
-  confirmText: "Confirm",
+  title: "Xác thực khuôn mặt",
+  confirmText: "Xác nhận",
   color: "emerald",
   borderColor: "border-emerald-500",
   buttonColor: "bg-emerald-600 hover:bg-emerald-700",
@@ -81,98 +73,94 @@ const DEFAULT_CONFIG = {
 
 type ModalConfigKey = keyof typeof MODAL_CONFIGS;
 
-// Memoized CameraControls component (rerender-memo)
+// --- SUB-COMPONENTS ---
+
 interface CameraControlsProps {
   devices: MediaDeviceInfo[];
   toggleCamera: () => void;
-  isGPUPixelAvailable: boolean;
+  isGPUPixelReady: boolean;
   beautyEnabled: boolean;
   toggleBeauty: () => void;
   hasFlash: boolean;
   isFlashOn: boolean;
-  isUsingGPUPixel: boolean;
   toggleFlash: () => void;
+  isLoading?: boolean;
 }
 
 const CameraControls = memo(function CameraControls({
   devices,
   toggleCamera,
-  isGPUPixelAvailable,
+  isGPUPixelReady,
   beautyEnabled,
   toggleBeauty,
   hasFlash,
   isFlashOn,
-  isUsingGPUPixel,
   toggleFlash,
+  isLoading,
 }: CameraControlsProps) {
   return (
     <div className="mt-4 flex items-center justify-center gap-6">
-      {/* Switch Camera - always show, disable if only 1 camera */}
+      {/* Switch Camera */}
       <button
         onClick={toggleCamera}
-        disabled={devices.length < 2}
+        disabled={isLoading || devices.length < 2}
         className={`flex flex-col items-center gap-1.5 group ${
-          devices.length < 2 ? "opacity-40 cursor-not-allowed" : ""
+          isLoading || devices.length < 2 ? "opacity-40 cursor-not-allowed" : ""
         }`}
       >
-        <div
-          className={`h-11 w-11 rounded-full flex items-center justify-center border transition-all ${
-            devices.length < 2
-              ? "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700"
-              : "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 group-hover:bg-gray-200 dark:group-hover:bg-gray-700 group-active:scale-95"
-          }`}
-        >
+        <div className="h-11 w-11 rounded-full flex items-center justify-center border transition-all bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 group-hover:bg-gray-200 dark:group-hover:bg-gray-700 group-active:scale-95">
           <SwitchCamera className="h-5 w-5 text-gray-600 dark:text-gray-300" />
         </div>
         <span className="text-[10px] font-medium text-gray-500 dark:text-gray-400">
-          {devices.length > 1 ? "Flip" : "1 Camera"}
+          {devices.length > 1 ? "Đổi" : "1 Camera"}
         </span>
       </button>
 
-      {/* Beauty Toggle - show when GPUPixel available */}
-      {isGPUPixelAvailable && (
-        <button
-          onClick={toggleBeauty}
-          className="flex flex-col items-center gap-1.5 group"
-        >
-          <div
-            className={`h-11 w-11 rounded-full flex items-center justify-center border transition-all ${
-              beautyEnabled
-                ? "bg-pink-500 border-pink-400 text-white group-active:scale-95"
-                : "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 group-hover:bg-gray-200 dark:group-hover:bg-gray-700 group-active:scale-95"
-            }`}
-          >
-            <Sparkles
-              className={`h-5 w-5 ${
-                beautyEnabled
-                  ? "fill-current text-white"
-                  : "text-gray-600 dark:text-gray-300"
-              }`}
-            />
-          </div>
-          <span
-            className={`text-[10px] font-medium ${
-              beautyEnabled
-                ? "text-pink-600 dark:text-pink-400"
-                : "text-gray-500 dark:text-gray-400"
-            }`}
-          >
-            {beautyEnabled ? "Beauty On" : "Beauty"}
-          </span>
-        </button>
-      )}
-
-      {/* Flash Toggle - always show, disable if no flash */}
+      {/* Beauty Toggle */}
       <button
-        onClick={toggleFlash}
-        disabled={!hasFlash || isUsingGPUPixel}
+        onClick={toggleBeauty}
+        disabled={isLoading || !isGPUPixelReady}
         className={`flex flex-col items-center gap-1.5 group ${
-          !hasFlash || isUsingGPUPixel ? "opacity-40 cursor-not-allowed" : ""
+          isLoading || !isGPUPixelReady ? "opacity-50 cursor-not-allowed" : ""
         }`}
       >
         <div
           className={`h-11 w-11 rounded-full flex items-center justify-center border transition-all ${
-            !hasFlash || isUsingGPUPixel
+            beautyEnabled && isGPUPixelReady && !isLoading
+              ? "bg-pink-500 border-pink-400 text-white group-active:scale-95"
+              : "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 group-hover:bg-gray-200 dark:group-hover:bg-gray-700 group-active:scale-95"
+          }`}
+        >
+          <Sparkles
+            className={`h-5 w-5 ${
+              beautyEnabled && isGPUPixelReady && !isLoading
+                ? "fill-current text-white"
+                : "text-gray-600 dark:text-gray-300"
+            }`}
+          />
+        </div>
+        <span
+          className={`text-[10px] font-medium ${
+            beautyEnabled && isGPUPixelReady && !isLoading
+              ? "text-pink-600 dark:text-pink-400"
+              : "text-gray-500 dark:text-gray-400"
+          }`}
+        >
+          Làm đẹp
+        </span>
+      </button>
+
+      {/* Flash Toggle */}
+      <button
+        onClick={toggleFlash}
+        disabled={isLoading || !hasFlash}
+        className={`flex flex-col items-center gap-1.5 group ${
+          isLoading || !hasFlash ? "opacity-40 cursor-not-allowed" : ""
+        }`}
+      >
+        <div
+          className={`h-11 w-11 rounded-full flex items-center justify-center border transition-all ${
+            isLoading || !hasFlash
               ? "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700"
               : isFlashOn
                 ? "bg-yellow-500 border-yellow-400 text-white group-active:scale-95"
@@ -181,7 +169,7 @@ const CameraControls = memo(function CameraControls({
         >
           <Zap
             className={`h-5 w-5 ${
-              isFlashOn && hasFlash && !isUsingGPUPixel
+              isFlashOn && hasFlash && !isLoading
                 ? "fill-current text-white"
                 : "text-gray-600 dark:text-gray-300"
             }`}
@@ -189,23 +177,19 @@ const CameraControls = memo(function CameraControls({
         </div>
         <span
           className={`text-[10px] font-medium ${
-            isFlashOn && hasFlash && !isUsingGPUPixel
+            isFlashOn && hasFlash && !isLoading
               ? "text-yellow-600 dark:text-yellow-400"
               : "text-gray-500 dark:text-gray-400"
           }`}
         >
-          {!hasFlash
-            ? "No Flash"
-            : isUsingGPUPixel
-              ? "N/A"
-              : isFlashOn
-                ? "On"
-                : "Flash"}
+          {isFlashOn && hasFlash && !isLoading ? "Bật" : "Tắt"}
         </span>
       </button>
     </div>
   );
 });
+
+// --- MAIN COMPONENT ---
 
 interface FaceVerificationModalProps {
   isOpen: boolean;
@@ -215,8 +199,6 @@ interface FaceVerificationModalProps {
   onVerified: (photoDataUrl: string) => void;
 }
 
-const CANVAS_ID = "face-verification-canvas";
-
 export function FaceVerificationModal({
   isOpen,
   onOpenChange,
@@ -224,525 +206,388 @@ export function FaceVerificationModal({
   currentTime,
   onVerified,
 }: FaceVerificationModalProps) {
+  // State: UI & Status
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<
     "idle" | "verifying" | "success"
   >("idle");
-  const [isLoadingCamera, setIsLoadingCamera] = useState(false);
-  const [flashActive, setFlashActive] = useState(false);
-  const [beautyEnabled, setBeautyEnabled] = useState(true);
+  const [flashActive, setFlashActive] = useState(false); // UI Flash effect
 
-  // Camera capabilities for non-GPUPixel mode
-  const [hasFlash, setHasFlash] = useState(false);
+  // State: Camera Features
+  const [beautyEnabled, setBeautyEnabled] = useState(true);
   const [isFlashOn, setIsFlashOn] = useState(false);
+  const [hasFlash, setHasFlash] = useState(false);
+
+  // State: Media Stream
+  const [mediaStream, setMediaStream] = useState<MediaStream | null>(null);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [currentDeviceId, setCurrentDeviceId] = useState<string>("");
+  const [isCameraLoading, setIsCameraLoading] = useState(false);
 
   // Refs
-  const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const isMountedRef = useRef(false);
   const streamRef = useRef<MediaStream | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
-  const hasStartedRef = useRef(false);
+  const isStartingRef = useRef(false);
+  const devicesRef = useRef<MediaDeviceInfo[]>([]);
 
-  // GPUPixel hook
-  const {
-    isLoading: isGPUPixelLoading,
-    isActive: isGPUPixelActive,
-    error: gpuPixelError,
-    isGPUPixelAvailable,
-    startCamera: startGPUPixelCamera,
-    stopCamera: stopGPUPixelCamera,
-    pauseCamera: pauseGPUPixelCamera,
-    capture: captureGPUPixel,
-    setBeauty,
-  } = useGPUPixel({
-    canvasId: CANVAS_ID,
+  // --- GPUPixel Hook Integration ---
+  // Hook now just receives the stream and paints the canvas.
+  // It doesn't care about camera devices or permissions.
+  const { isLoaded: isGPUPixelReady, error: gpuError } = useGPUPixel({
+    canvasRef,
+    mediaStream,
     smoothing: 3,
     whitening: 4,
+    enabled: beautyEnabled, // Toggle beauty processing
   });
 
-  // Stop all camera resources
-  const stopAllCameras = useCallback(() => {
-    // Stop GPUPixel
-    stopGPUPixelCamera();
+  // --- CAMERA LOGIC ---
 
-    // Stop native stream
+  const stopCamera = useCallback(() => {
+    console.log("[FaceVerificationModal] stopCamera called");
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => {
         track.stop();
+        console.log("[FaceVerificationModal] Stopped track:", track.label);
       });
       streamRef.current = null;
     }
-
-    // Cancel animation frame
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-
+    setMediaStream(null);
     setIsFlashOn(false);
-    hasStartedRef.current = false;
-  }, [stopGPUPixelCamera]);
-
-  // Start native camera (fallback or device switching)
-  const startNativeCamera = useCallback(async (deviceId?: string) => {
-    setCameraError(null);
-    setIsLoadingCamera(true);
-
-    // Stop existing stream if any
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    }
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-
-    try {
-      const deviceInfos = await navigator.mediaDevices.enumerateDevices();
-      const videoDevices = deviceInfos.filter((d) => d.kind === "videoinput");
-      setDevices(videoDevices);
-
-      const constraints: MediaStreamConstraints = {
-        video: deviceId
-          ? { deviceId: { exact: deviceId } }
-          : { facingMode: "user" },
-      };
-
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        streamRef.current = stream;
-      }
-
-      const track = stream.getVideoTracks()[0];
-      const capabilities = track.getCapabilities() as Record<string, unknown>;
-      setHasFlash(!!capabilities?.torch);
-
-      const settings = track.getSettings();
-      if (settings.deviceId) {
-        setCurrentDeviceId(settings.deviceId);
-      }
-
-      // Draw video to canvas for display
-      if (canvasRef.current && videoRef.current) {
-        const drawLoop = () => {
-          if (videoRef.current && canvasRef.current && streamRef.current) {
-            const ctx = canvasRef.current.getContext("2d");
-            if (
-              ctx &&
-              videoRef.current.videoWidth &&
-              videoRef.current.videoHeight
-            ) {
-              canvasRef.current.width = videoRef.current.videoWidth;
-              canvasRef.current.height = videoRef.current.videoHeight;
-              ctx.drawImage(
-                videoRef.current,
-                0,
-                0,
-                canvasRef.current.width,
-                canvasRef.current.height,
-              );
-            }
-            animationFrameRef.current = requestAnimationFrame(drawLoop);
-          }
-        };
-        videoRef.current.onloadedmetadata = () => {
-          videoRef.current?.play();
-          drawLoop();
-        };
-      }
-    } catch (err) {
-      console.error("Error accessing camera:", err);
-      setCameraError(
-        "Could not access camera. Please ensure permissions are granted.",
-      );
-    } finally {
-      setIsLoadingCamera(false);
-    }
+    setIsCameraLoading(false);
+    isStartingRef.current = false;
   }, []);
 
-  // Main camera start function
-  const startCamera = useCallback(async () => {
-    // Prevent double start
-    if (hasStartedRef.current) {
-      return;
-    }
-    hasStartedRef.current = true;
+  const startCamera = useCallback(
+    async (deviceId?: string) => {
+      console.log("[FaceVerificationModal] startCamera called", { 
+        deviceId, 
+        isStarting: isStartingRef.current,
+        isMounted: isMountedRef.current 
+      });
+      
+      if (isStartingRef.current || !isMountedRef.current) return;
 
-    setCameraError(null);
+      isStartingRef.current = true;
+      setIsCameraLoading(true);
+      setCameraError(null);
 
-    // Get device list first
-    try {
-      const deviceInfos = await navigator.mediaDevices.enumerateDevices();
-      const videoDevices = deviceInfos.filter((d) => d.kind === "videoinput");
-      setDevices(videoDevices);
-    } catch {
-      // Ignore enumeration errors
-    }
+      try {
+        // 1. Get Devices (if first time)
+        if (devicesRef.current.length === 0) {
+          console.log("[FaceVerificationModal] Enumerating devices...");
+          const deviceInfos = await navigator.mediaDevices.enumerateDevices();
+          const videoDevices = deviceInfos.filter((d) => d.kind === "videoinput");
+          setDevices(videoDevices);
+          devicesRef.current = videoDevices;
+          console.log("[FaceVerificationModal] Found devices:", videoDevices.length);
+        }
 
-    // Try GPUPixel first if available
-    if (isGPUPixelAvailable && beautyEnabled) {
-      console.log(
-        "[FaceVerification] Starting camera with GPUPixel beauty filter",
-      );
-      startGPUPixelCamera();
-      return;
-    }
+        // 2. Constraints
+        const constraints: MediaStreamConstraints = {
+          video: deviceId
+            ? { deviceId: { exact: deviceId } }
+            : {
+                facingMode: "user",
+                width: { ideal: 1280 }, 
+                height: { ideal: 720 },
+              },
+          audio: false,
+        };
 
-    // Fallback to native camera
-    await startNativeCamera();
-  }, [
-    isGPUPixelAvailable,
-    beautyEnabled,
-    startGPUPixelCamera,
-    startNativeCamera,
-  ]);
+        // 3. Get Stream
+        console.log("[FaceVerificationModal] Requesting getUserMedia...", constraints);
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
+        
+        // Final mount check
+        if (!isMountedRef.current) {
+          stream.getTracks().forEach(t => t.stop());
+          return;
+        }
 
-  const toggleCamera = async () => {
+        console.log("[FaceVerificationModal] getUserMedia success");
+        
+        streamRef.current = stream;
+        setMediaStream(stream);
+
+        // 4. Check Capabilities
+        const track = stream.getVideoTracks()[0];
+        const settings = track.getSettings();
+        if (settings.deviceId) setCurrentDeviceId(settings.deviceId);
+
+        const capabilities = track.getCapabilities ? track.getCapabilities() : {};
+        // @ts-ignore
+        setHasFlash(!!capabilities.torch);
+      } catch (err: any) {
+        console.error("[FaceVerificationModal] Camera Error:", err);
+        let message = "Không thể truy cập camera.";
+        if (err.name === "NotAllowedError") message = "Vui lòng cấp quyền truy cập camera.";
+        else if (err.name === "NotFoundError") message = "Không tìm thấy camera.";
+        else if (err.name === "NotReadableError") message = "Camera đang được sử dụng bởi ứng dụng khác.";
+        setCameraError(message);
+      } finally {
+        setIsCameraLoading(false);
+        isStartingRef.current = false;
+      }
+    },
+    [], // Completely stable
+  );
+
+  // --- HANDLERS ---
+
+  const handleToggleCamera = useCallback(async () => {
     if (devices.length < 2) return;
-
-    // Need to stop GPUPixel and use native for device switching
-    if (isGPUPixelActive) {
-      stopGPUPixelCamera();
-    }
-
     const currentIndex = devices.findIndex(
       (d) => d.deviceId === currentDeviceId,
     );
     const nextIndex = (currentIndex + 1) % devices.length;
-    const nextDevice = devices[nextIndex];
+    await startCamera(devices[nextIndex].deviceId);
+  }, [devices, currentDeviceId, startCamera]);
 
-    await startNativeCamera(nextDevice.deviceId);
-  };
-
-  const toggleFlash = async () => {
-    if (!streamRef.current || !hasFlash) return;
-
-    const track = streamRef.current.getVideoTracks()[0];
+  const handleToggleFlash = useCallback(async () => {
+    if (!mediaStream || !hasFlash) return;
+    const track = mediaStream.getVideoTracks()[0];
     try {
       await track.applyConstraints({
-        advanced: [{ torch: !isFlashOn } as MediaTrackConstraintSet],
+        advanced: [{ torch: !isFlashOn } as any],
       });
       setIsFlashOn(!isFlashOn);
     } catch (err) {
-      console.error("Error toggling flash:", err);
+      console.error("Flash Toggle Error:", err);
     }
-  };
+  }, [mediaStream, hasFlash, isFlashOn]);
 
-  // Use functional setState for stable callback (rerender-functional-setstate)
-  const toggleBeauty = useCallback(() => {
-    setBeautyEnabled((prev) => {
-      const newValue = !prev;
-      if (newValue) {
-        setBeauty(3, 4); // Default beauty params
-      } else {
-        setBeauty(0, 0); // Disable beauty
-      }
-      return newValue;
-    });
-  }, [setBeauty]);
+  const handleCapture = () => {
+    if (!canvasRef.current) return;
 
-  // Handle modal open/close
-  useEffect(() => {
-    if (isOpen) {
-      // Reset state
-      setVerificationStatus("idle");
-      hasStartedRef.current = false;
-
-      // Small delay to ensure canvas is mounted
-      const timer = setTimeout(() => {
-        startCamera();
-      }, 100);
-
-      return () => clearTimeout(timer);
-    } else {
-      stopAllCameras();
-    }
-  }, [isOpen]); // Only depend on isOpen
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      stopAllCameras();
-    };
-  }, [stopAllCameras]);
-
-  const handleCameraConfirm = () => {
     setVerificationStatus("verifying");
 
-    // Pause camera during verification
-    if (isGPUPixelActive) {
-      pauseGPUPixelCamera();
+    // UI Effect
+    setFlashActive(true);
+    setTimeout(() => setFlashActive(false), 300);
+
+    setTimeout(() => {
+      // Capture directly from the canvas that the hook is painting to
+      const dataUrl = canvasRef.current!.toDataURL("image/jpeg", 0.9);
+
+      setVerificationStatus("success");
+      setTimeout(() => {
+        onVerified(dataUrl);
+      }, 1500);
+    }, 1500);
+  };
+
+  // --- LIFECYCLE ---
+
+  useEffect(() => {
+    isMountedRef.current = true;
+    console.log("[FaceVerificationModal] useEffect triggered", { isOpen });
+    
+    if (isOpen) {
+      setVerificationStatus("idle");
+      // Delayed start to ensure UI sheet is fully expanded
+      const timer = setTimeout(() => {
+        if (isMountedRef.current) {
+          startCamera();
+        }
+      }, 500); 
+
+      return () => {
+        clearTimeout(timer);
+        stopCamera();
+      };
+    } else {
+      stopCamera();
     }
 
-    // Simulate verification delay
-    setTimeout(() => {
-      // 1. Capture Logic
-      let photoDataUrl = "";
+    return () => {
+      isMountedRef.current = false;
+      stopCamera();
+    };
+  }, [isOpen, startCamera, stopCamera]);
 
-      // Try GPUPixel capture first
-      if (isGPUPixelActive) {
-        const captured = captureGPUPixel();
-        if (captured) {
-          photoDataUrl = captured;
-        }
-      }
-
-      // Fallback to canvas or video capture
-      if (!photoDataUrl) {
-        if (canvasRef.current) {
-          photoDataUrl = canvasRef.current.toDataURL("image/jpeg");
-        } else if (videoRef.current) {
-          const canvas = document.createElement("canvas");
-          canvas.width = videoRef.current.videoWidth;
-          canvas.height = videoRef.current.videoHeight;
-          const ctx = canvas.getContext("2d");
-          if (ctx) {
-            const track = streamRef.current?.getVideoTracks()[0];
-            const facingMode = track?.getSettings().facingMode;
-
-            if (facingMode === "user" || !facingMode) {
-              ctx.translate(canvas.width, 0);
-              ctx.scale(-1, 1);
-            }
-
-            ctx.drawImage(videoRef.current, 0, 0);
-            photoDataUrl = canvas.toDataURL("image/jpeg");
-          }
-        }
-      }
-
-      // 2. Trigger Flash Effect
-      setFlashActive(true);
-      setTimeout(() => setFlashActive(false), 300);
-
-      // 3. Show Success State
-      setVerificationStatus("success");
-
-      // 4. Complete Process
-      setTimeout(() => {
-        onVerified(photoDataUrl);
-      }, 1500);
-    }, 2000);
-  };
-
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString("en-US", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-    });
-  };
-
-  // Use hoisted config map for better performance (js-cache-function-results)
+  // --- RENDER HELPERS ---
   const modalConfig = MODAL_CONFIGS[mode as ModalConfigKey] ?? DEFAULT_CONFIG;
-
-  // Determine loading/error states
-  const isUsingGPUPixel = isGPUPixelActive || isGPUPixelLoading;
-  const isLoading = isLoadingCamera || isGPUPixelLoading;
-  const hasError = cameraError || gpuPixelError;
+  const isBackCamera = devices
+    .find((d) => d.deviceId === currentDeviceId)
+    ?.label.toLowerCase()
+    .includes("back");
+  // showLoading: True if camera is starting, or beauty filter is not ready,
+  // or if the modal is open but we don't have a media stream yet.
+  const showError = !!cameraError || !!gpuError;
+  const showLoading = !showError && (isCameraLoading || !isGPUPixelReady || (isOpen && !mediaStream));
 
   return (
-    <Drawer open={isOpen} onOpenChange={onOpenChange}>
-      <DrawerContent className="max-h-[90vh] flex flex-col">
-        <div className="mx-auto w-full max-w-sm flex flex-col h-full overflow-hidden">
-          <DrawerHeader className="flex-none">
-            <DrawerTitle>{modalConfig.title}</DrawerTitle>
-            <DrawerDescription>
-              Please position your face within the frame to verify your
-              identity.
-              {beautyEnabled && isGPUPixelAvailable && (
-                <span className="ml-1 text-pink-500">✨ Beauty mode on</span>
-              )}
-            </DrawerDescription>
-          </DrawerHeader>
+    <Sheet
+      visible={isOpen}
+      onClose={() => onOpenChange(false)}
+      autoHeight
+      mask
+      swipeToClose
+      title={modalConfig.title}
+    >
+      <Box className="flex flex-col h-full overflow-hidden p-4">
+        <Box className="flex-none mb-4">
+          <Text className="text-gray-500 text-sm">
+            Vui lòng đưa khuôn mặt vào khung hình để xác thực danh tính.
+          </Text>
+        </Box>
 
-          <div className="flex-1 overflow-y-auto min-h-0 p-4 flex flex-col items-center custom-scrollbar">
-            {/* Camera Frame Container */}
+        <Box className="flex-1 flex flex-col items-center">
+          {/* CAMERA CONTAINER */}
+          <div
+            className={`relative shrink-0 h-56 w-56 sm:h-64 sm:w-64 md:h-72 md:w-72 rounded-full overflow-hidden border-4 ${
+              verificationStatus === "success"
+                ? "border-green-500 shadow-green-500/50"
+                : modalConfig.borderColor
+            } shadow-2xl bg-black ${modalConfig.glowColor} ${
+              verificationStatus === "verifying" ? "animate-border-glow" : ""
+            } group transition-all duration-500`}
+          >
+            {/* The single canvas used by useGPUPixel */}
+            <canvas
+              ref={canvasRef}
+              className={`absolute inset-0 h-full w-full object-cover transition-transform duration-300 ${
+                !isBackCamera ? "transform scale-x-[-1]" : ""
+              } ${showLoading || showError ? "opacity-0" : "opacity-100"}`}
+            />
+
+            {/* Shutter Effect */}
             <div
-              className={`relative shrink-0 h-56 w-56 sm:h-64 sm:w-64 md:h-72 md:w-72 rounded-full overflow-hidden border-4 ${
+              className={`absolute inset-0 rounded-full bg-white pointer-events-none z-30 transition-opacity duration-300 ${
+                flashActive ? "opacity-100" : "opacity-0"
+              }`}
+            />
+
+            {/* Success Overlay */}
+            <div
+              className={`absolute inset-0 rounded-full bg-black/70 backdrop-blur-sm z-30 flex flex-col items-center justify-center transition-opacity duration-700 ease-out ${
                 verificationStatus === "success"
-                  ? "border-green-500 shadow-green-500/50"
-                  : modalConfig.borderColor
-              } shadow-2xl bg-black ${modalConfig.glowColor} ${
-                verificationStatus === "verifying" ? "animate-border-glow" : ""
-              } group transition-all duration-500`}
+                  ? "opacity-100"
+                  : "opacity-0 pointer-events-none"
+              }`}
             >
-              {/* Hidden Video Element for native fallback */}
-              <video
-                ref={videoRef}
-                autoPlay
-                playsInline
-                muted
-                className="hidden"
-              />
-
-              {/* Display Canvas - Used by GPUPixel or native fallback */}
-              <canvas
-                ref={canvasRef}
-                id={CANVAS_ID}
-                className={`absolute inset-0 h-full w-full object-cover transition-transform duration-300 ${
-                  devices
-                    .find((d) => d.deviceId === currentDeviceId)
-                    ?.label.toLowerCase()
-                    .includes("back")
-                    ? ""
-                    : "transform scale-x-[-1]"
-                } ${isLoading || hasError ? "invisible" : "visible"}`}
-              />
-
-              {/* Shutter/Flash Effect */}
               <div
-                className={`absolute inset-0 bg-white pointer-events-none z-30 transition-opacity duration-300 ${
-                  flashActive ? "opacity-100" : "opacity-0"
-                }`}
-              />
-
-              {/* Success Overlay */}
-              <div
-                className={`absolute inset-0 bg-black/70 backdrop-blur-sm z-30 flex flex-col items-center justify-center transition-opacity duration-700 ease-out ${
+                className={`rounded-full p-3 mb-3 bg-gradient-to-br from-green-400 to-emerald-600 shadow-lg shadow-green-500/40 transition-all duration-500 ease-out ${
                   verificationStatus === "success"
-                    ? "opacity-100"
-                    : "opacity-0 pointer-events-none"
+                    ? "scale-100 opacity-100"
+                    : "scale-50 opacity-0"
                 }`}
               >
-                <div
-                  className={`rounded-full p-3 mb-3 bg-gradient-to-br from-green-400 to-emerald-600 shadow-lg shadow-green-500/40 transition-all duration-500 ease-out ${
-                    verificationStatus === "success"
-                      ? "scale-100 opacity-100"
-                      : "scale-50 opacity-0"
-                  }`}
-                >
-                  <CheckCircle2 className="h-8 w-8 text-white drop-shadow-md" />
-                </div>
-                <p
-                  className={`text-white font-semibold text-base tracking-wide transition-all duration-500 delay-150 ease-out ${
-                    verificationStatus === "success"
-                      ? "opacity-100 translate-y-0"
-                      : "opacity-0 translate-y-2"
-                  }`}
-                >
-                  Verified Successfully
+                <CheckCircle2 className="h-8 w-8 text-white drop-shadow-md" />
+              </div>
+              <p className="text-white font-semibold text-base tracking-wide">
+                Xác thực thành công
+              </p>
+            </div>
+
+            {/* Loading Overlay */}
+            {showLoading && (
+              <div className="absolute inset-0 rounded-full flex flex-col items-center justify-center bg-gray-900 text-white p-4 text-center z-20">
+                <Loader2 className="h-8 w-8 text-primary animate-spin mb-2" />
+                <p className="text-xs text-gray-400">
+                  {isCameraLoading
+                    ? "Khởi động camera..."
+                    : "Tải bộ lọc làm đẹp..."}
                 </p>
               </div>
-
-              {/* Loading Overlay */}
-              {isLoading && (
-                <div className="absolute inset-0 flex flex-col items-center justify-center bg-gray-900 text-white p-4 text-center z-20">
-                  <Loader2 className="h-8 w-8 text-primary animate-spin mb-2" />
-                  <p className="text-xs text-gray-400">
-                    {isGPUPixelLoading
-                      ? "Loading Beauty Filter..."
-                      : "Starting Camera..."}
-                  </p>
-                </div>
-              )}
-
-              {/* Error Overlay */}
-              {hasError && (
-                <div className="absolute inset-0 flex items-center justify-center bg-gray-900 text-white p-4 text-center z-20">
-                  <div className="flex flex-col items-center gap-2">
-                    <AlertCircle className="h-8 w-8 text-red-500" />
-                    <p className="text-xs text-red-400">
-                      {cameraError || gpuPixelError}
-                    </p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        hasStartedRef.current = false;
-                        startCamera();
-                      }}
-                      className="mt-2 h-7 text-xs border-red-500/30 hover:bg-red-900/20 text-red-300"
-                    >
-                      Retry
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Overlays (only visible when active and inactive error/success) */}
-              {!isLoading && !hasError && verificationStatus !== "success" && (
-                <>
-                  {/* Overlay scanning effect */}
-                  <div
-                    className={`absolute inset-0 bg-gradient-to-b from-transparent ${modalConfig.scanColor} to-transparent animate-scan pointer-events-none z-10`}
-                  ></div>
-                </>
-              )}
-            </div>
-
-            {/* Camera Controls Bar - Always Visible when camera active */}
-            {/* Use memoized CameraControls component (rerender-memo) */}
-            {!isLoading && !hasError && verificationStatus === "idle" && (
-              <CameraControls
-                devices={devices}
-                toggleCamera={toggleCamera}
-                isGPUPixelAvailable={isGPUPixelAvailable}
-                beautyEnabled={beautyEnabled}
-                toggleBeauty={toggleBeauty}
-                hasFlash={hasFlash}
-                isFlashOn={isFlashOn}
-                isUsingGPUPixel={isUsingGPUPixel}
-                toggleFlash={toggleFlash}
-              />
             )}
 
-            <div className="mt-3 text-center space-y-0.5">
-              <p className="text-[10px] font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                Current Time
-              </p>
-              <p className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white font-mono">
-                {formatTime(currentTime)}
-              </p>
-            </div>
+            {/* Error Overlay */}
+            {showError && (
+              <div className="absolute inset-0 rounded-full flex items-center justify-center bg-gray-900 text-white p-4 text-center z-20">
+                <div className="flex flex-col items-center gap-2">
+                  <AlertCircle className="h-8 w-8 text-red-500" />
+                  <p className="text-xs text-red-400">
+                    {cameraError || gpuError}
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => startCamera(currentDeviceId)}
+                    className="mt-2 h-7 text-xs border-red-500/30 hover:bg-red-900/20 text-red-300"
+                  >
+                    Thử lại
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Scanning Overlay Effect */}
+            {!showLoading && !showError && verificationStatus !== "success" && (
+              <div
+                className={`absolute inset-0 bg-gradient-to-b from-transparent ${modalConfig.scanColor} to-transparent animate-scan pointer-events-none z-10`}
+              ></div>
+            )}
           </div>
 
-          <DrawerFooter className="flex-none pt-4 pb-[calc(env(safe-area-inset-bottom)+0.5rem)]">
-            <Button
-              onClick={handleCameraConfirm}
-              disabled={
-                verificationStatus !== "idle" || !!hasError || isLoading
-              }
-              className={`w-full ${
-                verificationStatus === "success"
-                  ? "bg-green-600 hover:bg-green-700"
-                  : modalConfig.buttonColor
-              } text-white h-12 text-lg shadow-lg shadow-${modalConfig.color}-500/20 active:scale-[0.98] transition-all`}
-            >
-              {verificationStatus === "verifying" ? (
-                <>
-                  <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  Verifying...
-                </>
-              ) : verificationStatus === "success" ? (
-                <>
-                  <CheckCircle2 className="mr-2 h-5 w-5" />
-                  Verified Success
-                </>
-              ) : (
-                <>
-                  <Camera className="mr-2 h-5 w-5" />
-                  {modalConfig.confirmText}
-                </>
-              )}
-            </Button>
-            <DrawerClose asChild>
-              <Button
-                variant="ghost"
-                className="w-full mt-2"
-                disabled={verificationStatus !== "idle"}
-              >
-                {verificationStatus === "success" ? "Close" : "Cancel"}
-              </Button>
-            </DrawerClose>
-          </DrawerFooter>
-        </div>
-      </DrawerContent>
-    </Drawer>
+          {/* CONTROLS */}
+          {!showError && verificationStatus === "idle" && (
+            <CameraControls
+              devices={devices}
+              toggleCamera={handleToggleCamera}
+              isGPUPixelReady={isGPUPixelReady}
+              beautyEnabled={beautyEnabled}
+              toggleBeauty={() => setBeautyEnabled(!beautyEnabled)}
+              hasFlash={hasFlash}
+              isFlashOn={isFlashOn}
+              toggleFlash={handleToggleFlash}
+              isLoading={showLoading}
+            />
+          )}
+
+          <Box className="mt-4 text-center space-y-1">
+            <Text className="text-[10px] font-medium text-gray-500 uppercase tracking-wider">
+              Thời gian hiện tại
+            </Text>
+            <Text className="text-xl sm:text-2xl font-bold text-slate-900 font-mono">
+              {currentTime.toLocaleTimeString("vi-VN", {
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: true,
+              })}
+            </Text>
+          </Box>
+        </Box>
+
+        <Box className="flex-none pt-6 pb-4 gap-2 flex flex-col">
+          <Button
+            onClick={handleCapture}
+            disabled={verificationStatus !== "idle" || showError || showLoading}
+            className={`w-full ${
+              verificationStatus === "success"
+                ? "bg-green-600 hover:bg-green-700"
+                : modalConfig.buttonColor
+            } text-white h-12 text-lg shadow-lg active:scale-[0.98] transition-all`}
+          >
+            {verificationStatus === "verifying" ? (
+              <>
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                Đang xác thực...
+              </>
+            ) : verificationStatus === "success" ? (
+              <>
+                <CheckCircle2 className="mr-2 h-5 w-5" />
+                Đã xác thực
+              </>
+            ) : (
+              <>
+                <Camera className="mr-2 h-5 w-5" />
+                {modalConfig.confirmText}
+              </>
+            )}
+          </Button>
+          <Button
+            variant="ghost"
+            className="w-full"
+            disabled={verificationStatus !== "idle"}
+            onClick={() => onOpenChange(false)}
+          >
+            {verificationStatus === "success" ? "Đóng" : "Hủy bỏ"}
+          </Button>
+        </Box>
+      </Box>
+    </Sheet>
   );
 }

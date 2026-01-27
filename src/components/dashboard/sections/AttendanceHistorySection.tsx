@@ -7,12 +7,13 @@ import {
   TrendingUp,
   Calendar,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
-import { useNavigate } from "react-router-dom";
+import { Text, List, useNavigate } from "zmp-ui";
+
+const { Title, Header } = Text;
 
 interface HistoryItem {
   id: string;
@@ -38,7 +39,6 @@ export const AttendanceHistorySection = memo(function AttendanceHistorySection({
   isLoading,
 }: AttendanceHistorySectionProps) {
   const navigate = useNavigate();
-
   const getStatusConfig = (status: HistoryItem["status"]) => {
     switch (status) {
       case "present":
@@ -83,131 +83,150 @@ export const AttendanceHistorySection = memo(function AttendanceHistorySection({
           bg: "bg-purple-500/10",
           iconBg: "bg-purple-500/20",
         };
+      default:
+        return {
+          label: "N/A",
+          color: "text-gray-400",
+          bg: "bg-gray-100",
+          iconBg: "bg-gray-200",
+        };
     }
   };
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 px-4 mt-8 pb-10">
       {/* Section Header */}
-      <div className="flex items-center gap-3">
-        <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400">
+      <div className="flex items-center gap-3 px-1">
+        <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400">
           <CalendarCheck className="h-5 w-5" />
         </div>
-        <h3 className="text-lg font-bold text-blue-900 dark:text-blue-100">
-          Chấm công
-        </h3>
+        <Title className="!text-lg !font-bold text-blue-900 dark:text-blue-100 m-0">
+          Lịch sử Chấm công
+        </Title>
       </div>
 
       {/* Stats Summary Card */}
-      <Card className="p-5 border-none bg-gradient-to-br from-blue-400 to-blue-600 text-white shadow-lg shadow-blue-500/20 rounded-3xl">
-        <div className="grid grid-cols-3 divide-x divide-white/20">
+      <Card className="p-5 border-none bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/20 rounded-[2rem] overflow-hidden relative group">
+        <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl group-hover:scale-150 transition-transform duration-700" />
+        <div className="grid grid-cols-3 divide-x divide-white/20 relative z-10">
           <div className="flex flex-col items-center gap-2">
             <Timer className="h-5 w-5 opacity-80" />
-            <span className="text-lg font-bold">
+            <Header className="!text-lg !font-bold !text-white m-0">
               {totalWorkHours.toFixed(1)}h
-            </span>
-            <span className="text-[10px] uppercase font-medium opacity-70 tracking-wider">
-              Tổng giờ làm
-            </span>
+            </Header>
+            <Text className="!text-[10px] !uppercase !font-medium !text-white opacity-70 tracking-wider text-center m-0">
+              Giờ làm
+            </Text>
           </div>
           <div className="flex flex-col items-center gap-2">
             <TrendingUp className="h-5 w-5 opacity-80" />
-            <span className="text-lg font-bold">{attendanceRate}%</span>
-            <span className="text-[10px] uppercase font-medium opacity-70 tracking-wider">
-              Tỷ lệ đi làm
-            </span>
+            <Header className="!text-lg !font-bold !text-white m-0">
+              {attendanceRate}%
+            </Header>
+            <Text className="!text-[10px] !uppercase !font-medium !text-white opacity-70 tracking-wider text-center m-0">
+              Tỷ lệ
+            </Text>
           </div>
           <div className="flex flex-col items-center gap-2">
             <Calendar className="h-5 w-5 opacity-80" />
-            <span className="text-lg font-bold">{presentDays}</span>
-            <span className="text-[10px] uppercase font-medium opacity-70 tracking-wider">
-              Công tháng
-            </span>
+            <Header className="!text-lg !font-bold !text-white m-0">
+              {presentDays}
+            </Header>
+            <Text className="!text-[10px] !uppercase !font-medium !text-white opacity-70 tracking-wider text-center m-0">
+              Công
+            </Text>
           </div>
         </div>
       </Card>
 
-      {/* History List */}
-      <div className="flex flex-col gap-3">
+      {/* History List using zmp-ui List */}
+      <div className="mt-2">
         {isLoading ? (
           <div className="py-12 flex justify-center">
             <div className="h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : recentHistory.length === 0 ? (
-          <Card className="py-12 px-4 flex flex-col items-center justify-center bg-gray-50/50 dark:bg-gray-900/20 border-dashed rounded-2xl">
-            <Inbox className="h-12 w-12 text-gray-300 mb-3" />
-            <span className="text-sm text-gray-400">
-              Chưa có lịch sử chấm công
-            </span>
-          </Card>
+          <div className="py-12 flex flex-col items-center justify-center gap-4 opacity-50 bg-gray-50/50 dark:bg-gray-900/20 rounded-3xl border border-dashed border-gray-200 dark:border-gray-800">
+            <div className="h-20 w-20 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+              <Inbox className="h-10 w-10 text-slate-400" />
+            </div>
+            <Text className="!text-sm m-0">Không có dữ liệu chấm công</Text>
+          </div>
         ) : (
-          recentHistory.map((item) => {
-            const config = getStatusConfig(item.status);
-            return (
-              <Card
-                key={item.id}
-                className="p-4 border-gray-100 dark:border-gray-800 rounded-2xl bg-white dark:bg-[#262A31] shadow-sm hover:shadow-md transition-shadow"
-              >
-                <div className="flex items-center gap-4">
-                  <div className={cn("p-2.5 rounded-xl", config.bg)}>
-                    <Calendar className={cn("h-5 w-5", config.color)} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between items-center mb-1">
-                      <span className="font-bold text-sm text-gray-900 dark:text-white truncate capitalize">
-                        {format(item.date, "EEEE, dd/MM", { locale: vi })}
-                      </span>
-                      <span
-                        className={cn(
-                          "text-[10px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wider",
-                          config.bg,
-                          config.color,
-                        )}
-                      >
-                        {config.label}
-                      </span>
-                    </div>
-                    {item.checkIn || item.checkOut ? (
-                      <div className="flex gap-4">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] text-gray-400 font-medium">
-                            Vào:
+          <List
+            dataSource={recentHistory}
+            renderItem={(item: HistoryItem) => {
+              const config = getStatusConfig(item.status);
+              return (
+                <div key={item.id} className="mb-3 px-1">
+                  <Card className="p-4 border-none bg-white dark:bg-slate-900 shadow-sm hover:shadow-md transition-all duration-300 rounded-2xl active:scale-[0.98]">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-4">
+                        <div
+                          className={cn(
+                            "w-12 h-12 rounded-2xl flex flex-col items-center justify-center border transition-all",
+                            config.iconBg,
+                            config.color,
+                            "border-transparent",
+                          )}
+                        >
+                          <span className="text-[10px] font-bold uppercase opacity-60">
+                            Th{format(item.date, "M")}
                           </span>
-                          <span className="text-xs font-bold text-gray-600 dark:text-gray-300 leading-none">
-                            {item.checkIn || "--:--"}
+                          <span className="text-lg font-black leading-none mt-0.5">
+                            {format(item.date, "dd")}
                           </span>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[10px] text-gray-400 font-medium">
-                            Ra:
-                          </span>
-                          <span className="text-xs font-bold text-gray-600 dark:text-gray-300 leading-none">
-                            {item.checkOut || "--:--"}
-                          </span>
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-2">
+                            <Header className="!text-sm !font-bold text-slate-900 dark:text-white m-0 capitalize">
+                              {format(item.date, "EEEE", { locale: vi })}
+                            </Header>
+                            <div
+                              className={cn(
+                                "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
+                                config.bg,
+                                config.color,
+                              )}
+                            >
+                              {config.label}
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-1.5">
+                              <Timer className="h-3 w-3 text-slate-400" />
+                              <Text className="!text-xs !text-slate-500 m-0">
+                                {item.checkIn || "--:--"}
+                              </Text>
+                            </div>
+                            <div className="h-1 w-1 rounded-full bg-slate-300" />
+                            <div className="flex items-center gap-1.5">
+                              <div className="h-3 w-3 rounded-full border border-slate-300 flex items-center justify-center">
+                                <div className="h-1 w-1 rounded-full bg-slate-400" />
+                              </div>
+                              <Text className="!text-xs !text-slate-500 m-0">
+                                {item.checkOut || "--:--"}
+                              </Text>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                    ) : (
-                      <span className="text-xs italic text-gray-400">
-                        Không có dữ liệu
-                      </span>
-                    )}
-                  </div>
+                      <ChevronRight className="h-5 w-5 text-slate-300" />
+                    </div>
+                  </Card>
                 </div>
-              </Card>
-            );
-          })
+              );
+            }}
+          />
         )}
       </div>
 
-      {/* View All Button */}
-      <Button
-        variant="ghost"
-        className="w-full h-12 rounded-xl bg-blue-50/50 dark:bg-blue-900/10 text-blue-700 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/20 font-bold gap-2 text-sm border border-blue-100/50 dark:border-blue-900/30"
-        onClick={() => navigate("/attendance")}
+      <button
+        onClick={() => navigate("/attendance-history")}
+        className="w-full py-4 text-blue-600 dark:text-blue-400 font-bold text-sm bg-blue-50 dark:bg-blue-900/20 rounded-2xl active:scale-[0.98] transition-all mt-2"
       >
-        Xem toàn bộ lịch sử
-        <ChevronRight className="h-4 w-4" />
-      </Button>
+        Xem tất cả lịch sử
+      </button>
     </div>
   );
 });

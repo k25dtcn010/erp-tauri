@@ -150,13 +150,15 @@ const LoginPage: React.FC = () => {
       setLoading(false);
       openSnackbar({ type: "success", text: "Đăng nhập thành công!" });
       navigate("/");
-    } catch (error) {
+    } catch (error: any) {
       setLoading(false);
       console.error(error);
       openSnackbar({
         type: "error",
-        text: "Đăng nhập thất bại. Kiểm tra lại mật khẩu.",
+        text: `Đăng nhập thất bại: ${error?.message || "Kiểm tra lại thông tin"}`,
       });
+      // setPassword(""); // Keep password for easier retry? Or clear it.
+      // User style seems to prefer clear.
       setPassword("");
     }
   };

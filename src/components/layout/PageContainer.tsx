@@ -14,6 +14,8 @@ interface PageContainerProps {
   rightAction?: ReactNode;
   /** Extra content below the main header line (e.g., Tabs) */
   headerExtra?: ReactNode;
+  /** Additional classes for the header container */
+  headerClassName?: string;
   /** Additional classes for the scrollable container */
   containerClassName?: string;
   /** Additional classes for the main content area */
@@ -31,6 +33,7 @@ export function PageContainer({
   leftAction,
   rightAction,
   headerExtra,
+  headerClassName,
   containerClassName,
   contentClassName,
 }: PageContainerProps) {
@@ -43,7 +46,13 @@ export function PageContainer({
     >
       {/* Fixed Header refactor to match zmp-ui */}
       <header className="fixed top-0 left-0 right-0 z-[999] bg-white dark:bg-[#141415] transition-all duration-300 after:content-[''] after:absolute after:bottom-0 after:left-0 after:w-full after:h-[1px] after:bg-[#e9ebed] dark:after:bg-[#36383a]">
-        <div className="min-h-[calc(var(--zaui-safe-area-inset-top,0px)+44px)] px-3 pt-[calc(var(--zaui-safe-area-inset-top,0px)+10px)] pb-[10px] pr-[103px] flex items-center gap-2">
+        <div
+          className={cn(
+            "min-h-[calc(var(--zaui-safe-area-inset-top,0px)+44px)] px-3 pt-[calc(var(--zaui-safe-area-inset-top,0px)+10px)] pb-[10px] flex items-center gap-2",
+            !header && "pr-[103px]",
+            headerClassName,
+          )}
+        >
           {header ? (
             header
           ) : (

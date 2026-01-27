@@ -1,7 +1,8 @@
 import { memo } from "react";
-import { Calendar, ShieldCheck, CalendarDays } from "lucide-react";
+import { Calendar, ShieldCheck, CalendarDays, Plus, Clock } from "lucide-react";
 import { useNavigate } from "zmp-ui";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
 interface LeaveSectionProps {
   totalLeaveDays: number;
@@ -74,6 +75,30 @@ export const LeaveSection = memo(function LeaveSection({
           </span>
         </div>
       </Card>
+
+      {/* Action Buttons */}
+      <div className="grid grid-cols-1 gap-3">
+        <Button
+          variant="outline"
+          className="w-full border-2 border-orange-100 dark:border-orange-900/50 text-orange-600 dark:text-orange-400 rounded-2xl h-14 font-bold hover:bg-orange-50 dark:hover:bg-orange-900/10 transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-orange-500/5"
+          onClick={() => navigate("/leave?action=new-leave")}
+        >
+          <div className="h-8 w-8 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-orange-600 dark:text-orange-400">
+            <Plus className="h-5 w-5" />
+          </div>
+          <span className="text-sm">Đăng ký nghỉ phép</span>
+        </Button>
+        <Button
+          variant="outline"
+          className="w-full border-2 border-orange-100 dark:border-orange-900/50 text-orange-600 dark:text-orange-400 rounded-2xl h-14 font-bold hover:bg-orange-50 dark:hover:bg-orange-900/10 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+          onClick={() => navigate("/leave?action=late-early")}
+        >
+          <div className="h-8 w-8 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+            <Clock className="h-5 w-5" />
+          </div>
+          <span className="text-sm">Đăng ký đi muộn, về sớm</span>
+        </Button>
+      </div>
     </div>
   );
 });

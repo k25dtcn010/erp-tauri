@@ -13,6 +13,7 @@ interface AttendanceSectionProps {
   currentTime: Date;
   onCheckIn: () => void;
   onCheckOut: () => void;
+  onOpenLateEarlyModal?: () => void;
 }
 
 export function AttendanceSection({
@@ -20,19 +21,28 @@ export function AttendanceSection({
   currentTime,
   onCheckIn,
   onCheckOut,
+  onOpenLateEarlyModal,
 }: AttendanceSectionProps) {
   const isWorking = workStatus === "working" || workStatus === "paused";
 
   return (
     <div className="flex flex-col gap-4  mt-6">
       {/* Section Header */}
-      <div className="flex items-center gap-3">
-        <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400">
-          <Clock className="h-5 w-5" />
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400">
+            <Clock className="h-5 w-5" />
+          </div>
+          <Title className="!text-lg !font-bold text-blue-900 dark:text-blue-100 m-0">
+            Chấm công
+          </Title>
         </div>
-        <Title className="!text-lg !font-bold text-blue-900 dark:text-blue-100 m-0">
-          Chấm công
-        </Title>
+        <button
+          onClick={onOpenLateEarlyModal}
+          className="text-xs font-black text-orange-500 uppercase tracking-wider bg-orange-50 dark:bg-orange-900/20 px-3 py-1.5 rounded-full border border-orange-100 dark:border-orange-500/10 active:scale-95 transition-all"
+        >
+          Đi muộn/Về sớm
+        </button>
       </div>
 
       {/* Main Stats Card */}

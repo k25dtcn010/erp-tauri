@@ -46,6 +46,7 @@ import {
   ChartTooltip,
   ChartTooltipContent,
 } from "@/components/ui/chart";
+import { CustomPageHeader } from "@/components/layout/CustomPageHeader";
 
 const { Option } = ZSelect;
 
@@ -82,31 +83,13 @@ const OvertimePage: React.FC = () => {
 
   const otTypes = [
     {
-      label: "Ngày thường (x1.5)",
+      label: "Giờ tăng ca",
       current: 8.5,
       total: 15,
       icon: <Clock className="h-4 w-4" />,
       color: "text-purple-600 dark:text-purple-400",
       bgColor: "bg-purple-500/10",
       indicatorColor: "bg-purple-500",
-    },
-    {
-      label: "Cuối tuần (x2.0)",
-      current: 4,
-      total: 8,
-      icon: <CalendarDays className="h-4 w-4" />,
-      color: "text-indigo-600 dark:text-indigo-400",
-      bgColor: "bg-indigo-500/10",
-      indicatorColor: "bg-indigo-500",
-    },
-    {
-      label: "Ngày lễ (x3.0)",
-      current: 0,
-      total: 4,
-      icon: <Zap className="h-4 w-4" />,
-      color: "text-amber-600 dark:text-amber-400",
-      bgColor: "bg-amber-500/10",
-      indicatorColor: "bg-amber-500",
     },
   ];
 
@@ -159,343 +142,332 @@ const OvertimePage: React.FC = () => {
   ];
 
   return (
-    <PageContainer
-      header={
-        <div className="flex items-center justify-between w-full px-4 py-2">
-          <div className="w-16 shrink-0">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-10 w-10 rounded-xl bg-gray-50 dark:bg-white/5 hover:bg-gray-100 dark:hover:bg-white/10 transition-all active:scale-95 shrink-0"
-              onClick={() => navigate(-1)}
-            >
-              <ChevronLeft className="h-6 w-6 text-orange-500" />
-            </Button>
-          </div>
-
-          <div className="flex items-center gap-3 bg-gray-50/50 dark:bg-white/5 pl-1 pr-3 py-1 rounded-2xl border border-gray-100 dark:border-white/5 shrink-0 shadow-sm">
-            <div className="relative shrink-0">
-              <Avatar className="h-8 w-8 border-2 border-white dark:border-gray-800 shadow-sm">
-                <AvatarImage src="https://i.pravatar.cc/150?u=a" alt="User" />
-                <AvatarFallback className="bg-orange-100 text-orange-600 font-bold text-[10px]">
-                  AD
-                </AvatarFallback>
-              </Avatar>
-              <div className="absolute -bottom-0.5 -right-0.5 bg-green-500 h-2.5 w-2.5 rounded-full border-2 border-white dark:border-gray-800" />
-            </div>
-
-            <div className="flex flex-col min-w-[80px]">
-              <h1 className="text-[11px] font-black text-slate-900 dark:text-white leading-tight uppercase tracking-tight">
-                Tăng ca
-              </h1>
-              <p className="text-[8px] font-bold text-orange-500 uppercase tracking-widest opacity-80">
-                Overtime
-              </p>
-            </div>
-
-            <div className="w-px h-4 bg-gray-200 dark:bg-white/10 mx-1" />
-
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7 rounded-lg hover:bg-gray-200/50 dark:hover:bg-white/10 relative shrink-0"
-            >
-              <Bell className="h-3.5 w-3.5 text-gray-500" />
-              <span className="absolute top-1 right-1 h-1.5 w-1.5 bg-red-500 rounded-full border border-white dark:border-[#1a1d23]" />
-            </Button>
-          </div>
-
-          <div className="w-16 shrink-0" />
-        </div>
-      }
-    >
-      <Box className="mb-32">
-        <Tabs
-          activeKey={activeTab}
-          onChange={(key) => setActiveTab(key)}
-          className="w-full zaui-tabs-custom"
-        >
-          <Tabs.Tab
-            key="stats"
-            label={
-              <div className="flex items-center gap-2">
-                <PieChart className="h-3.5 w-3.5" />
-                <span>Thống kê</span>
-              </div>
-            }
+    <>
+      <PageContainer
+        header={
+          <CustomPageHeader
+            title="Tăng ca"
+            subtitle="Overtime"
+            onBack={() => navigate(-1)}
+            variant="purple"
+          />
+        }
+      >
+        <Box className="mb-32">
+          <Tabs
+            activeKey={activeTab}
+            onChange={(key) => setActiveTab(key)}
+            className="w-full zaui-tabs-custom"
           >
-            <div className="mt-4 space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-400">
-              {/* Main Stats Hero Card */}
-              <Card className="relative overflow-hidden border-none bg-gradient-to-br from-purple-600 to-purple-800 text-white shadow-xl shadow-purple-500/20 rounded-2xl p-8">
-                <div className="flex justify-between items-start mb-10">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <ShieldCheck className="h-4 w-4 text-purple-100" />
-                      <span className="text-xs font-bold text-purple-100 uppercase tracking-widest">
-                        Tổng giờ tăng ca
-                      </span>
-                    </div>
-                    <div className="flex items-baseline gap-2">
-                      <h2 className="text-6xl font-black tabular-nums">12.5</h2>
-                      <span className="text-xl font-bold opacity-80">giờ</span>
-                    </div>
-                  </div>
-                  <div className="h-14 w-14 rounded-2xl bg-white/20 backdrop-blur-md border border-white/20 flex items-center justify-center shadow-lg">
-                    <Clock className="h-7 w-7" />
-                  </div>
+            <Tabs.Tab
+              key="stats"
+              label={
+                <div className="flex items-center gap-2">
+                  <PieChart className="h-3.5 w-3.5" />
+                  <span>Thống kê</span>
                 </div>
-
-                <div className="space-y-3">
-                  <div className="flex justify-between items-end text-xs font-bold uppercase text-purple-100">
-                    <div className="flex items-center gap-2">
-                      <TrendingUp className="h-3.5 w-3.5" />
-                      <span>Tăng 12% so với tháng trước</span>
-                    </div>
-                    <span className="text-sm">450k VND</span>
-                  </div>
-                  <div className="relative h-3 w-full bg-white/20 rounded-full overflow-hidden backdrop-blur-sm border border-white/10">
-                    <div
-                      className="absolute top-0 left-0 h-full bg-white rounded-full shadow-[0_0_10px_rgba(255,255,255,1)]"
-                      style={{ width: "65%" }}
-                    />
-                  </div>
-                </div>
-
-                <div className="mt-8 pt-6 border-t border-white/10 flex justify-between">
-                  <div className="flex flex-col">
-                    <span className="text-[10px] uppercase font-bold text-purple-100/60">
-                      Đã duyệt
-                    </span>
-                    <span className="text-lg font-bold">8.5 giờ</span>
-                  </div>
-                  <div className="flex flex-col text-right">
-                    <span className="text-[10px] uppercase font-bold text-purple-100/60">
-                      Đang chờ
-                    </span>
-                    <span className="text-lg font-bold">4.0 giờ</span>
-                  </div>
-                </div>
-              </Card>
-
-              {/* Activity Trend Chart */}
-              <div className="space-y-4">
-                <h3 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] px-1 flex items-center justify-between">
-                  <span>Biểu đồ hàng tuần</span>
-                  <TrendingUp className="h-3.5 w-3.5 opacity-50" />
-                </h3>
-                <Card className="p-6 border-gray-100 dark:border-[#353A45] bg-white dark:bg-[#262A31] shadow-sm rounded-2xl overflow-hidden">
-                  <div className="h-48 w-full">
-                    <ChartContainer
-                      config={chartConfig}
-                      className="h-full w-full"
-                    >
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart
-                          data={chartData}
-                          margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-                        >
-                          <CartesianGrid
-                            vertical={false}
-                            strokeDasharray="3 3"
-                            stroke="#88888820"
-                          />
-                          <XAxis
-                            dataKey="day"
-                            tickLine={false}
-                            tickMargin={10}
-                            axisLine={false}
-                            tick={{
-                              fill: "#888",
-                              fontSize: 10,
-                              fontWeight: 600,
-                            }}
-                          />
-                          <ChartTooltip
-                            cursor={false}
-                            content={<ChartTooltipContent />}
-                          />
-                          <Bar
-                            dataKey="hours"
-                            fill="var(--color-hours)"
-                            radius={[6, 6, 0, 0]}
-                            barSize={24}
-                          />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </ChartContainer>
-                  </div>
-                </Card>
-              </div>
-
-              {/* Breakdown Section */}
-              <div className="grid grid-cols-1 gap-4">
-                <h3 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] px-1 flex items-center justify-between">
-                  <span>Phân loại tăng ca</span>
-                  <Info className="h-3.5 w-3.5 opacity-50" />
-                </h3>
-                {otTypes.map((type, idx) => (
-                  <Card
-                    key={idx}
-                    className="p-5 border-gray-100 dark:border-[#353A45] bg-white dark:bg-[#262A31] shadow-sm hover:shadow-md transition-all duration-300 rounded-2xl"
-                  >
-                    <div className="flex items-center gap-5">
-                      <div
-                        className={cn(
-                          "h-12 w-12 rounded-2xl flex items-center justify-center shadow-sm",
-                          type.bgColor,
-                          type.color,
-                        )}
-                      >
-                        {type.icon}
+              }
+            >
+              <div className="mt-4 space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-400">
+                {/* Main Stats Hero Card */}
+                <Card className="relative overflow-hidden border-none bg-gradient-to-br from-purple-600 to-purple-800 text-white shadow-xl shadow-purple-500/20 rounded-2xl p-8">
+                  <div className="flex justify-between items-start mb-10">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <ShieldCheck className="h-4 w-4 text-purple-100" />
+                        <span className="text-xs font-bold text-purple-100 uppercase tracking-widest">
+                          Tổng giờ tăng ca
+                        </span>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex justify-between items-center mb-2">
-                          <h4 className="text-sm font-bold text-slate-900 dark:text-white truncate">
-                            {type.label}
-                          </h4>
-                          <div className="text-right">
-                            <span className="text-sm font-black tabular-nums text-slate-700 dark:text-slate-200">
-                              {type.current}
-                            </span>
-                            <span className="text-xs font-bold text-slate-400 ml-1">
-                              / {type.total}h
-                            </span>
-                          </div>
-                        </div>
-                        <Progress
-                          value={(type.current / type.total) * 100}
-                          className="h-1.5 bg-gray-100 dark:bg-gray-800"
-                        />
-                      </div>
-                    </div>
-                  </Card>
-                ))}
-              </div>
-
-              {/* Info Box */}
-              <div className="bg-purple-50/50 dark:bg-purple-500/5 rounded-2xl border border-purple-100/50 dark:border-purple-500/10 p-5 flex gap-4 transition-colors">
-                <div className="h-10 w-10 rounded-full bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center text-purple-600 dark:text-purple-400 shrink-0">
-                  <Info className="h-5 w-5" />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-xs font-bold text-purple-900 dark:text-purple-300 uppercase tracking-tighter">
-                    Chính sách tăng ca
-                  </p>
-                  <p className="text-xs font-medium text-purple-700 dark:text-purple-400/80 leading-relaxed">
-                    Tăng ca cần được phê duyệt trước khi thực hiện. Giờ tăng ca
-                    tối đa là 40h/tháng theo quy định công ty.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </Tabs.Tab>
-          <Tabs.Tab
-            key="history"
-            label={
-              <div className="flex items-center gap-2">
-                <History className="h-3.5 w-3.5" />
-                <span>Lịch sử đơn</span>
-              </div>
-            }
-          >
-            <div className="mt-4 space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-400">
-              {/* Filter Bar */}
-              <div className="overflow-x-auto no-scrollbar py-2 -mx-1 px-1 flex items-center gap-3 mb-2">
-                {[
-                  { label: "Tất cả", value: "all" },
-                  { label: "Chờ duyệt", value: "pending" },
-                  { label: "Đã duyệt", value: "approved" },
-                  { label: "Từ chối", value: "rejected" },
-                ].map((filter) => (
-                  <button
-                    key={filter.value}
-                    onClick={() => setFilterStatus(filter.value)}
-                    className={cn(
-                      "whitespace-nowrap  py-2 rounded-full text-xs font-bold transition-all border shrink-0",
-                      filterStatus === filter.value
-                        ? "bg-purple-600 border-purple-600 text-white shadow-md shadow-purple-500/20"
-                        : "bg-white dark:bg-[#262A31] border-gray-100 dark:border-gray-800 text-gray-500 dark:text-gray-400",
-                    )}
-                  >
-                    {filter.label}
-                  </button>
-                ))}
-              </div>
-
-              <div className="space-y-4">
-                {recentEntries.map((req, idx) => (
-                  <Card
-                    key={idx}
-                    className={cn(
-                      "p-5 border-gray-100 dark:border-[#353A45] bg-white dark:bg-[#262A31] shadow-sm relative overflow-hidden transition-all hover:shadow-md rounded-2xl",
-                      req.dimmed && "opacity-60 grayscale-[0.3]",
-                    )}
-                  >
-                    <div className="flex justify-between items-start mb-4">
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={cn(
-                            "h-8 w-8 rounded-xl flex items-center justify-center shadow-inner",
-                            req.bgColor,
-                            req.statusColor,
-                          )}
-                        >
-                          {req.icon}
-                        </div>
-                        <div className="flex flex-col">
-                          <h4 className="text-sm font-black text-slate-900 dark:text-white">
-                            {req.title}
-                          </h4>
-                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                            {req.dateDay} {req.dateMonth}
-                          </span>
-                        </div>
-                      </div>
-                      <Badge
-                        className={cn(
-                          "text-[10px] font-bold bg-transparent border-gray-100 dark:border-gray-800 rounded-full px-3 py-1",
-                          req.statusColor,
-                        )}
-                        variant="outline"
-                      >
-                        {req.status}
-                      </Badge>
-                    </div>
-
-                    <div className="flex items-center gap-4 text-xs font-bold text-slate-600 dark:text-slate-400 mb-0 pl-1">
-                      <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 dark:bg-gray-800/50 rounded-lg grow">
-                        <Clock className="h-3.5 w-3.5 opacity-40 text-purple-500" />
-                        <span>{req.time}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-                        <TrendingUp className="h-3.5 w-3.5 opacity-40 text-blue-500" />
-                        <span className="text-purple-600 font-black">
-                          {req.hours}
+                      <div className="flex items-baseline gap-2">
+                        <h2 className="text-6xl font-black tabular-nums">
+                          12.5
+                        </h2>
+                        <span className="text-xl font-bold opacity-80">
+                          giờ
                         </span>
                       </div>
                     </div>
-                  </Card>
-                ))}
-              </div>
-            </div>
-          </Tabs.Tab>
-        </Tabs>
-      </Box>
+                    <div className="h-14 w-14 rounded-2xl bg-white/20 backdrop-blur-md border border-white/20 flex items-center justify-center shadow-lg">
+                      <Clock className="h-7 w-7" />
+                    </div>
+                  </div>
 
-      {/* Floating Action CTA */}
-      <div className="fixed bottom-28 right-6 z-40">
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-end text-xs font-bold uppercase text-purple-100">
+                      <div className="flex items-center gap-2">
+                        <TrendingUp className="h-3.5 w-3.5" />
+                        <span>Tăng 12% so với tháng trước</span>
+                      </div>
+                      <span className="text-sm">450k VND</span>
+                    </div>
+                    <div className="relative h-3 w-full bg-white/20 rounded-full overflow-hidden backdrop-blur-sm border border-white/10">
+                      <div
+                        className="absolute top-0 left-0 h-full bg-white rounded-full shadow-[0_0_10px_rgba(255,255,255,1)]"
+                        style={{ width: "65%" }}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-8 pt-6 border-t border-white/10 flex justify-between">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] uppercase font-bold text-purple-100/60">
+                        Đã duyệt
+                      </span>
+                      <span className="text-lg font-bold">8.5 giờ</span>
+                    </div>
+                    <div className="flex flex-col text-right">
+                      <span className="text-[10px] uppercase font-bold text-purple-100/60">
+                        Đang chờ
+                      </span>
+                      <span className="text-lg font-bold">4.0 giờ</span>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* Activity Trend Chart */}
+                <div className="space-y-4">
+                  <h3 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] px-1 flex items-center justify-between">
+                    <span>Biểu đồ hàng tuần</span>
+                    <TrendingUp className="h-3.5 w-3.5 opacity-50" />
+                  </h3>
+                  <Card className="p-6 border-gray-100 dark:border-[#353A45] bg-white dark:bg-[#262A31] shadow-sm rounded-2xl overflow-hidden">
+                    <div className="h-48 w-full">
+                      <ChartContainer
+                        config={chartConfig}
+                        className="h-full w-full"
+                      >
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart
+                            data={chartData}
+                            margin={{
+                              top: 10,
+                              right: 10,
+                              left: -20,
+                              bottom: 0,
+                            }}
+                          >
+                            <CartesianGrid
+                              vertical={false}
+                              strokeDasharray="3 3"
+                              stroke="#88888820"
+                            />
+                            <XAxis
+                              dataKey="day"
+                              tickLine={false}
+                              tickMargin={10}
+                              axisLine={false}
+                              tick={{
+                                fill: "#888",
+                                fontSize: 10,
+                                fontWeight: 600,
+                              }}
+                            />
+                            <ChartTooltip
+                              cursor={false}
+                              content={<ChartTooltipContent />}
+                            />
+                            <Bar
+                              dataKey="hours"
+                              fill="var(--color-hours)"
+                              radius={[6, 6, 0, 0]}
+                              barSize={24}
+                            />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </ChartContainer>
+                    </div>
+                  </Card>
+                </div>
+
+                {/* Breakdown Section */}
+                <div className="grid grid-cols-1 gap-4">
+                  <h3 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] px-1 flex items-center justify-between">
+                    <span>Phân loại tăng ca</span>
+                    <Info className="h-3.5 w-3.5 opacity-50" />
+                  </h3>
+                  {otTypes.map((type, idx) => (
+                    <Card
+                      key={idx}
+                      className="p-5 border-gray-100 dark:border-[#353A45] bg-white dark:bg-[#262A31] shadow-sm hover:shadow-md transition-all duration-300 rounded-2xl"
+                    >
+                      <div className="flex items-center gap-5">
+                        <div
+                          className={cn(
+                            "h-12 w-12 rounded-2xl flex items-center justify-center shadow-sm",
+                            type.bgColor,
+                            type.color,
+                          )}
+                        >
+                          {type.icon}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between items-center mb-2">
+                            <h4 className="text-sm font-bold text-slate-900 dark:text-white truncate">
+                              {type.label}
+                            </h4>
+                            <div className="text-right">
+                              <span className="text-sm font-black tabular-nums text-slate-700 dark:text-slate-200">
+                                {type.current}
+                              </span>
+                              <span className="text-xs font-bold text-slate-400 ml-1">
+                                / {type.total}h
+                              </span>
+                            </div>
+                          </div>
+                          <Progress
+                            value={(type.current / type.total) * 100}
+                            className="h-1.5 bg-gray-100 dark:bg-gray-800"
+                          />
+                        </div>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+
+                {/* Info Box */}
+                <div className="bg-purple-50/50 dark:bg-purple-500/5 rounded-2xl border border-purple-100/50 dark:border-purple-500/10 p-5 flex gap-4 transition-colors">
+                  <div className="h-10 w-10 rounded-full bg-purple-100 dark:bg-purple-900/40 flex items-center justify-center text-purple-600 dark:text-purple-400 shrink-0">
+                    <Info className="h-5 w-5" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-xs font-bold text-purple-900 dark:text-purple-300 uppercase tracking-tighter">
+                      Chính sách tăng ca
+                    </p>
+                    <p className="text-xs font-medium text-purple-700 dark:text-purple-400/80 leading-relaxed">
+                      Tăng ca cần được phê duyệt trước khi thực hiện.
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </Tabs.Tab>
+            <Tabs.Tab
+              key="history"
+              label={
+                <div className="flex items-center gap-2">
+                  <History className="h-3.5 w-3.5" />
+                  <span>Lịch sử đơn</span>
+                </div>
+              }
+            >
+              <div className="mt-4 space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-400">
+                {/* Filter Bar */}
+                <div className="overflow-x-auto no-scrollbar py-2 -mx-1 px-1 flex items-center gap-3">
+                  {[
+                    { label: "Tất cả", value: "all" },
+                    { label: "Chờ duyệt", value: "pending" },
+                    { label: "Đã duyệt", value: "approved" },
+                    { label: "Từ chối", value: "rejected" },
+                  ].map((filter) => (
+                    <button
+                      key={filter.value}
+                      onClick={() => setFilterStatus(filter.value)}
+                      className={cn(
+                        "whitespace-nowrap px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all border shrink-0",
+                        filterStatus === filter.value
+                          ? "bg-purple-600 border-purple-600 text-white shadow-lg shadow-purple-500/20"
+                          : "bg-white dark:bg-[#262A31] border-gray-100 dark:border-gray-800 text-slate-500 dark:text-slate-400 hover:border-purple-200 dark:hover:border-purple-900/30",
+                      )}
+                    >
+                      {filter.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="space-y-4">
+                  {recentEntries.map((req, idx) => (
+                    <Card
+                      key={idx}
+                      className={cn(
+                        "p-5 border-gray-100 dark:border-[#353A45] bg-white dark:bg-[#262A31] shadow-sm relative overflow-hidden transition-all hover:shadow-md hover:translate-y-[-2px] rounded-2xl group",
+                        req.dimmed && "opacity-60 grayscale-[0.3]",
+                      )}
+                    >
+                      <div className="flex justify-between items-start mb-5">
+                        <div className="flex items-center gap-4">
+                          <div
+                            className={cn(
+                              "h-12 w-12 rounded-2xl flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform duration-300",
+                              req.bgColor,
+                              req.statusColor,
+                            )}
+                          >
+                            {req.icon}
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-black text-slate-900 dark:text-white mb-0.5">
+                              {req.title}
+                            </h4>
+                            <div className="flex items-center gap-2">
+                              <span className="h-1.5 w-1.5 rounded-full bg-purple-400 animate-pulse" />
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                                {req.dateDay} {req.dateMonth}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <Badge
+                          className={cn(
+                            "text-[10px] font-black uppercase tracking-widest bg-transparent border-none px-0",
+                            req.statusColor,
+                          )}
+                        >
+                          {req.status}
+                        </Badge>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 mb-4">
+                        <div className="flex flex-col gap-1.5 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                            <Clock className="h-3 w-3" /> Khoảng thời gian
+                          </span>
+                          <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                            {req.time}
+                          </span>
+                        </div>
+                        <div className="flex flex-col gap-1.5 p-3 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800">
+                          <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                            <TrendingUp className="h-3 w-3" /> Tổng số giờ
+                          </span>
+                          <span className="text-[11px] font-black text-purple-600 dark:text-purple-400">
+                            {req.hours}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="relative p-4 bg-purple-50/30 dark:bg-purple-950/10 rounded-2xl border border-purple-100/50 dark:border-purple-900/20">
+                        <FileText className="absolute right-3 top-3 h-4 w-4 text-purple-200 dark:text-purple-900/40" />
+                        <p className="text-[11px] font-bold text-slate-500 dark:text-slate-400 leading-relaxed">
+                          Yêu cầu tăng ca cho dự án và báo cáo cuối kỳ.
+                        </p>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+            </Tabs.Tab>
+          </Tabs>
+        </Box>
+      </PageContainer>
+
+      {/* Floating Action CTA - Moved outside PageContainer and increased z-index */}
+      <div className="fixed bottom-28 right-6 z-[100] flex flex-col items-end gap-4 pointer-events-auto">
+        {/* Tăng ca Button */}
         <button
-          className="h-16 pl-4 pr-8 rounded-full shadow-2xl shadow-purple-500/30 hover:scale-105 active:scale-95 transition-all flex items-center gap-4 text-sm font-black bg-purple-600 text-white border-none group"
+          className="w-52 h-16 pl-4 pr-8 rounded-2xl shadow-xl shadow-purple-500/30 hover:scale-105 active:scale-95 transition-all flex items-center gap-4 bg-gradient-to-br from-purple-400 via-purple-500 to-purple-600 text-white border-none group relative overflow-hidden outline-none"
           onClick={() => setIsSheetVisible(true)}
         >
-          <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center group-hover:rotate-90 transition-transform duration-300 shrink-0">
-            <Plus className="h-6 w-6" />
+          <div className="absolute inset-0 bg-white/10 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+          <div className="h-11 w-11 rounded-xl bg-white/20 flex items-center justify-center group-hover:rotate-90 transition-transform duration-300 shrink-0 shadow-lg border border-white/20">
+            <Plus className="h-7 w-7" />
           </div>
-          <div className="flex flex-col items-start leading-tight whitespace-nowrap">
-            <span className="text-[10px] uppercase font-bold text-purple-100/80 tracking-widest block text-left">
-              Tạo mới
+          <div className="flex flex-col items-start leading-tight whitespace-nowrap z-10">
+            <span className="text-[10px] uppercase font-black text-purple-100/70 tracking-widest block text-left mb-0.5">
+              Đăng ký
             </span>
-            <span className="block text-left">Yêu cầu tăng ca</span>
+            <span className="block text-left text-base font-black tracking-tight">
+              Tăng ca
+            </span>
           </div>
         </button>
       </div>
@@ -519,7 +491,7 @@ const OvertimePage: React.FC = () => {
                   Tăng ca mới
                 </h3>
                 <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
-                  Tạo yêu cầu tăng ca
+                  Đăng ký tăng ca
                 </span>
               </div>
             </div>
@@ -649,7 +621,7 @@ const OvertimePage: React.FC = () => {
           </div>
         </div>
       </Sheet>
-    </PageContainer>
+    </>
   );
 };
 

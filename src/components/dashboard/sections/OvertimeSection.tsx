@@ -2,6 +2,7 @@ import { memo } from "react";
 import { Briefcase, Clock, FileClock, Plus } from "lucide-react";
 import { useNavigate } from "zmp-ui";
 import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 
 interface OvertimeSectionProps {
   totalOTHours: number;
@@ -74,21 +75,19 @@ export const OvertimeSection = memo(function OvertimeSection({
         </div>
       </Card>
 
-      {/* Create Request Button */}
-      <button
-        onClick={() => navigate("/overtime?action=new")}
-        className="h-16 w-full pl-5 pr-8 rounded-[2rem] shadow-lg shadow-purple-500/20 hover:shadow-purple-500/30 active:scale-[0.98] transition-all flex items-center gap-4 text-sm font-black bg-purple-600 text-white border-none group"
-      >
-        <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center group-hover:rotate-90 transition-transform duration-300 shrink-0">
-          <Plus className="h-6 w-6" />
-        </div>
-        <div className="flex flex-col items-start leading-tight whitespace-nowrap">
-          <span className="text-[10px] uppercase font-bold text-purple-100/80 tracking-widest block text-left">
-            Tạo mới
-          </span>
-          <span className="block text-left text-base">Yêu cầu tăng ca</span>
-        </div>
-      </button>
+      {/* Action Buttons */}
+      <div className="grid grid-cols-1 gap-3">
+        <Button
+          variant="outline"
+          onClick={() => navigate("/overtime?action=new")}
+          className="w-full border-2 border-purple-100 dark:border-purple-900/50 text-purple-600 dark:text-purple-400 rounded-2xl h-14 font-bold hover:bg-purple-50 dark:hover:bg-purple-900/10 transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-purple-500/5"
+        >
+          <div className="h-8 w-8 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+            <Plus className="h-5 w-5" />
+          </div>
+          <span className="text-sm">Đăng ký tăng ca</span>
+        </Button>
+      </div>
     </div>
   );
 });

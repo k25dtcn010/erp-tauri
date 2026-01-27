@@ -6,6 +6,8 @@ import {
   ZMPRouter,
   SnackbarProvider,
   Box,
+  useLocation,
+  useNavigate,
 } from "zmp-ui";
 import { AppProps } from "zmp-ui/app";
 import { useEffect } from "react";
@@ -20,31 +22,56 @@ import SettingsPage from "@/pages/settings";
 import UnderDevelopmentPage from "@/pages/under-development";
 import BottomNav from "./BottomNav";
 
-const Layout = () => {
-  useEffect(() => {
-    authService.initialize();
-  }, []);
+const LayoutContent = () => {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const isLoginPage = location.pathname === "/login";
 
+  useEffect(() => {
+    const check = async () => {
+      console.log("[Layout] Checking auth effect. isLoginPage:", isLoginPage);
+      if (!isLoginPage) {
+        const isAuth = await authService.checkAuth();
+        console.log("[Layout] checkAuth result:", isAuth);
+        if (!isAuth) {
+          console.warn("[Layout] Not authenticated, redirecting to /login");
+          navigate("/login");
+        } else {
+          console.log("[Layout] Authenticated, stating on page.");
+        }
+      } else {
+        console.log("[Layout] On login page, skipping check.");
+      }
+    };
+    check();
+  }, [isLoginPage]);
+
+  return (
+    <Box className="flex-1 flex flex-col overflow-hidden">
+      <AnimationRoutes>
+        <Route path="/login" element={<LoginPage />}></Route>
+        <Route path="/" element={<DashboardPage />}></Route>
+        <Route
+          path="/attendance-history"
+          element={<AttendanceHistoryPage />}
+        ></Route>
+        <Route path="/leave" element={<LeavePage />}></Route>
+        <Route path="/overtime" element={<OvertimePage />}></Route>
+        <Route path="/settings" element={<SettingsPage />}></Route>
+        <Route path="*" element={<UnderDevelopmentPage />}></Route>
+      </AnimationRoutes>
+      {!isLoginPage && <BottomNav />}
+    </Box>
+  );
+};
+
+const Layout = () => {
   return (
     <App theme={getSystemInfo().zaloTheme as AppProps["theme"]}>
       <Box flex flexDirection="column" className="h-screen">
         <SnackbarProvider>
           <ZMPRouter>
-            <Box className="flex-1 flex flex-col overflow-hidden">
-              <AnimationRoutes>
-                <Route path="/login" element={<LoginPage />}></Route>
-                <Route path="/" element={<DashboardPage />}></Route>
-                <Route
-                  path="/attendance-history"
-                  element={<AttendanceHistoryPage />}
-                ></Route>
-                <Route path="/leave" element={<LeavePage />}></Route>
-                <Route path="/overtime" element={<OvertimePage />}></Route>
-                <Route path="/settings" element={<SettingsPage />}></Route>
-                <Route path="*" element={<UnderDevelopmentPage />}></Route>
-              </AnimationRoutes>
-              <BottomNav />
-            </Box>
+            <LayoutContent />
           </ZMPRouter>
         </SnackbarProvider>
       </Box>

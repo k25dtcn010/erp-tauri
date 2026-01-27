@@ -8,6 +8,8 @@ import {
   Box,
 } from "zmp-ui";
 import { AppProps } from "zmp-ui/app";
+import { useEffect } from "react";
+import { authService } from "@/services/auth";
 
 import LoginPage from "@/pages/login";
 import DashboardPage from "@/pages/dashboard";
@@ -19,6 +21,10 @@ import UnderDevelopmentPage from "@/pages/under-development";
 import BottomNav from "./BottomNav";
 
 const Layout = () => {
+  useEffect(() => {
+    authService.initialize();
+  }, []);
+
   return (
     <App theme={getSystemInfo().zaloTheme as AppProps["theme"]}>
       <Box flex flexDirection="column" className="h-screen">

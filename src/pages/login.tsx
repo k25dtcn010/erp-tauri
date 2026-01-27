@@ -8,9 +8,8 @@ import {
   useSnackbar,
   useNavigate,
   Icon,
-  Avatar,
-  List,
 } from "zmp-ui";
+import { authService } from "@/services/auth";
 
 const { OTP } = Input;
 
@@ -24,59 +23,8 @@ interface UserCompany {
   role?: string;
   employeeName: string;
   avatarUrl?: string;
+  mustChangePassword?: boolean;
 }
-
-// --- Mock Data ---
-const MOCK_COMPANIES: Record<
-  string,
-  { companies: UserCompany[]; mustChangePassword?: boolean }
-> = {
-  user1: {
-    companies: [
-      {
-        id: "c1",
-        name: "Công ty Công Nghệ A",
-        isPrimary: true,
-        employeeName: "Nguyễn Văn A",
-        avatarUrl: "https://i.pravatar.cc/150?u=user1",
-        role: "Nhân viên",
-      },
-    ],
-    mustChangePassword: false,
-  },
-  user2: {
-    companies: [
-      {
-        id: "c1",
-        name: "Công ty Công Nghệ A",
-        isPrimary: true,
-        employeeName: "Trần Thị B",
-        avatarUrl: "https://i.pravatar.cc/150?u=user2",
-        role: "Quản lý",
-      },
-      {
-        id: "c2",
-        name: "Công ty Bất Động Sản B",
-        isPrimary: false,
-        employeeName: "Trần Thị B",
-        avatarUrl: "https://i.pravatar.cc/150?u=user2",
-        role: "Giám đốc",
-      },
-    ],
-  },
-  user3: {
-    companies: [
-      {
-        id: "c3",
-        name: "Startup C",
-        isPrimary: true,
-        employeeName: "Lê Văn C",
-        avatarUrl: "https://i.pravatar.cc/150?u=user3",
-      },
-    ],
-    mustChangePassword: true,
-  },
-};
 
 const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -113,41 +61,70 @@ const LoginPage: React.FC = () => {
     }
 
     setLoading(true);
-    // Simulate API delay
-    await new Promise((r) => setTimeout(r, 800));
+    try {
+      const data = await authService.getUserCompanies(username);
+      setLoading(false);
 
-    const data = MOCK_COMPANIES[username];
-    setLoading(false);
+      // Map API response to UserCompany
+      let apiCompanies: any[] = [];
+      let globalMustChangePassword = false;
 
-    if (data) {
-      setCompanies(data.companies);
+      if (Array.isArray(data)) {
+        apiCompanies = data;
+      } else {
+        const anyData = data as any;
+        // Check for 'data' property (common in many API responses) or 'companies'
+        if (Array.isArray(anyData.data)) {
+          apiCompanies = anyData.data;
+        } else if (Array.isArray(anyData.companies)) {
+          apiCompanies = anyData.companies;
+        }
 
-      // Set employee info from first company result
-      if (data.companies.length > 0) {
-        setEmployeeInfo({
-          name: data.companies[0].employeeName,
-          avatar: data.companies[0].avatarUrl,
-        });
+        if (anyData.mustChangePassword === true) {
+          globalMustChangePassword = true;
+        }
       }
 
-      if (data.mustChangePassword) {
-        setStep("changePassword");
-      } else if (data.companies.length > 1) {
-        setStep("company");
-      } else if (data.companies.length === 1) {
-        setSelectedCompany(data.companies[0]);
-        setStep("password");
+      const mappedCompanies: UserCompany[] = apiCompanies.map((c: any) => ({
+        id: c.companyId || c.id,
+        name: c.companyName || c.name,
+        isPrimary: c.isPrimary || false,
+        role: c.role || "N/A",
+        employeeName: c.employeeName || c.name || "User",
+        avatarUrl: c.avatarUrl,
+        mustChangePassword: c.mustChangePassword || globalMustChangePassword,
+      }));
+
+      if (mappedCompanies.length > 0) {
+        setCompanies(mappedCompanies);
+        setEmployeeInfo({
+          name: mappedCompanies[0].employeeName,
+          avatar: mappedCompanies[0].avatarUrl,
+        });
+
+        // Check if user must change password (if indicated in the first company entry or global)
+        const mustChange = mappedCompanies.some((c) => c.mustChangePassword);
+
+        if (mustChange) {
+          setStep("changePassword");
+        } else if (mappedCompanies.length > 1) {
+          setStep("company");
+        } else {
+          setSelectedCompany(mappedCompanies[0]);
+          setStep("password");
+        }
       } else {
-        // No companies found but valid user? Edge case.
         openSnackbar({
           type: "error",
-          text: "Tài khoản chưa được gán vào công ty nào.",
+          text: "Không tìm thấy người dùng hoặc công ty liên kết.",
         });
       }
-    } else {
+    } catch (error) {
+      setLoading(false);
+      console.error(error);
       openSnackbar({
         type: "error",
-        text: "Không tìm thấy người dùng (Thử user1, user2, user3)",
+        text: "Lỗi kết nối hoặc không tìm thấy người dùng.",
       });
     }
   };
@@ -158,23 +135,29 @@ const LoginPage: React.FC = () => {
   };
 
   const handleLogin = async () => {
-    if (password.length !== 6) {
+    if (password.length < 6) {
       openSnackbar({ type: "warning", text: "Mật khẩu phải đủ 6 ký tự" });
       return;
     }
 
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1000));
-    setLoading(false);
-
-    // Mock Login Check
-    if (password === "123456") {
-      // Mock simple password
+    try {
+      await authService.login({
+        username,
+        password,
+        companyId: selectedCompany?.id,
+      });
+      setLoading(false);
       openSnackbar({ type: "success", text: "Đăng nhập thành công!" });
       navigate("/");
-    } else {
-      openSnackbar({ type: "error", text: "Mật khẩu không đúng" });
-      setPassword(""); // Clear password on error
+    } catch (error) {
+      setLoading(false);
+      console.error(error);
+      openSnackbar({
+        type: "error",
+        text: "Đăng nhập thất bại. Kiểm tra lại mật khẩu.",
+      });
+      setPassword("");
     }
   };
 
@@ -193,16 +176,15 @@ const LoginPage: React.FC = () => {
     }
 
     setLoading(true);
+    // TODO: Implement change password API in authService if available
     await new Promise((r) => setTimeout(r, 1000));
     setLoading(false);
 
-    // Mock Success
     openSnackbar({
       type: "success",
       text: "Đổi mật khẩu thành công. Vui lòng đăng nhập lại.",
     });
 
-    // Reset to login flow
     handleBack();
   };
 
@@ -406,6 +388,7 @@ const LoginPage: React.FC = () => {
               </Text>
               <Box className="flex justify-center">
                 <OTP
+                  defaultValue=""
                   otpLength={6}
                   value={password}
                   onChange={(e) => {
@@ -450,6 +433,7 @@ const LoginPage: React.FC = () => {
               </Text>
               <Box className="flex justify-center">
                 <OTP
+                  defaultValue=""
                   otpLength={6}
                   value={currentPassword}
                   onChange={(e) => setCurrentPassword(e.target.value)}
@@ -462,6 +446,7 @@ const LoginPage: React.FC = () => {
               </Text>
               <Box className="flex justify-center">
                 <OTP
+                  defaultValue=""
                   otpLength={6}
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
@@ -474,6 +459,7 @@ const LoginPage: React.FC = () => {
               </Text>
               <Box className="flex justify-center">
                 <OTP
+                  defaultValue=""
                   otpLength={6}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}

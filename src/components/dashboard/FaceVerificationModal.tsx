@@ -11,13 +11,15 @@ import { Button } from "../ui/button";
 import { Sheet, Box, Text } from "zmp-ui";
 import { useEffect, useState, useRef, useCallback, memo } from "react";
 import { useGPUPixel } from "../../hooks/useGPUPixel";
-import {
-  requestCameraPermission,
-  getLocation,
-  getDeviceInfo,
-} from "zmp-sdk/apis";
+import { requestCameraPermission, getDeviceInfo } from "zmp-sdk/apis";
 import { OfflineAttendanceService } from "../../services/offline-attendance";
 import { WatermarkService } from "../../lib/watermark";
+import { ZaloService } from "../../services/zalo";
+import {
+  postApiV3AttendanceCheckInAsync,
+  postApiV3AttendanceCheckOutAsync,
+} from "../../client-timekeeping/sdk.gen";
+import { authService } from "../../services/auth";
 
 // --- CONFIGURATIONS ---
 const MODAL_CONFIGS = {
@@ -203,6 +205,7 @@ interface FaceVerificationModalProps {
   onOpenChange: (open: boolean) => void;
   mode: string;
   currentTime: Date;
+  employeeCode?: string;
   onVerified: (
     photoDataUrl: string,
     metadata: { location?: any; deviceInfo?: any },
@@ -214,6 +217,7 @@ export function FaceVerificationModal({
   onOpenChange,
   mode,
   currentTime,
+  employeeCode,
   onVerified,
 }: FaceVerificationModalProps) {
   // State: UI & Status
@@ -242,6 +246,30 @@ export function FaceVerificationModal({
   const videoSourceRef = useRef<HTMLVideoElement>(null); // Hidden video source
   const isMountedRef = useRef(false);
   const streamRef = useRef<MediaStream | null>(null);
+
+  // --- WORKER SETUP ---
+  const workerRef = useRef<Worker | null>(null);
+
+  useEffect(() => {
+    // Initialize Web Worker
+    workerRef.current = new Worker(
+      new URL("../../workers/attendance.worker.ts", import.meta.url),
+      { type: "module" },
+    );
+
+    workerRef.current.onmessage = (e) => {
+      const { type, recordId, error } = e.data;
+      if (type === "SUCCESS") {
+        console.log(`[Worker] Successfully processed record ${recordId}`);
+      } else if (type === "ERROR") {
+        console.error(`[Worker] Failed to process record ${recordId}`, error);
+      }
+    };
+
+    return () => {
+      workerRef.current?.terminate();
+    };
+  }, []);
   const keepAliveIntervalRef = useRef<any>(null);
   const aggressivePlayIntervalRef = useRef<any>(null);
   const wakeLockRef = useRef<any>(null);
@@ -582,71 +610,139 @@ export function FaceVerificationModal({
     setVerificationStatus("verifying");
 
     try {
-      // 1. Fetch metadata in parallel with verification simulation
+      // 1. Fetch Metadata (Parallel)
       const [location, deviceInfo] = await Promise.all([
-        getLocation({}).catch(() => null),
+        ZaloService.getUserLocation().catch((err) => {
+          console.error("[Capture] ZaloService.getUserLocation error:", err);
+          return { latitude: 0, longitude: 0 };
+        }),
         getDeviceInfo({}).catch(() => null),
-        new Promise((resolve) => setTimeout(resolve, 500)), // Minimum simulation time
       ]);
 
-      const lat = location ? Number(location.latitude) : 0;
-      const lon = location ? Number(location.longitude) : 0;
+      const lat = location ? (location.latitude as number) : 0;
+      const lon = location ? (location.longitude as number) : 0;
 
-      // 2. Get address from OSM (Reverse Geocoding)
-      let addressStr = "";
-      if (lat && lon) {
-        addressStr =
-          (await WatermarkService.getAddressFromCoordinates(lat, lon)) || "";
+      // 2. Online Check-in (Fire & Forget Logic)
+      console.log("[Camera] Attempting online check-in...");
+      let employeeId: string | null | undefined = null;
+      let companyId: string | null | undefined = null;
+      let userId: string | null | undefined = null;
+
+      try {
+        employeeId = await authService.getEmployeeId();
+        companyId = await authService.getCompanyId();
+        userId = await authService.getUserId();
+
+        // Double check session if still missing
+        if (!userId || !employeeId) {
+          const session = await authService.getSession();
+          const sessData =
+            (session as any)?.data?.data ||
+            (session as any)?.data ||
+            (session as any);
+          if (!userId) userId = sessData?.userId;
+          if (!employeeId) employeeId = sessData?.id;
+        }
+
+        console.log("[Camera] Auth Info:", { companyId, userId, employeeId });
+      } catch (e) {
+        console.warn("Failed to get auth details", e);
       }
 
-      // 3. APPLY WATERMARK
-      // We use the raw dataUrl captured from canvas
-      const watermarkedDataUrl = await WatermarkService.addWatermark(dataUrl, {
-        employeeCode: "NV-001", // This should be replaced with actual employee info if available
-        latitude: lat,
-        longitude: lon,
-        address: addressStr,
-        timestamp: new Date(),
-      });
+      let eventId: string | undefined = undefined;
 
-      setVerificationStatus("success");
+      if (navigator.onLine) {
+        try {
+          let asyncRes: any = null;
+          const body = {
+            latitude: lat,
+            longitude: lon,
+            photoId: null, // No photo yet
+          };
 
-      // 4. SAVE TO POSTPONE STORAGE IMMEDIATELY
-      const metadata = {
-        location: location
-          ? {
-              latitude: lat,
-              longitude: lon,
-            }
-          : undefined,
-        deviceInfo,
-      };
+          if (mode === "check-in") {
+            asyncRes = await postApiV3AttendanceCheckInAsync({ body });
+            console.log("[Camera] Check-in Async response:", asyncRes);
+          } else if (mode === "check-out") {
+            asyncRes = await postApiV3AttendanceCheckOutAsync({
+              body,
+            });
+            console.log("[Camera] Check-out Async response:", asyncRes);
+          }
 
-      await OfflineAttendanceService.saveRecord(
+          if (asyncRes && asyncRes.data && (asyncRes.data as any).id) {
+            eventId = (asyncRes.data as any).id;
+            console.log("[Camera] Async Event ID found in data.id:", eventId);
+          } else if (asyncRes && (asyncRes as any).id) {
+            eventId = (asyncRes as any).id;
+            console.log("[Camera] Async Event ID found in root.id:", eventId);
+          } else {
+            console.warn("[Camera] No Event ID found in response", asyncRes);
+          }
+        } catch (err) {
+          console.error("[Camera] Online check-in failed:", err);
+        }
+      }
+
+      // 3. Generate Record ID & Save Metadata
+      const recordId =
+        self.crypto && self.crypto.randomUUID
+          ? self.crypto.randomUUID()
+          : Date.now().toString() + Math.random().toString(36).substring(2);
+
+      await OfflineAttendanceService.saveMetadata(
         {
           type: (mode as any) || "check-in",
           timestamp: Date.now(),
-          location: metadata.location,
-          deviceInfo: metadata.deviceInfo,
+          location: { latitude: lat, longitude: lon },
+          deviceInfo: deviceInfo,
         },
-        watermarkedDataUrl, // LƯU ẢNH ĐÃ CÓ WATERMARK
+        recordId,
       );
 
-      console.log("[Camera] Saved watermarked record to offline storage");
+      // 4. Send to Worker
+      if (workerRef.current) {
+        const token = await authService.getAccessToken();
+        const baseUrl = "https://api-timekeeping.canhhnac.xyz"; // TODO: Use env or config
 
-      // Set captured image to the watermarked version for UI feedback
-      setCapturedImage(watermarkedDataUrl);
+        workerRef.current.postMessage({
+          type: "PROCESS_ATTENDANCE",
+          payload: {
+            images: [dataUrl],
+            metadata: {
+              location: { latitude: lat, longitude: lon },
+              deviceInfo,
+              employeeCode: employeeCode || "ME",
+              timestamp: Date.now(),
+            },
+            recordId,
+            eventId,
+            apiConfig: {
+              baseUrl,
+              token: token || undefined,
+              companyId: companyId || undefined,
+              userId: userId || undefined,
+              employeeId: employeeId || undefined,
+            },
+          },
+        });
+      }
 
-      setTimeout(() => {
-        onVerified(watermarkedDataUrl, metadata);
-      }, 1000);
-    } catch (err) {
-      console.error("[Capture] Error during watermark/capture:", err);
-      // Fallback: Still proceed but maybe without watermark
       setVerificationStatus("success");
-      setTimeout(() => {
-        onVerified(dataUrl, {});
-      }, 1000);
+
+      // UI Success Callback
+      const uiMetadata = {
+        location: location || undefined,
+        deviceInfo,
+      };
+
+      onVerified(dataUrl, uiMetadata);
+    } catch (err) {
+      console.error("[Capture] Error:", err);
+      // Even if error, likely UI should show error or retry
+      setCameraError("Có lỗi xảy ra khi xử lý ảnh");
+    } finally {
+      // Cleanup?
     }
   };
 

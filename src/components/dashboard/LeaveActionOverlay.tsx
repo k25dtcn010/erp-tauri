@@ -10,7 +10,7 @@ import {
   Send,
   CheckCircle2,
 } from "lucide-react";
-import { Sheet, Select as ZSelect } from "zmp-ui";
+import { Sheet, Select as ZSelect, DatePicker } from "zmp-ui";
 import { LateEarlyRequestModal } from "./LateEarlyRequestModal";
 
 const { Option } = ZSelect;
@@ -18,6 +18,8 @@ const { Option } = ZSelect;
 const LeaveActionOverlay: React.FC = () => {
   const [isSheetVisible, setIsSheetVisible] = useState(false);
   const [isLateEarlyModalOpen, setIsLateEarlyModalOpen] = useState(false);
+  const [startDate, setStartDate] = useState(new Date());
+  const [endDate, setEndDate] = useState(new Date());
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -153,9 +155,14 @@ const LeaveActionOverlay: React.FC = () => {
                   Từ ngày
                 </label>
                 <div className="relative">
-                  <input
-                    type="date"
-                    className="w-full h-12 rounded-xl border border-gray-200 dark:border-gray-700  bg-white dark:bg-[#262A31] font-bold text-sm text-slate-700 dark:text-slate-200 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 outline-none transition-all shadow-sm"
+                  <DatePicker
+                    mask
+                    maskClosable
+                    title="Chọn ngày bắt đầu"
+                    dateFormat="dd/mm/yyyy"
+                    value={startDate}
+                    onChange={(value) => setStartDate(value as Date)}
+                    inputClass="w-full h-12 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#262A31] font-bold text-sm text-slate-700 dark:text-slate-200 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 outline-none transition-all shadow-sm"
                   />
                 </div>
               </div>
@@ -166,9 +173,14 @@ const LeaveActionOverlay: React.FC = () => {
                   Đến ngày
                 </label>
                 <div className="relative">
-                  <input
-                    type="date"
-                    className="w-full h-12 rounded-xl border border-gray-200 dark:border-gray-700  bg-white dark:bg-[#262A31] font-bold text-sm text-slate-700 dark:text-slate-200 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 outline-none transition-all shadow-sm"
+                  <DatePicker
+                    mask
+                    maskClosable
+                    title="Chọn ngày kết thúc"
+                    dateFormat="dd/mm/yyyy"
+                    value={endDate}
+                    onChange={(value) => setEndDate(value as Date)}
+                    inputClass="w-full h-12 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#262A31] font-bold text-sm text-slate-700 dark:text-slate-200 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 outline-none transition-all shadow-sm"
                   />
                 </div>
               </div>

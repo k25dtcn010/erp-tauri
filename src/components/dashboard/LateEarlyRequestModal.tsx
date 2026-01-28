@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { Sheet, Text, useSnackbar } from "zmp-ui";
+import { Sheet, Text, useSnackbar, DatePicker } from "zmp-ui";
 import { CalendarDays, Clock, FileText, Send, X } from "lucide-react";
+import { TimePicker } from "@/components/common/TimePicker";
 
 interface LateEarlyRequestModalProps {
   isOpen: boolean;
@@ -12,7 +13,7 @@ export const LateEarlyRequestModal: React.FC<LateEarlyRequestModalProps> = ({
   onClose,
 }) => {
   const [type, setType] = useState<"late" | "early">("late");
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState(new Date());
   const [time, setTime] = useState("");
   const [reason, setReason] = useState("");
   const { openSnackbar } = useSnackbar();
@@ -98,11 +99,15 @@ export const LateEarlyRequestModal: React.FC<LateEarlyRequestModalProps> = ({
                 <CalendarDays className="h-3.5 w-3.5 text-orange-500" />
                 Ngày đăng ký
               </label>
-              <input
-                type="date"
+
+              <DatePicker
+                mask
+                maskClosable
+                title="Chọn ngày đăng ký"
+                dateFormat="dd/mm/yyyy"
                 value={date}
-                onChange={(e) => setDate(e.target.value)}
-                className="w-full h-12 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#262A31] font-bold text-sm text-slate-700 dark:text-slate-200 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 outline-none transition-all shadow-sm"
+                onChange={(value) => setDate(value as Date)}
+                inputClass="w-full h-12 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#262A31] font-bold text-sm text-slate-700 dark:text-slate-200 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 outline-none transition-all shadow-sm"
               />
             </div>
 
@@ -112,11 +117,11 @@ export const LateEarlyRequestModal: React.FC<LateEarlyRequestModalProps> = ({
                 <Clock className="h-3.5 w-3.5 text-orange-500" />
                 Giờ đăng ký
               </label>
-              <input
-                type="time"
+              <TimePicker
                 value={time}
-                onChange={(e) => setTime(e.target.value)}
-                className="w-full h-12 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#262A31] font-bold text-sm text-slate-700 dark:text-slate-200 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 outline-none transition-all shadow-sm"
+                onChange={setTime}
+                placeholder="Chọn giờ"
+                inputClass="w-full h-12 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#262A31] font-bold text-sm text-slate-700 dark:text-slate-200 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 outline-none transition-all shadow-sm"
               />
             </div>
           </div>

@@ -10,7 +10,7 @@ import {
   useNavigate,
 } from "zmp-ui";
 import { AppProps } from "zmp-ui/app";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { authService } from "@/services/auth";
 
 import LoginPage from "@/pages/login";
@@ -21,14 +21,31 @@ import OvertimePage from "@/pages/overtime";
 import SettingsPage from "@/pages/settings";
 import UnderDevelopmentPage from "@/pages/under-development";
 import BottomNav from "./BottomNav";
+import AndroidRestrictionModal from "./AndroidRestrictionModal";
 
 const LayoutContent = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const isLoginPage = location.pathname === "/login";
+  const [isAndroid, setIsAndroid] = useState(false);
+
+  useEffect(() => {
+    try {
+      const info = getSystemInfo();
+      console.log("[Layout] System Info:", info);
+      if (info.platform === "unknow") {
+        setIsAndroid(true);
+      }
+    } catch (error) {
+      console.error("[Layout] Failed to get system info:", error);
+    }
+  }, []);
 
   useEffect(() => {
     const check = async () => {
+      // If Android, we don't care about auth as they are blocked by modal
+      if (isAndroid) return;
+
       console.log("[Layout] Checking auth effect. isLoginPage:", isLoginPage);
       if (!isLoginPage) {
         const isAuth = await authService.checkAuth();
@@ -44,7 +61,7 @@ const LayoutContent = () => {
       }
     };
     check();
-  }, [isLoginPage]);
+  }, [isLoginPage, isAndroid, navigate]);
 
   return (
     <Box className="flex-1 flex flex-col overflow-hidden">
@@ -61,13 +78,26 @@ const LayoutContent = () => {
         <Route path="*" element={<UnderDevelopmentPage />}></Route>
       </AnimationRoutes>
       {!isLoginPage && <BottomNav />}
+
+      <AndroidRestrictionModal visible={isAndroid} />
     </Box>
   );
 };
 
 const Layout = () => {
+  const [theme, setTheme] = useState<AppProps["theme"]>("light");
+
+  useEffect(() => {
+    try {
+      const info = getSystemInfo();
+      setTheme(info.zaloTheme as AppProps["theme"]);
+    } catch (e) {
+      console.error("Error getting theme:", e);
+    }
+  }, []);
+
   return (
-    <App theme={getSystemInfo().zaloTheme as AppProps["theme"]}>
+    <App theme={theme}>
       <Box flex flexDirection="column" className="h-screen">
         <SnackbarProvider>
           <ZMPRouter>

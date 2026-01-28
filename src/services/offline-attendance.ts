@@ -1,9 +1,5 @@
-import {
-  getStorage,
-  setStorage,
-  getLocation,
-  getDeviceInfo,
-} from "zmp-sdk/apis";
+import { getDeviceInfo, nativeStorage } from "zmp-sdk/apis";
+import { ZaloService } from "./zalo";
 import {
   savePhoto,
   getPhoto,
@@ -32,8 +28,15 @@ export const OfflineAttendanceService = {
 
   getRecords: async (): Promise<AttendanceRecord[]> => {
     try {
-      const data = await getStorage({ keys: [STORAGE_KEY] });
-      return data[STORAGE_KEY] || [];
+      const value = nativeStorage.getItem(STORAGE_KEY);
+      if (typeof value === "string") {
+        try {
+          return JSON.parse(value);
+        } catch {
+          return [];
+        }
+      }
+      return (value as any) || [];
     } catch (e) {
       console.error("Error reading offline records from native storage", e);
       return [];
@@ -43,12 +46,40 @@ export const OfflineAttendanceService = {
   saveRecord: async (
     record: Omit<AttendanceRecord, "id" | "synced">,
     photoDataUrl?: string,
+  ): Promise<boolean> => {
+    const result = await OfflineAttendanceService._saveRecordInternal(
+      record,
+      photoDataUrl,
+    );
+    return !!result;
+  },
+
+  saveMetadata: async (
+    record: Omit<AttendanceRecord, "id" | "synced">,
+    id: string,
+  ): Promise<boolean> => {
+    // Save metadata only, pointing api photoId to 'id' (assuming worker saves the photo with this 'id')
+    const result = await OfflineAttendanceService._saveRecordInternal(
+      record,
+      undefined,
+      id,
+      true,
+    );
+    return !!result;
+  },
+
+  _saveRecordInternal: async (
+    record: Omit<AttendanceRecord, "id" | "synced">,
+    photoDataUrl?: string,
+    explicitId?: string,
+    skipPhotoSave: boolean = false,
   ) => {
     const records = await OfflineAttendanceService.getRecords();
     const id =
-      self.crypto && self.crypto.randomUUID
+      explicitId ||
+      (self.crypto && self.crypto.randomUUID
         ? self.crypto.randomUUID()
-        : Date.now().toString() + Math.random().toString(36).substring(2);
+        : Date.now().toString() + Math.random().toString(36).substring(2));
 
     // Capture GPS and Device info if not provided
     let location = record.location;
@@ -56,10 +87,10 @@ export const OfflineAttendanceService = {
 
     try {
       if (!location) {
-        const locResponse = await getLocation({});
+        const locResponse = await ZaloService.getUserLocation();
         location = {
-          latitude: Number(locResponse.latitude),
-          longitude: Number(locResponse.longitude),
+          latitude: locResponse.latitude,
+          longitude: locResponse.longitude,
         };
       }
     } catch (e) {
@@ -81,26 +112,22 @@ export const OfflineAttendanceService = {
       synced: false,
       location,
       deviceInfo,
-      photoId: photoDataUrl ? id : undefined,
+      photoId: photoDataUrl || skipPhotoSave ? id : undefined,
     };
 
     try {
-      // 1. Save photo to IndexedDB
-      if (photoDataUrl) {
+      // 1. Save photo to IndexedDB (if provided and not skipped)
+      if (photoDataUrl && !skipPhotoSave) {
         await savePhoto(id, photoDataUrl);
       }
 
       // 2. Save metadata to Native Storage
       records.push(newRecord);
-      await setStorage({
-        data: {
-          [STORAGE_KEY]: records,
-        },
-      });
-      return true;
+      nativeStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+      return id; // Return ID
     } catch (e) {
       console.error("Error saving record", e);
-      return false;
+      return null;
     }
   },
 
@@ -141,11 +168,7 @@ export const OfflineAttendanceService = {
     const remaining = records.filter(
       (r) => !pending.some((p) => p.id === r.id),
     );
-    await setStorage({
-      data: {
-        [STORAGE_KEY]: remaining,
-      },
-    });
+    nativeStorage.setItem(STORAGE_KEY, JSON.stringify(remaining));
 
     return successCount;
   },
@@ -171,11 +194,7 @@ export const OfflineAttendanceService = {
     }
 
     const remaining = records.filter((r) => r.id !== id);
-    await setStorage({
-      data: {
-        [STORAGE_KEY]: remaining,
-      },
-    });
+    nativeStorage.setItem(STORAGE_KEY, JSON.stringify(remaining));
 
     return true;
   },
@@ -189,10 +208,6 @@ export const OfflineAttendanceService = {
     }
 
     const remaining = records.filter((r) => r.id !== id);
-    await setStorage({
-      data: {
-        [STORAGE_KEY]: remaining,
-      },
-    });
+    nativeStorage.setItem(STORAGE_KEY, JSON.stringify(remaining));
   },
 };

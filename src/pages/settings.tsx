@@ -38,6 +38,9 @@ import {
   getApiEmployeesMeDependents,
   postApiEmployeesMeAvatarUpload,
   patchApiEmployeesMe,
+  getApiEmployeesByEmployeeIdDocuments,
+  postApiEmployeesByEmployeeIdDocuments,
+  deleteApiEmployeesByEmployeeIdDocumentsByDocumentId,
 } from "@/client/sdk.gen";
 import { client } from "@/client/client.gen";
 import { authService } from "@/services/auth";
@@ -70,11 +73,14 @@ export default function SettingsPage() {
 
   // Dependents state
   const [dependents, setDependents] = useState<any[]>([]);
-
+  // Documents state
+  const [documents, setDocuments] = useState<any[]>([]);
   const [isFetching, setIsFetching] = useState(true);
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const docFileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingDocType, setUploadingDocType] = useState<string | null>(null);
 
   const fetchProfile = async () => {
     try {
@@ -110,6 +116,16 @@ export default function SettingsPage() {
 
       if (dependentsRes.data && dependentsRes.data.data) {
         setDependents(dependentsRes.data.data);
+      }
+
+      // Fetch documents using employee ID from profile
+      if (profileRes.data?.data?.id) {
+        const docsRes = await getApiEmployeesByEmployeeIdDocuments({
+          path: { employeeId: profileRes.data.data.id },
+        });
+        if (docsRes.data && docsRes.data.data) {
+          setDocuments(docsRes.data.data);
+        }
       }
     } catch (error) {
       console.error("Failed to fetch profile:", error);
@@ -165,6 +181,93 @@ export default function SettingsPage() {
       openSnackbar({
         type: "error",
         text: "Tải ảnh thất bại",
+        duration: 3000,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUploadDocument = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    docType: string,
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file || !originalUser?.id) return;
+
+    try {
+      setIsLoading(true);
+      setUploadingDocType(docType);
+
+      const res = await postApiEmployeesByEmployeeIdDocuments({
+        path: { employeeId: originalUser.id },
+        body: {
+          file,
+          documentType: docType,
+        },
+      });
+
+      if (res.error) throw res.error;
+
+      openSnackbar({
+        type: "success",
+        text: "Tải lên tài liệu thành công",
+        duration: 3000,
+      });
+
+      // Refresh documents
+      const docsRes = await getApiEmployeesByEmployeeIdDocuments({
+        path: { employeeId: originalUser.id },
+      });
+      if (docsRes.data && docsRes.data.data) {
+        setDocuments(docsRes.data.data);
+      }
+    } catch (error) {
+      console.error("Failed to upload document:", error);
+      openSnackbar({
+        type: "error",
+        text: "Tải lên thất bại",
+        duration: 3000,
+      });
+    } finally {
+      setIsLoading(false);
+      setUploadingDocType(null);
+      if (docFileInputRef.current) docFileInputRef.current.value = "";
+    }
+  };
+
+  const handleDeleteDocument = async (documentId: string) => {
+    if (!originalUser?.id) return;
+
+    try {
+      setIsLoading(true);
+      const res = await deleteApiEmployeesByEmployeeIdDocumentsByDocumentId({
+        path: {
+          employeeId: originalUser.id,
+          documentId: documentId,
+        },
+      });
+
+      if (res.error) throw res.error;
+
+      openSnackbar({
+        type: "success",
+        text: "Đã xóa tài liệu",
+        duration: 3000,
+      });
+
+      // Refresh documents
+      const docsRes = await getApiEmployeesByEmployeeIdDocuments({
+        path: { employeeId: originalUser.id },
+      });
+      if (docsRes.data && docsRes.data.data) {
+        setDocuments(docsRes.data.data);
+      }
+    } catch (error) {
+      console.error("Failed to delete document:", error);
+      openSnackbar({
+        type: "error",
+        text: "Xóa thất bại",
         duration: 3000,
       });
     } finally {
@@ -437,47 +540,208 @@ export default function SettingsPage() {
                         Tài liệu hồ sơ
                       </h3>
                       <Badge className="bg-orange-500/10 text-orange-600 border-none rounded-full px-3 py-1 text-[10px] font-black">
-                        5/5 Yêu cầu
+                        {
+                          [
+                            "personal_photo",
+                            "degree_certification",
+                            "id_document",
+                            "health_certificate",
+                            "cv_resume",
+                          ].filter((type) =>
+                            documents.some((d) => d.documentType === type),
+                          ).length
+                        }
+                        /5 Yêu cầu
                       </Badge>
                     </div>
                     <Card className="border-gray-100 dark:border-[#353A45] bg-white dark:bg-[#262A31] shadow-sm rounded-2xl overflow-hidden">
                       <div className="divide-y divide-gray-50 dark:divide-white/5">
                         {[
-                          { label: "Ảnh thẻ cá nhân", status: "uploaded" },
-                          { label: "Bằng cấp chuyên môn", status: "uploaded" },
-                          { label: "Căn cước công dân", status: "uploaded" },
-                          { label: "Giấy khám sức khỏe", status: "uploaded" },
-                          { label: "CV / Resume", status: "uploaded" },
-                        ].map((doc, idx) => (
-                          <div
-                            key={idx}
-                            className="flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors group cursor-pointer"
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className="h-10 w-10 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-600">
-                                <Files className="h-5 w-5" />
+                          {
+                            type: "personal_photo",
+                            label: "Ảnh thẻ cá nhân",
+                          },
+                          {
+                            type: "degree_certification",
+                            label: "Bằng cấp chuyên môn",
+                          },
+                          {
+                            type: "id_document",
+                            label: "Căn cước công dân",
+                          },
+                          {
+                            type: "health_certificate",
+                            label: "Giấy khám sức khỏe",
+                          },
+                          {
+                            type: "cv_resume",
+                            label: "CV / Resume",
+                          },
+                        ].map((docType, idx) => {
+                          const docsOfType = documents.filter(
+                            (d) => d.documentType === docType.type,
+                          );
+                          const hasDoc = docsOfType.length > 0;
+
+                          return (
+                            <div key={idx} className="flex flex-col">
+                              <div
+                                className="flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors group cursor-pointer"
+                                onClick={() => {
+                                  if (hasDoc) {
+                                    // Basic toggle or view logic could go here
+                                    // For now, let's just open the first one if there is only one
+                                    if (docsOfType.length === 1) {
+                                      window.open(
+                                        docsOfType[0].fileUrl,
+                                        "_blank",
+                                      );
+                                    }
+                                  }
+                                }}
+                              >
+                                <div className="flex items-center gap-3">
+                                  <div
+                                    className={cn(
+                                      "h-10 w-10 rounded-xl flex items-center justify-center transition-colors shadow-sm",
+                                      hasDoc
+                                        ? "bg-orange-500/10 text-orange-600"
+                                        : "bg-slate-100 text-slate-400 dark:bg-slate-800",
+                                    )}
+                                  >
+                                    <Files className="h-5 w-5" />
+                                  </div>
+                                  <div>
+                                    <p className="text-sm font-bold text-slate-900 dark:text-white leading-none mb-1">
+                                      {docType.label}
+                                    </p>
+                                    <p className="text-[10px] font-medium text-slate-400 uppercase">
+                                      {hasDoc ? (
+                                        <>
+                                          Đã tải lên •{" "}
+                                          {docsOfType.length > 1
+                                            ? `${docsOfType.length} tệp`
+                                            : format(
+                                                new Date(
+                                                  docsOfType[0].uploadedAt,
+                                                ),
+                                                "dd-MM-yyyy",
+                                              )}
+                                        </>
+                                      ) : (
+                                        "Chưa tải lên"
+                                      )}
+                                    </p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  {hasDoc && (
+                                    <Badge className="bg-green-500/10 text-green-600 border-none rounded-full px-2 py-0.5 text-[8px] font-black uppercase">
+                                      Done
+                                    </Badge>
+                                  )}
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 rounded-full text-slate-400 hover:text-orange-600 hover:bg-orange-50"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setUploadingDocType(docType.type);
+                                      docFileInputRef.current?.click();
+                                    }}
+                                    disabled={isLoading}
+                                  >
+                                    {uploadingDocType === docType.type ? (
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                    ) : (
+                                      <Plus className="h-4 w-4" />
+                                    )}
+                                  </Button>
+                                  <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-orange-500 transition-colors" />
+                                </div>
                               </div>
-                              <div>
-                                <p className="text-sm font-bold text-slate-900 dark:text-white leading-none mb-1">
-                                  {doc.label}
-                                </p>
-                                <p className="text-[10px] font-medium text-slate-400 uppercase">
-                                  Đã tải lên •{" "}
-                                  {format(new Date(), "dd-MM-yyyy")}
-                                </p>
-                              </div>
+                              {hasDoc && (
+                                <div className="px-14 pb-4 pt-1 space-y-2">
+                                  {docsOfType.map((doc, dIdx) => (
+                                    <div
+                                      key={dIdx}
+                                      className="flex items-center justify-between group/item"
+                                    >
+                                      <div
+                                        className="flex flex-col cursor-pointer hover:text-orange-600 transition-colors"
+                                        onClick={() =>
+                                          window.open(doc.fileUrl, "_blank")
+                                        }
+                                      >
+                                        <span className="text-[11px] font-bold truncate max-w-[150px]">
+                                          {doc.originalFilename}
+                                        </span>
+                                        <span className="text-[9px] font-medium text-slate-400 uppercase tracking-tight">
+                                          {format(
+                                            new Date(doc.uploadedAt),
+                                            "dd-MM-yyyy HH:mm",
+                                          )}
+                                        </span>
+                                      </div>
+                                      <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-6 w-6 rounded-full text-slate-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover/item:opacity-100 transition-opacity"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          handleDeleteDocument(doc.id);
+                                        }}
+                                        disabled={isLoading}
+                                      >
+                                        <Trash2 className="h-3 w-3" />
+                                      </Button>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
                             </div>
-                            <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-orange-500 transition-colors" />
-                          </div>
-                        ))}
+                          );
+                        })}
                       </div>
                       <div className="p-4 bg-orange-50/50 dark:bg-orange-950/20">
                         <Button
                           variant="ghost"
                           className="w-full text-orange-600 font-black uppercase text-[10px] tracking-[0.2em] gap-2"
+                          onClick={() => {
+                            // Default to some type if clicked? Or just show a message?
+                            // Actually, let's just make it focus an existing type or something.
+                            // For now, let's map it to open the first type that's not uploaded.
+                            const firstMissing = [
+                              "personal_photo",
+                              "degree_certification",
+                              "id_document",
+                              "health_certificate",
+                              "cv_resume",
+                            ].find(
+                              (t) =>
+                                !documents.some((d) => d.documentType === t),
+                            );
+                            if (firstMissing) {
+                              setUploadingDocType(firstMissing);
+                              docFileInputRef.current?.click();
+                            } else {
+                              setUploadingDocType("cv_resume");
+                              docFileInputRef.current?.click();
+                            }
+                          }}
                         >
                           <Plus className="h-4 w-4" /> Tải lên tài liệu mới
                         </Button>
+                        <input
+                          type="file"
+                          ref={docFileInputRef}
+                          className="hidden"
+                          onChange={(e) => {
+                            if (uploadingDocType) {
+                              handleUploadDocument(e, uploadingDocType);
+                            }
+                          }}
+                        />
                       </div>
                     </Card>
                   </section>

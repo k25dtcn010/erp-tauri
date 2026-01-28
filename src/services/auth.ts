@@ -1,4 +1,5 @@
 import { client } from "../client/client.gen";
+import { client as timekeepingClient } from "../client-timekeeping/client.gen";
 import {
   getApiCompaniesByUsernameByUsername,
   getApiEmployeesMe,
@@ -48,6 +49,50 @@ const DeviceStorage = {
   },
 };
 
+// --- Global Interceptor ---
+let interceptorsInitialized = false;
+
+const coreAuthInterceptor = async (request: any) => {
+  const [token, companyId] = await Promise.all([
+    DeviceStorage.getItem("token"),
+    DeviceStorage.getItem("companyId"),
+  ]);
+
+  if (token) request.headers.set("Authorization", `Bearer ${token}`);
+  if (companyId) request.headers.set("x-company-id", companyId);
+
+  return request;
+};
+
+const timekeepingAuthInterceptor = async (request: any) => {
+  const [token, userId, employeeId, companyId] = await Promise.all([
+    DeviceStorage.getItem("token"),
+    DeviceStorage.getItem("userId"),
+    DeviceStorage.getItem("employeeId"),
+    DeviceStorage.getItem("companyId"),
+  ]);
+
+  if (token) request.headers.set("Authorization", `Bearer ${token}`);
+  if (companyId) request.headers.set("x-company-id", companyId);
+  if (userId) request.headers.set("X-User-ID", userId);
+  if (employeeId) request.headers.set("X-Employee-ID", employeeId);
+
+  return request;
+};
+
+const setupInterceptors = () => {
+  if (interceptorsInitialized) return;
+
+  if (client.interceptors) {
+    client.interceptors.request.use(coreAuthInterceptor);
+  }
+  if (timekeepingClient.interceptors) {
+    timekeepingClient.interceptors.request.use(timekeepingAuthInterceptor);
+  }
+
+  interceptorsInitialized = true;
+};
+
 export interface LoginCredentials {
   username: string;
   password?: string;
@@ -83,10 +128,16 @@ export const authService = {
         throw response.error;
       }
 
-      const { token, user, refreshToken } = response.data as any;
+      console.log("[Auth] Login response data:", JSON.stringify(response.data));
+      const { token, user, refreshToken } =
+        (response.data as any).data || (response.data as any);
 
       if (!token) {
         throw new Error("Token not found in response");
+      }
+
+      if (credentials.companyId) {
+        await DeviceStorage.setItem("companyId", credentials.companyId);
       }
 
       // Save token to storage
@@ -95,14 +146,12 @@ export const authService = {
         await DeviceStorage.setItem("refreshToken", refreshToken);
       }
 
-      // Setup interceptor for subsequent requests
-      if (client.interceptors) {
-        client.interceptors.request.use((request) => {
-          request.headers.set("Authorization", `Bearer ${token}`);
-          return request;
-        });
+      if (user) {
+        if (user.userId) await DeviceStorage.setItem("userId", user.userId);
+        if (user.id) await DeviceStorage.setItem("employeeId", user.id);
       }
 
+      setupInterceptors();
       return { token, user };
     } catch (error) {
       console.error("Login failed:", error);
@@ -110,10 +159,63 @@ export const authService = {
     }
   },
 
+  getCompanyId: async () => {
+    return await DeviceStorage.getItem("companyId");
+  },
+
+  getAccessToken: async () => {
+    return await DeviceStorage.getItem("token");
+  },
+
+  getUserId: async () => {
+    let userId = await DeviceStorage.getItem("userId");
+    if (!userId || userId === "undefined" || userId === "null") {
+      try {
+        const result = await authService.getSession();
+        if (
+          result &&
+          result.data &&
+          (result.data as any).data &&
+          (result.data as any).data.userId
+        ) {
+          userId = (result.data as any).data.userId;
+          console.log("[Auth] getUserId resolved to:", userId);
+        }
+      } catch (e) {
+        console.warn("Could not retrieve userId via session", e);
+      }
+    }
+    return userId;
+  },
+
+  getEmployeeId: async () => {
+    let employeeId = await DeviceStorage.getItem("employeeId");
+    if (!employeeId || employeeId === "undefined" || employeeId === "null") {
+      try {
+        const result = await authService.getSession();
+        if (
+          result &&
+          result.data &&
+          (result.data as any).data &&
+          (result.data as any).data.id
+        ) {
+          employeeId = (result.data as any).data.id;
+          console.log("[Auth] getEmployeeId resolved to:", employeeId);
+        }
+      } catch (e) {
+        console.warn("Could not retrieve employeeId via session", e);
+      }
+    }
+    return employeeId;
+  },
+
   logout: async () => {
     try {
       await DeviceStorage.removeItem("token");
       await DeviceStorage.removeItem("refreshToken");
+      await DeviceStorage.removeItem("userId");
+      await DeviceStorage.removeItem("employeeId");
+      await DeviceStorage.removeItem("companyId");
     } catch (error) {
       console.error("Logout failed:", error);
     }
@@ -125,6 +227,31 @@ export const authService = {
     try {
       const result = await getApiEmployeesMe();
       console.log("[Auth] getApiEmployeesMe result:", result);
+
+      if (
+        result.data &&
+        (result.data as any).data &&
+        (result.data as any).data.id
+      ) {
+        const employeeId = (result.data as any).data.id;
+        const userId = (result.data as any).data.userId;
+        console.log(
+          "[Auth] getSession saving employeeId:",
+          employeeId,
+          "userId:",
+          userId,
+        );
+        await DeviceStorage.setItem("employeeId", employeeId);
+        if (userId) {
+          await DeviceStorage.setItem("userId", userId);
+        }
+      } else {
+        console.warn(
+          "[Auth] getSession NO DATA FOUND IN result.data:",
+          JSON.stringify(result.data),
+        );
+      }
+
       return result;
     } catch (e) {
       console.error("[Auth] getApiEmployeesMe threw error:", e);
@@ -161,11 +288,7 @@ export const authService = {
           await DeviceStorage.setItem("refreshToken", newRefreshToken);
         }
 
-        client.interceptors.request.use((request) => {
-          request.headers.set("Authorization", `Bearer ${token}`);
-          return request;
-        });
-
+        setupInterceptors();
         return true;
       }
       return false;
@@ -182,10 +305,7 @@ export const authService = {
       console.log("[Auth] Stored token:", token ? "FOUND" : "NOT FOUND");
 
       if (token && typeof token === "string") {
-        client.interceptors.request.use((request) => {
-          request.headers.set("Authorization", `Bearer ${token}`);
-          return request;
-        });
+        setupInterceptors();
         return true;
       }
       return false;
@@ -229,3 +349,5 @@ export const authService = {
     }
   },
 };
+
+setupInterceptors();

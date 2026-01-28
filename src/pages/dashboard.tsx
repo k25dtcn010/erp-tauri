@@ -33,6 +33,9 @@ const DashboardPage: React.FC = () => {
   const [userAvatar, setUserAvatar] = useState<string>(() => {
     return localStorage.getItem("cached_userAvatar") || "";
   });
+  const [employeeCode, setEmployeeCode] = useState<string>(() => {
+    return localStorage.getItem("cached_employeeCode") || "";
+  });
 
   const updatePendingCount = async () => {
     const records = await OfflineAttendanceService.getRecords();
@@ -47,13 +50,16 @@ const DashboardPage: React.FC = () => {
         if (res.data) {
           const fullName = res.data.data.fullName;
           const avatar = res.data.data.avatarUrl || "";
+          const code = res.data.data.employeeCode || "";
 
           setUserName(fullName);
           setUserAvatar(avatar);
+          setEmployeeCode(code);
 
           // Cache the data
           localStorage.setItem("cached_userName", fullName);
           localStorage.setItem("cached_userAvatar", avatar);
+          localStorage.setItem("cached_employeeCode", code);
         }
       } catch (error) {
         console.error("Failed to fetch user information", error);
@@ -217,6 +223,7 @@ const DashboardPage: React.FC = () => {
         onOpenChange={setIsFaceModalOpen}
         mode={modalMode}
         currentTime={currentTime}
+        employeeCode={employeeCode}
         onVerified={onVerified}
       />
 

@@ -21,15 +21,11 @@ import {
   Box,
   Tabs,
   Sheet,
-  Button as ZButton,
-  Text,
-  Input as ZInput,
   Select as ZSelect,
+  DatePicker,
 } from "zmp-ui";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { cn } from "@/lib/utils";
@@ -47,6 +43,7 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { CustomPageHeader } from "@/components/layout/CustomPageHeader";
+import { TimePicker } from "@/components/common/TimePicker";
 
 const { Option } = ZSelect;
 
@@ -55,6 +52,9 @@ const OvertimePage: React.FC = () => {
   const [activeTab, setActiveTab] = useState("stats");
   const [filterStatus, setFilterStatus] = useState("all");
   const [isSheetVisible, setIsSheetVisible] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [startTime, setStartTime] = useState("17:30");
+  const [endTime, setEndTime] = useState("20:30");
 
   // Check for action=new in URL to open sheet automatically
   React.useEffect(() => {
@@ -505,39 +505,42 @@ const OvertimePage: React.FC = () => {
 
           {/* Body */}
           <div className="flex-1 overflow-y-auto overflow-x-hidden p-5 space-y-6 pb-24">
-            {/* Overtime Type */}
-            <div className="space-y-3">
-              <label className="text-[11px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
-                <PieChart className="h-3.5 w-3.5 text-purple-500" />
-                Loại hình
-              </label>
-              <ZSelect
-                placeholder="Chọn loại hình"
-                closeOnSelect
-                className="h-12 text-sm font-bold bg-transparent"
-                mask
-              >
-                <Option value="normal" title="Ngày thường (x1.5)" />
-                <Option value="weekend" title="Cuối tuần (x2.0)" />
-                <Option value="holiday" title="Ngày lễ (x3.0)" />
-              </ZSelect>
-            </div>
-
             {/* Date & Time Group */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div className="space-y-3">
                 <label className="text-[11px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
                   <CalendarDays className="h-3.5 w-3.5 text-blue-500" />
-                  Ngày thực hiện
+                  Ngày bắt đầu
                 </label>
                 <div className="relative">
-                  <input
-                    type="date"
-                    className="w-full h-12 rounded-xl border border-gray-200 dark:border-gray-700  bg-white dark:bg-[#262A31] font-bold text-sm text-slate-700 dark:text-slate-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 outline-none transition-all shadow-sm"
+                  <DatePicker
+                    mask
+                    maskClosable
+                    title="Chọn ngày bắt đầu"
+                    dateFormat="dd/mm/yyyy"
+                    value={selectedDate}
+                    onChange={(value) => setSelectedDate(value as Date)}
+                    inputClass="w-full h-12 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#262A31] font-bold text-sm text-slate-700 dark:text-slate-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 outline-none transition-all shadow-sm"
                   />
                 </div>
               </div>
-
+              <div className="space-y-3">
+                <label className="text-[11px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+                  <CalendarDays className="h-3.5 w-3.5 text-blue-500" />
+                  Ngày kết thúc
+                </label>
+                <div className="relative">
+                  <DatePicker
+                    mask
+                    maskClosable
+                    title="Chọn ngày kết thúc"
+                    dateFormat="dd/mm/yyyy"
+                    value={selectedDate}
+                    onChange={(value) => setSelectedDate(value as Date)}
+                    inputClass="w-full h-12 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#262A31] font-bold text-sm text-slate-700 dark:text-slate-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 outline-none transition-all shadow-sm"
+                  />
+                </div>
+              </div>
               <div className="space-y-3">
                 <label className="text-[11px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
                   <Clock className="h-3.5 w-3.5 text-orange-500" />
@@ -545,16 +548,20 @@ const OvertimePage: React.FC = () => {
                 </label>
                 <div className="flex items-center gap-3">
                   <div className="relative flex-1">
-                    <input
-                      type="time"
-                      className="w-full h-12 rounded-xl border border-gray-200 dark:border-gray-700 px-3 bg-white dark:bg-[#262A31] font-bold text-sm text-slate-700 dark:text-slate-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 outline-none transition-all shadow-sm text-center"
+                    <TimePicker
+                      value={startTime}
+                      onChange={setStartTime}
+                      placeholder="Bắt đầu"
+                      inputClass="w-full h-12 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#262A31] font-bold text-sm text-slate-700 dark:text-slate-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 outline-none transition-all shadow-sm text-center"
                     />
                   </div>
                   <span className="text-slate-300 font-black">-</span>
                   <div className="relative flex-1">
-                    <input
-                      type="time"
-                      className="w-full h-12 rounded-xl border border-gray-200 dark:border-gray-700 px-3 bg-white dark:bg-[#262A31] font-bold text-sm text-slate-700 dark:text-slate-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 outline-none transition-all shadow-sm text-center"
+                    <TimePicker
+                      value={endTime}
+                      onChange={setEndTime}
+                      placeholder="Kết thúc"
+                      inputClass="w-full h-12 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#262A31] font-bold text-sm text-slate-700 dark:text-slate-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 outline-none transition-all shadow-sm text-center"
                     />
                   </div>
                 </div>
@@ -571,36 +578,6 @@ const OvertimePage: React.FC = () => {
                 placeholder="Nhập lý do chi tiết..."
                 className="w-full min-h-[120px] rounded-2xl border border-gray-200 dark:border-gray-700 p-4 bg-white dark:bg-[#262A31] font-medium text-sm text-slate-700 dark:text-slate-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 outline-none resize-none transition-all shadow-sm"
               />
-            </div>
-
-            {/* Estimate Box - Elegant Design */}
-            <div className="p-5 rounded-2xl bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-purple-900/20 dark:to-indigo-900/20 border border-purple-100 dark:border-purple-500/20 flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-4 w-full sm:w-auto">
-                <div className="h-10 w-10 rounded-xl bg-white dark:bg-purple-500/20 flex items-center justify-center text-purple-600 shadow-sm shrink-0">
-                  <Zap className="h-5 w-5" />
-                </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="text-[10px] font-black text-purple-600/70 dark:text-purple-400/70 uppercase tracking-widest">
-                      Dự kiến
-                    </p>
-                    <span className="text-[10px] font-bold bg-white dark:bg-purple-900/40 px-2 py-0.5 rounded-full text-purple-600 dark:text-purple-300 border border-purple-200 dark:border-purple-500/30">
-                      x1.5
-                    </span>
-                  </div>
-                  <p className="text-sm font-black text-purple-900 dark:text-white mt-0.5">
-                    2.5 giờ công
-                  </p>
-                </div>
-              </div>
-              <div className="w-full sm:w-auto mt-2 sm:mt-0 pt-3 sm:pt-0 border-t sm:border-t-0 border-purple-200/50 flex justify-between sm:block text-right">
-                <span className="text-xs font-bold text-slate-500 block">
-                  Cộng lương
-                </span>
-                <span className="text-lg font-black text-purple-600 dark:text-purple-400">
-                  ~350.000đ
-                </span>
-              </div>
             </div>
           </div>
 

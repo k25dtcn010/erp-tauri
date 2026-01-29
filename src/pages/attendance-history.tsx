@@ -20,7 +20,9 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
+import { getApiV3AttendanceHistory } from "@/client-timekeeping/sdk.gen";
+import { getApiEmployeesMe } from "@/client/sdk.gen";
 import {
   Select,
   Sheet,
@@ -39,15 +41,18 @@ import {
   isToday,
   isSameDay,
   getDay,
+  parseISO,
 } from "date-fns";
 import { vi } from "date-fns/locale";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { CustomPageHeader } from "@/components/layout/CustomPageHeader";
+import { useSheetBackHandler } from "@/hooks/use-sheet-back-handler";
 
 const { Option } = Select;
 
 // Types
 interface AttendanceRecord {
+  id?: string;
   date: Date;
   status: "normal" | "late" | "absent" | "leave" | "holiday" | "weekend";
   checkIn?: string;
@@ -57,6 +62,13 @@ interface AttendanceRecord {
   reason?: string;
   lateMinutes?: number;
   notes?: string;
+  checkInPhoto?: string | null;
+  checkOutPhoto?: string | null;
+  locationStatus?: {
+    in: string;
+    out: string | null;
+  };
+  sessions?: any[];
 }
 
 const AttendanceHistoryPage = () => {
@@ -70,76 +82,158 @@ const AttendanceHistoryPage = () => {
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
 
-  // Generate mock data for the selected month
+  // Handle Android back button
+  const closeDetail = useCallback(() => setIsDetailOpen(false), []);
+  const closeModal = useCallback(() => setIsModalVisible(false), []);
+
+  useSheetBackHandler(isDetailOpen, closeDetail);
+  useSheetBackHandler(isModalVisible, closeModal);
+
+  const [employeeId, setEmployeeId] = useState<string>(() => {
+    return localStorage.getItem("cached_employeeId") || "";
+  });
+  const [apiData, setApiData] = useState<any[]>([]);
+
+  // Fetch user data
+  useEffect(() => {
+    if (employeeId) return;
+    const fetchUser = async () => {
+      try {
+        const res = await getApiEmployeesMe();
+        if (res.data) {
+          const data = (res.data as any).data;
+          setEmployeeId(data.id || "");
+        }
+      } catch (error) {
+        console.error("Failed to fetch user information", error);
+      }
+    };
+    fetchUser();
+  }, [employeeId]);
+
+  const fetchHistory = useCallback(async () => {
+    if (!employeeId) return;
+    setIsLoading(true);
+    try {
+      const fromDate = format(startOfMonth(selectedMonth), "yyyy-MM-dd");
+      const toDate = format(endOfMonth(selectedMonth), "yyyy-MM-dd");
+      const res = await getApiV3AttendanceHistory({
+        query: {
+          employeeId,
+          fromDate,
+          toDate,
+          pageSize: 100,
+        },
+      });
+      if (res.data) {
+        setApiData((res.data as any).data || []);
+      }
+    } catch (error) {
+      console.error("Failed to fetch history", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [employeeId, selectedMonth]);
+
+  useEffect(() => {
+    fetchHistory();
+  }, [fetchHistory]);
+
   const attendanceData = useMemo(() => {
     const start = startOfMonth(selectedMonth);
     const end = endOfMonth(selectedMonth);
     const days = eachDayOfInterval({ start, end });
 
+    // Map API data to daily records
+    const dailySessionsMap: Record<string, any[]> = {};
+    apiData.forEach((s) => {
+      const day = format(parseISO(s.checkInAt), "yyyy-MM-dd");
+      if (!dailySessionsMap[day]) {
+        dailySessionsMap[day] = [];
+      }
+      dailySessionsMap[day].push(s);
+    });
+
     return days.map((date) => {
+      const dayKey = format(date, "yyyy-MM-dd");
+      const daySessions = dailySessionsMap[dayKey] || [];
+      const session = daySessions[0];
       const dayOfWeek = getDay(date);
       const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
 
-      // Random generation for demo
-      const rand = Math.random();
-      let status: AttendanceRecord["status"] = "normal";
-      let checkIn: string | undefined = "08:15";
-      let checkOut: string | undefined = "17:35";
-      let totalHours = 8.5;
-      let overtimeHours = 0;
+      if (session) {
+        const checkIn = format(parseISO(session.checkInAt), "HH:mm");
+        const checkOut = session.checkOutAt
+          ? format(parseISO(session.checkOutAt), "HH:mm")
+          : undefined;
 
-      if (isWeekend) {
-        status = "weekend";
-        checkIn = undefined;
-        checkOut = undefined;
-        totalHours = 0;
-      } else if (rand > 0.9) {
-        status = "absent";
-        checkIn = undefined;
-        checkOut = undefined;
-        totalHours = 0;
-      } else if (rand > 0.8) {
-        status = "late";
-        checkIn = "09:15";
-        totalHours = 7.5;
-      } else if (rand > 0.75) {
-        status = "leave";
-        checkIn = undefined;
-        checkOut = undefined;
-        totalHours = 0;
+        let status: AttendanceRecord["status"] = "normal";
+        if (session.status === "REJECTED") status = "absent";
+        else if (
+          session.status === "AUTO_CLOSED" ||
+          session.status === "MISSING_CHECKOUT"
+        )
+          status = "late"; // Or incomplete
+
+        // You could add logic here to check if late based on shift
+
+        return {
+          id: session.id,
+          date,
+          status,
+          checkIn,
+          checkOut,
+          totalHours: session.workedHours || 0,
+          overtimeHours: 0, // Need API for this or calculate
+          checkInPhoto: session.checkInPhotoUrl,
+          checkOutPhoto: session.checkOutPhotoUrl,
+          locationStatus: {
+            in: session.checkinLocationStatus,
+            out: session.checkoutLocationStatus,
+          },
+          sessions: daySessions,
+        } as AttendanceRecord;
       }
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const isFuture = date.getTime() > today.getTime();
 
       return {
         date,
-        status,
-        checkIn,
-        checkOut,
-        totalHours,
-        overtimeHours,
-        lateMinutes: status === "late" ? 45 : 0,
-        notes: status === "leave" ? "Nghỉ phép năm" : undefined,
+        status: isWeekend ? "weekend" : isFuture ? "normal" : "absent",
+        totalHours: 0,
+        sessions: [],
       } as AttendanceRecord;
     });
-  }, [selectedMonth]);
+  }, [selectedMonth, apiData]);
+
+  const filteredData = useMemo(() => {
+    if (filterStatus === "all") return attendanceData;
+    return attendanceData.filter((d) => d.status === filterStatus);
+  }, [attendanceData, filterStatus]);
 
   // Calendar stats
   const stats = useMemo(() => {
     const present = attendanceData.filter(
-      (d) => d.status === "normal" || d.status === "late",
+      (d) =>
+        d.id !== undefined && (d.status === "normal" || d.status === "late"),
     ).length;
     const workingDays = attendanceData.filter(
       (d) => d.status !== "weekend" && d.status !== "holiday",
     ).length;
-    const late = attendanceData.filter((d) => d.status === "late").length;
-    const leave = attendanceData.filter((d) => d.status === "leave").length;
-    const rate = Math.round((present / workingDays) * 100);
+    const late = apiData.filter(
+      (d) => d.status === "AUTO_CLOSED" || d.status === "MISSING_CHECKOUT",
+    ).length;
+    const leave = 0; // Need leave data integration
+    const rate =
+      workingDays > 0 ? Math.round((present / workingDays) * 100) : 0;
 
     return { present, workingDays, late, leave, rate };
-  }, [attendanceData]);
+  }, [attendanceData, apiData]);
 
   const handleRefresh = () => {
-    setIsLoading(true);
-    setTimeout(() => setIsLoading(false), 800);
+    fetchHistory();
   };
 
   const getStatusConfig = (status: AttendanceRecord["status"]) => {
@@ -408,129 +502,171 @@ const AttendanceHistoryPage = () => {
         handler
         title="Chi tiết ngày công"
       >
-        {selectedDate && (
-          <Box className="p-6 bg-white dark:bg-[#1a1d23]">
-            <Box className="flex items-center gap-4 mb-6">
-              <Box
-                className={cn(
-                  "p-4 rounded-2xl",
-                  getStatusConfig(selectedDate.status).bg,
-                )}
-              >
-                <Clock
-                  className={cn(
-                    "h-8 w-8",
-                    getStatusConfig(selectedDate.status).text,
-                  )}
-                />
-              </Box>
-              <Box>
-                <Text className="text-xl font-extrabold capitalize m-0">
-                  {format(selectedDate.date, "EEEE, dd/MM/yyyy", {
-                    locale: vi,
-                  })}
-                </Text>
-                <Box className="flex items-center gap-2 mt-1">
-                  <Badge
-                    variant="outline"
+        {selectedDate &&
+          (() => {
+            const approvedCount =
+              selectedDate.sessions?.filter(
+                (s) => s.status === "COMPLETED" || s.status === "ACTIVE",
+              ).length || 0;
+            const pendingCount =
+              selectedDate.sessions?.filter(
+                (s) =>
+                  s.status === "PENDING_REVIEW" ||
+                  s.status === "NEEDS_CONFIRMATION",
+              ).length || 0;
+
+            return (
+              <Box className="p-6 bg-white dark:bg-[#1a1d23]">
+                <Box className="flex items-center gap-4 mb-6">
+                  <Box
                     className={cn(
-                      "px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border-none",
+                      "p-4 rounded-2xl",
                       getStatusConfig(selectedDate.status).bg,
-                      getStatusConfig(selectedDate.status).text,
                     )}
                   >
-                    {getStatusConfig(selectedDate.status).label}
-                  </Badge>
-                  <Text className="text-[10px] font-medium text-gray-400 m-0">
-                    Ca hành chính
-                  </Text>
+                    <Clock
+                      className={cn(
+                        "h-8 w-8",
+                        getStatusConfig(selectedDate.status).text,
+                      )}
+                    />
+                  </Box>
+                  <Box>
+                    <Text className="text-xl font-extrabold capitalize m-0">
+                      {format(selectedDate.date, "EEEE, dd/MM/yyyy", {
+                        locale: vi,
+                      })}
+                    </Text>
+                    <Box className="flex items-center gap-2 mt-1">
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border-none",
+                          getStatusConfig(selectedDate.status).bg,
+                          getStatusConfig(selectedDate.status).text,
+                        )}
+                      >
+                        {getStatusConfig(selectedDate.status).label}
+                      </Badge>
+                      <Text className="text-[10px] font-medium text-gray-400 m-0">
+                        Ca hành chính
+                      </Text>
+                    </Box>
+                  </Box>
                 </Box>
-              </Box>
-            </Box>
 
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="p-4 rounded-2xl bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">
-                    Giờ vào
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <LogIn className="h-4 w-4 text-green-500" />
-                    <span className="text-lg font-bold tabular-nums">
-                      {selectedDate.checkIn || "--:--"}
-                    </span>
-                  </div>
-                </div>
-                <div className="p-4 rounded-2xl bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800">
-                  <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">
-                    Giờ ra
-                  </span>
-                  <div className="flex items-center gap-2">
-                    <LogOut className="h-4 w-4 text-orange-500" />
-                    <span className="text-lg font-bold tabular-nums">
-                      {selectedDate.checkOut || "--:--"}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center justify-between p-4 rounded-2xl border border-gray-100 dark:border-gray-800">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 text-indigo-500">
-                      <Clock className="h-4 w-4" />
-                    </div>
-                    <span className="text-sm font-bold text-gray-700 dark:text-gray-300">
-                      Tổng thời gian
-                    </span>
-                  </div>
-                  <span className="text-sm font-bold text-blue-600">
-                    {selectedDate.totalHours}h
-                  </span>
-                </div>
-
-                {selectedDate.status === "late" && (
-                  <div className="flex items-center justify-between p-4 rounded-2xl border border-orange-100 dark:border-orange-900/30 bg-orange-50/30 dark:bg-orange-900/10">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-orange-100 dark:bg-orange-900/30 text-orange-500">
-                        <AlertCircle className="h-4 w-4" />
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 rounded-2xl bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">
+                        Giờ vào
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <LogIn className="h-4 w-4 text-green-500" />
+                        <span className="text-lg font-bold tabular-nums">
+                          {selectedDate.checkIn || "--:--"}
+                        </span>
                       </div>
-                      <span className="text-sm font-bold text-orange-700 dark:text-orange-400">
-                        Đi muộn
+                    </div>
+                    <div className="p-4 rounded-2xl bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800">
+                      <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1 block">
+                        Giờ ra
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <LogOut className="h-4 w-4 text-orange-500" />
+                        <span className="text-lg font-bold tabular-nums">
+                          {selectedDate.checkOut || "--:--"}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Session Summary */}
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="p-3 rounded-2xl bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 text-center">
+                      <span className="text-[10px] font-bold text-blue-400 uppercase tracking-widest block mb-1">
+                        Tổng ca
+                      </span>
+                      <span className="text-lg font-bold text-blue-700 dark:text-blue-300">
+                        {selectedDate.sessions?.length || 0}
                       </span>
                     </div>
-                    <span className="text-sm font-bold text-orange-600">
-                      {selectedDate.lateMinutes} phút
-                    </span>
-                  </div>
-                )}
-
-                {selectedDate.notes && (
-                  <div className="p-4 rounded-2xl border border-gray-100 dark:border-gray-800">
-                    <div className="flex items-center gap-3 mb-2">
-                      <Info className="h-4 w-4 text-blue-500" />
-                      <span className="text-sm font-bold text-gray-700 dark:text-gray-300">
-                        Ghi chú
+                    <div className="p-3 rounded-2xl bg-orange-50 dark:bg-orange-900/20 border border-orange-100 dark:border-orange-800 text-center">
+                      <span className="text-[10px] font-bold text-orange-400 uppercase tracking-widest block mb-1">
+                        Chờ duyệt
+                      </span>
+                      <span className="text-lg font-bold text-orange-700 dark:text-orange-300">
+                        {pendingCount}
                       </span>
                     </div>
-                    <p className="text-xs text-gray-500 pl-7 m-0">
-                      {selectedDate.notes}
-                    </p>
+                    <div className="p-3 rounded-2xl bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-800 text-center">
+                      <span className="text-[10px] font-bold text-green-400 uppercase tracking-widest block mb-1">
+                        Hợp lệ
+                      </span>
+                      <span className="text-lg font-bold text-green-700 dark:text-green-300">
+                        {approvedCount}
+                      </span>
+                    </div>
                   </div>
-                )}
-              </div>
 
-              <Button
-                variant="outline"
-                className="w-full h-14 rounded-2xl border-dashed border-2 border-gray-200 dark:border-gray-800 text-gray-500 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 dark:hover:bg-blue-900/20 font-bold gap-2 mt-4 text-sm"
-                onClick={() => setIsModalVisible(true)}
-              >
-                <Info className="h-4 w-4" />
-                Yêu cầu điều chỉnh
-              </Button>
-            </div>
-          </Box>
-        )}
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between p-4 rounded-2xl border border-gray-100 dark:border-gray-800">
+                      <div className="flex items-center gap-3">
+                        <div className="p-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/20 text-indigo-500">
+                          <Clock className="h-4 w-4" />
+                        </div>
+                        <span className="text-sm font-bold text-gray-700 dark:text-gray-300">
+                          Tổng thời gian
+                        </span>
+                      </div>
+                      <span className="text-sm font-bold text-blue-600">
+                        {selectedDate.totalHours}h
+                      </span>
+                    </div>
+
+                    {selectedDate.status === "late" && (
+                      <div className="flex items-center justify-between p-4 rounded-2xl border border-orange-100 dark:border-orange-900/30 bg-orange-50/30 dark:bg-orange-900/10">
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg bg-orange-100 dark:bg-orange-900/30 text-orange-500">
+                            <AlertCircle className="h-4 w-4" />
+                          </div>
+                          <span className="text-sm font-bold text-orange-700 dark:text-orange-400">
+                            Đi muộn
+                          </span>
+                        </div>
+                        <span className="text-sm font-bold text-orange-600">
+                          {selectedDate.lateMinutes} phút
+                        </span>
+                      </div>
+                    )}
+
+                    {selectedDate.notes && (
+                      <div className="p-4 rounded-2xl border border-gray-100 dark:border-gray-800">
+                        <div className="flex items-center gap-3 mb-2">
+                          <Info className="h-4 w-4 text-blue-500" />
+                          <span className="text-sm font-bold text-gray-700 dark:text-gray-300">
+                            Ghi chú
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 pl-7 m-0">
+                          {selectedDate.notes}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    className="w-full h-14 rounded-2xl border-dashed border-2 border-gray-200 dark:border-gray-800 text-gray-500 hover:text-blue-600 hover:border-blue-200 hover:bg-blue-50 dark:hover:bg-blue-900/20 font-bold gap-2 mt-4 text-sm"
+                    onClick={() => setIsModalVisible(true)}
+                  >
+                    <Info className="h-4 w-4" />
+                    Yêu cầu điều chỉnh
+                  </Button>
+                </div>
+              </Box>
+            );
+          })()}
       </Sheet>
 
       {/* Adjustment Request Modal using ZaUI Modal */}

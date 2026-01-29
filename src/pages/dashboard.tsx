@@ -17,10 +17,21 @@ import { OfflineAttendanceService } from "@/services/offline-attendance";
 import { WifiOff, RefreshCw, ChevronRight } from "lucide-react";
 import { UnsyncedRecordsSheet } from "@/components/dashboard/UnsyncedRecordsSheet";
 import { PageContainer } from "@/components/layout/PageContainer";
-import { getApiV3AttendanceToday } from "@/client-timekeeping/sdk.gen";
+import {
+  getApiV3AttendanceToday,
+  getApiV3OvertimeSchedules,
+  getApiV3AttendanceHistory,
+} from "@/client-timekeeping/sdk.gen";
 import { getApiEmployeesMe } from "@/client/sdk.gen";
 import { CustomPageHeader } from "@/components/layout/CustomPageHeader";
-import { format } from "date-fns";
+import {
+  format,
+  startOfMonth,
+  endOfMonth,
+  subDays,
+  parseISO,
+  isSameDay,
+} from "date-fns";
 import { useSheetBackHandler } from "@/hooks/use-sheet-back-handler";
 import { useSyncStore } from "@/store/sync-store";
 
@@ -43,6 +54,25 @@ const DashboardPage: React.FC = () => {
   const [isPreCheckModalOpen, setIsPreCheckModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<string>("check-in");
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  // Overtime state
+  const [employeeId, setEmployeeId] = useState<string>(() => {
+    return localStorage.getItem("cached_employeeId") || "";
+  });
+  const [totalOTHours, setTotalOTHours] = useState(0);
+  const [pendingOTRequests, setPendingOTRequests] = useState(0);
+  const [overtimeRequests, setOvertimeRequests] = useState<OvertimeRequest[]>(
+    [],
+  );
+
+  // Attendance History state
+  const [historyStats, setHistoryStats] = useState({
+    totalWorkHours: 0,
+    attendanceRate: 0,
+    presentDays: 0,
+  });
+  const [recentHistory, setRecentHistory] = useState<any[]>([]);
+  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
 
   const {
     pendingCount: pendingSync,
@@ -121,18 +151,22 @@ const DashboardPage: React.FC = () => {
       try {
         const res = await getApiEmployeesMe();
         if (res.data) {
-          const fullName = (res.data as any).data.fullName;
-          const avatar = (res.data as any).data.avatarUrl || "";
-          const code = (res.data as any).data.employeeCode || "";
+          const data = (res.data as any).data;
+          const fullName = data.fullName;
+          const avatar = data.avatarUrl || "";
+          const code = data.employeeCode || "";
+          const id = data.id || "";
 
           setUserName(fullName);
           setUserAvatar(avatar);
           setEmployeeCode(code);
+          setEmployeeId(id);
 
           // Cache the data
           localStorage.setItem("cached_userName", fullName);
           localStorage.setItem("cached_userAvatar", avatar);
           localStorage.setItem("cached_employeeCode", code);
+          localStorage.setItem("cached_employeeId", id);
         }
       } catch (error) {
         console.error("Failed to fetch user information", error);
@@ -140,6 +174,157 @@ const DashboardPage: React.FC = () => {
     };
     fetchUser();
   }, []);
+
+  const mapOTStatus = (
+    status: string,
+  ): "pending" | "approved" | "rejected" | "cancelled" => {
+    switch (status) {
+      case "PENDING":
+        return "pending";
+      case "ACTIVE":
+      case "COMPLETED":
+        return "approved";
+      case "CANCELLED":
+        return "cancelled";
+      default:
+        return "rejected";
+    }
+  };
+
+  const fetchOvertimeData = useCallback(async (eid: string) => {
+    try {
+      const now = new Date();
+      const monthStart = format(startOfMonth(now), "yyyy-MM-dd");
+      const monthEnd = format(endOfMonth(now), "yyyy-MM-dd");
+
+      // Fetch month data for both summary and the list
+      const res = await getApiV3OvertimeSchedules({
+        query: {
+          employeeId: eid,
+          fromDate: monthStart,
+          toDate: monthEnd,
+        },
+      });
+
+      if (res.data) {
+        const records = (res.data as any).data || [];
+
+        // 1. Calculate summary for the month
+        const total = records.reduce(
+          (acc: number, curr: any) =>
+            acc + (curr.actualHours || curr.scheduledHours || 0),
+          0,
+        );
+        const pending = records.filter(
+          (r: any) => r.status === "PENDING",
+        ).length;
+        setTotalOTHours(total);
+        setPendingOTRequests(pending);
+
+        // 2. Get top 3 most recent items from the month
+        const sortedRecords = [...records].sort((a, b) => {
+          const dateTimeA = `${a.date}T${a.startTime}`;
+          const dateTimeB = `${b.date}T${b.startTime}`;
+          return dateTimeB.localeCompare(dateTimeA);
+        });
+
+        const mapped: OvertimeRequest[] = sortedRecords
+          .slice(0, 3)
+          .map((r: any) => ({
+            id: r.id,
+            date: r.date,
+            hours: r.actualHours || r.scheduledHours,
+            status: mapOTStatus(r.status),
+            startTime: r.startTime,
+            endTime: r.endTime,
+          }));
+        setOvertimeRequests(mapped);
+      }
+    } catch (error) {
+      console.error("Failed to fetch overtime data", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (employeeId && isOnline) {
+      fetchOvertimeData(employeeId);
+    }
+  }, [employeeId, isOnline, fetchOvertimeData]);
+
+  const fetchHistoryData = useCallback(async (eid: string) => {
+    setIsHistoryLoading(true);
+    try {
+      const now = new Date();
+      const monthStart = format(startOfMonth(now), "yyyy-MM-dd");
+      const monthEnd = format(endOfMonth(now), "yyyy-MM-dd");
+
+      const res = await getApiV3AttendanceHistory({
+        query: {
+          employeeId: eid,
+          fromDate: monthStart,
+          toDate: monthEnd,
+          pageSize: 100, // Get all for the month
+        },
+      });
+
+      if (res.data) {
+        const data = (res.data as any).data || [];
+
+        // 1. Calculate stats
+        const sessionsByDay: Record<string, any[]> = {};
+        let totalHours = 0;
+
+        data.forEach((session: any) => {
+          const day = format(parseISO(session.checkInAt), "yyyy-MM-dd");
+          if (!sessionsByDay[day]) sessionsByDay[day] = [];
+          sessionsByDay[day].push(session);
+          totalHours += session.workedHours || 0;
+        });
+
+        const presentDays = Object.keys(sessionsByDay).length;
+        // Simple attendance rate calculation (present days / working days so far)
+        // Assume working days is 22 for a generic month for now, or calculate based on today
+        const workingDaysSoFar = Math.min(now.getDate(), 22); // Cap at 22 for simplicity
+        const rate =
+          workingDaysSoFar > 0
+            ? Math.round((presentDays / workingDaysSoFar) * 100)
+            : 0;
+
+        setHistoryStats({
+          totalWorkHours: totalHours,
+          attendanceRate: Math.min(rate, 100),
+          presentDays,
+        });
+
+        // 2. Map recent history (last 3 items)
+        const mapped = data.slice(0, 3).map((s: any) => ({
+          id: s.id,
+          date: parseISO(s.checkInAt),
+          status:
+            s.status === "COMPLETED" || s.status === "ACTIVE"
+              ? "present"
+              : s.status === "AUTO_CLOSED" || s.status === "MISSING_CHECKOUT"
+                ? "late"
+                : "absent",
+          checkIn: format(parseISO(s.checkInAt), "HH:mm"),
+          checkOut: s.checkOutAt
+            ? format(parseISO(s.checkOutAt), "HH:mm")
+            : undefined,
+        }));
+        setRecentHistory(mapped);
+      }
+    } catch (error) {
+      console.error("Failed to fetch history data", error);
+    } finally {
+      setIsHistoryLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (employeeId && isOnline) {
+      fetchHistoryData(employeeId);
+    }
+  }, [employeeId, isOnline, fetchHistoryData]);
 
   // Check network status and pending records
   useEffect(() => {
@@ -224,9 +409,12 @@ const DashboardPage: React.FC = () => {
       // Refresh pending count since modal just saved a record
       await refreshPendingCount();
 
-      // Refresh today's status from API
+      // Refresh today's status and history from API
       if (isOnline && !onlineTrialFailed) {
-        setTimeout(fetchTodayStatus, 1000); // Give background worker a moment
+        setTimeout(() => {
+          fetchTodayStatus();
+          if (employeeId) fetchHistoryData(employeeId);
+        }, 1000); // Give background worker a moment
       }
 
       const showSyncWarning = !isOnline || onlineTrialFailed;
@@ -283,33 +471,7 @@ const DashboardPage: React.FC = () => {
     },
   ];
 
-  const mockOvertimeRequests: OvertimeRequest[] = [
-    {
-      id: "ot1",
-      date: new Date().toISOString(),
-      hours: 2.5,
-      status: "pending",
-      startTime: "17:30",
-      endTime: "20:00",
-    },
-    {
-      id: "ot2",
-      date: new Date(Date.now() - 86400000 * 2).toISOString(),
-      hours: 1.5,
-      status: "approved",
-      startTime: "17:30",
-      endTime: "19:00",
-    },
-    {
-      id: "ot3",
-      date: new Date(Date.now() - 86400000 * 5).toISOString(),
-      hours: 3,
-      status: "rejected",
-      startTime: "18:00",
-      endTime: "21:00",
-    },
-  ];
-
+  // Placeholder for leave requests (to be integrated later)
   const mockLeaveRequests: LeaveRequest[] = [
     {
       id: "l1",
@@ -407,9 +569,9 @@ const DashboardPage: React.FC = () => {
 
       <div className="grid grid-cols-1 gap-6">
         <OvertimeSection
-          totalOTHours={12.5}
-          pendingOTRequests={2}
-          requests={mockOvertimeRequests}
+          totalOTHours={totalOTHours}
+          pendingOTRequests={pendingOTRequests}
+          requests={overtimeRequests}
         />
         <LeaveSection
           totalLeaveDays={12}
@@ -419,10 +581,11 @@ const DashboardPage: React.FC = () => {
       </div>
 
       <AttendanceHistorySection
-        totalWorkHours={156.5}
-        attendanceRate={98}
-        presentDays={21}
-        recentHistory={mockHistory}
+        totalWorkHours={historyStats.totalWorkHours}
+        attendanceRate={historyStats.attendanceRate}
+        presentDays={historyStats.presentDays}
+        recentHistory={recentHistory}
+        isLoading={isHistoryLoading}
       />
 
       <Suspense fallback={null}>

@@ -938,6 +938,84 @@ export default function SettingsPage() {
                     </Card>
                   </section>
 
+                  {/* Bank Information Section */}
+                  <section className="space-y-4">
+                    <div className="flex items-center justify-between px-1">
+                      <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                        Thông tin ngân hàng
+                      </h3>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 rounded-full text-orange-600 font-black text-[10px] uppercase tracking-wider"
+                        onClick={handleAddBankAccount}
+                      >
+                        <Plus className="h-3 w-3 mr-1" /> Thêm mới
+                      </Button>
+                    </div>
+                    <div className="grid gap-3">
+                      {bankAccounts.length > 0 ? (
+                        bankAccounts.map((bank, idx) => (
+                          <Card
+                            key={bank.id || idx}
+                            className="p-5 border-gray-100 dark:border-[#353A45] bg-white dark:bg-[#262A31] shadow-sm rounded-2xl flex items-center justify-between"
+                          >
+                            <div className="flex items-center gap-4">
+                              <div className="h-12 w-12 rounded-2xl bg-orange-100 dark:bg-orange-900/30 text-orange-600 flex items-center justify-center shadow-inner">
+                                <CreditCard className="h-5 w-5" />
+                              </div>
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <p className="text-sm font-black text-slate-900 dark:text-white">
+                                    {bank.bankName}
+                                  </p>
+                                  {bank.isDefault && (
+                                    <Badge className="bg-orange-500/10 text-orange-600 border-none rounded-full px-2 py-0.5 text-[8px] font-black uppercase">
+                                      Mặc định
+                                    </Badge>
+                                  )}
+                                </div>
+                                <p className="text-[10px] font-bold text-orange-500 uppercase tracking-tight mt-0.5">
+                                  {bank.accountNumber} •{" "}
+                                  {bank.accountHolderName}
+                                </p>
+                                {bank.branchName && (
+                                  <p className="text-[9px] font-medium text-slate-400 uppercase tracking-tight">
+                                    Chi nhánh: {bank.branchName}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-9 w-9 rounded-full text-slate-400 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20"
+                                onClick={() => handleEditBankAccount(bank)}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-9 w-9 rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20"
+                                onClick={() => handleDeleteBankAccount(bank.id)}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </Card>
+                        ))
+                      ) : (
+                        <div className="text-center py-10 bg-slate-50/50 dark:bg-slate-900/30 rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800">
+                          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                            Chưa có tài khoản ngân hàng
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </section>
+
                   {/* Documents Section */}
                   <section className="space-y-4">
                     <div className="flex items-center justify-between px-1">

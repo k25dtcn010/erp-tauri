@@ -21,6 +21,8 @@ import {
   getApiV3AttendanceToday,
   getApiV3OvertimeSchedules,
   getApiV3AttendanceHistory,
+  getApiV3LeaveRequestsMy,
+  getApiV3LeavePoliciesBalances,
 } from "@/client-timekeeping/sdk.gen";
 import { getApiEmployeesMe } from "@/client/sdk.gen";
 import { CustomPageHeader } from "@/components/layout/CustomPageHeader";
@@ -109,7 +111,54 @@ const DashboardPage: React.FC = () => {
   });
 
   // Fetch today's attendance status
-  const fetchTodayStatus = useCallback(async () => {
+  const [recentRequests, setRecentRequests] = useState<any[]>([]);
+  const [leaveTotals, setLeaveTotals] = useState({ total: 0, entitled: 0 });
+
+  const fetchLeaveData = useCallback(async () => {
+    try {
+      // Fetch recent leave requests
+      const requestsRes = await getApiV3LeaveRequestsMy({
+        query: { limit: "3" },
+      });
+      if (requestsRes.data && requestsRes.data.requests) {
+        setRecentRequests(
+          requestsRes.data.requests.map((req: any) => ({
+            id: req.id,
+            startDate: req.startDate,
+            endDate: req.endDate,
+            type: req.policyName || "Nghỉ phép",
+            status: (req.status || "pending").toLowerCase(),
+            days: req.days,
+          })),
+        );
+      }
+
+      // Fetch leave balances
+      const balancesRes = await getApiV3LeavePoliciesBalances();
+      if (balancesRes.data && balancesRes.data.balances) {
+        const balances = balancesRes.data.balances as any[];
+        // Find the "Annual Leave" or main leave policy. For now, let's sum them or find a primary one.
+        // Usually, users care about "Phep nam" (Annual Leave).
+        const mainBalance =
+          balances.find(
+            (b) =>
+              b.policyName?.toLowerCase().includes("phép năm") ||
+              b.policyName?.toLowerCase().includes("annual"),
+          ) || balances[0];
+
+        if (mainBalance) {
+          setLeaveTotals({
+            total: mainBalance.availableDays || 0,
+            entitled: mainBalance.entitledDays || 0,
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Failed to fetch leave data", error);
+    }
+  }, []);
+
+  const fetchDashboardData = useCallback(async () => {
     try {
       const res = await getApiV3AttendanceToday();
       if (res.data) {
@@ -141,9 +190,9 @@ const DashboardPage: React.FC = () => {
 
   useEffect(() => {
     if (isOnline) {
-      fetchTodayStatus();
+      fetchDashboardData();
     }
-  }, [isOnline, fetchTodayStatus]);
+  }, [isOnline, fetchDashboardData]);
 
   // Fetch user data
   useEffect(() => {
@@ -321,10 +370,30 @@ const DashboardPage: React.FC = () => {
   }, []);
 
   useEffect(() => {
+    const handleRefresh = () => {
+      fetchLeaveData();
+      fetchDashboardData();
+    };
+    window.addEventListener("leave-request-submitted", handleRefresh);
+    return () =>
+      window.removeEventListener("leave-request-submitted", handleRefresh);
+  }, [fetchLeaveData, fetchDashboardData]);
+
+  useEffect(() => {
     if (employeeId && isOnline) {
+      fetchOvertimeData(employeeId);
       fetchHistoryData(employeeId);
+      fetchLeaveData();
+      fetchDashboardData();
     }
-  }, [employeeId, isOnline, fetchHistoryData]);
+  }, [
+    employeeId,
+    isOnline,
+    fetchOvertimeData,
+    fetchHistoryData,
+    fetchLeaveData,
+    fetchDashboardData,
+  ]);
 
   // Check network status and pending records
   useEffect(() => {
@@ -412,8 +481,9 @@ const DashboardPage: React.FC = () => {
       // Refresh today's status and history from API
       if (isOnline && !onlineTrialFailed) {
         setTimeout(() => {
-          fetchTodayStatus();
+          fetchDashboardData();
           if (employeeId) fetchHistoryData(employeeId);
+          fetchLeaveData();
         }, 1000); // Give background worker a moment
       }
 
@@ -439,7 +509,16 @@ const DashboardPage: React.FC = () => {
         });
       }
     },
-    [isOnline, modalMode, openSnackbar, refreshPendingCount, fetchTodayStatus],
+    [
+      isOnline,
+      modalMode,
+      openSnackbar,
+      refreshPendingCount,
+      fetchDashboardData,
+      employeeId,
+      fetchHistoryData,
+      fetchLeaveData,
+    ],
   );
 
   const handleOpenLateEarlyModal = useCallback(
@@ -574,9 +653,9 @@ const DashboardPage: React.FC = () => {
           requests={overtimeRequests}
         />
         <LeaveSection
-          totalLeaveDays={12}
-          entitlementLeaveDays={8}
-          requests={mockLeaveRequests}
+          totalLeaveDays={leaveTotals.total}
+          entitlementLeaveDays={leaveTotals.entitled}
+          requests={recentRequests}
         />
       </div>
 

@@ -59,7 +59,7 @@ const coreAuthInterceptor = async (request: any) => {
   ]);
 
   if (token) request.headers.set("Authorization", `Bearer ${token}`);
-  if (companyId) request.headers.set("x-company-id", companyId);
+  if (companyId) request.headers.set("X-Company-Id", companyId);
 
   return request;
 };
@@ -73,7 +73,7 @@ const timekeepingAuthInterceptor = async (request: any) => {
   ]);
 
   if (token) request.headers.set("Authorization", `Bearer ${token}`);
-  if (companyId) request.headers.set("x-company-id", companyId);
+  if (companyId) request.headers.set("X-Company-Id", companyId);
   if (userId) request.headers.set("X-User-ID", userId);
   if (employeeId) request.headers.set("X-Employee-ID", employeeId);
 
@@ -128,7 +128,6 @@ export const authService = {
         throw response.error;
       }
 
-      console.log("[Auth] Login response data:", JSON.stringify(response.data));
       const { token, user, refreshToken } =
         (response.data as any).data || (response.data as any);
 
@@ -179,7 +178,6 @@ export const authService = {
           (result.data as any).data.userId
         ) {
           userId = (result.data as any).data.userId;
-          console.log("[Auth] getUserId resolved to:", userId);
         }
       } catch (e) {
         console.warn("Could not retrieve userId via session", e);
@@ -200,7 +198,6 @@ export const authService = {
           (result.data as any).data.id
         ) {
           employeeId = (result.data as any).data.id;
-          console.log("[Auth] getEmployeeId resolved to:", employeeId);
         }
       } catch (e) {
         console.warn("Could not retrieve employeeId via session", e);
@@ -222,11 +219,9 @@ export const authService = {
   },
 
   getSession: async () => {
-    console.log("[Auth] Getting session (getApiEmployeesMe)...");
     // getApiEmployeesMe returns the current user's profile if authenticated
     try {
       const result = await getApiEmployeesMe();
-      console.log("[Auth] getApiEmployeesMe result:", result);
 
       if (
         result.data &&
@@ -235,12 +230,6 @@ export const authService = {
       ) {
         const employeeId = (result.data as any).data.id;
         const userId = (result.data as any).data.userId;
-        console.log(
-          "[Auth] getSession saving employeeId:",
-          employeeId,
-          "userId:",
-          userId,
-        );
         await DeviceStorage.setItem("employeeId", employeeId);
         if (userId) {
           await DeviceStorage.setItem("userId", userId);
@@ -260,13 +249,8 @@ export const authService = {
   },
 
   refreshToken: async () => {
-    console.log("[Auth] Attempting refresh token...");
     try {
       const refreshToken = await DeviceStorage.getItem("refreshToken");
-      console.log(
-        "[Auth] Stored refresh token:",
-        refreshToken ? "FOUND" : "NOT FOUND",
-      );
 
       if (!refreshToken || typeof refreshToken !== "string") {
         throw new Error("No refresh token");
@@ -277,11 +261,8 @@ export const authService = {
         body: { refreshToken },
       });
 
-      console.log("[Auth] Refresh token response:", response);
-
       if (response.data && (response.data as any).token) {
         const { token, refreshToken: newRefreshToken } = response.data as any;
-        console.log("[Auth] New token received:", token ? "YES" : "NO");
 
         await DeviceStorage.setItem("token", token);
         if (newRefreshToken) {
@@ -299,10 +280,8 @@ export const authService = {
   },
 
   initialize: async () => {
-    console.log("[Auth] Initializing...");
     try {
       const token = await DeviceStorage.getItem("token");
-      console.log("[Auth] Stored token:", token ? "FOUND" : "NOT FOUND");
 
       if (token && typeof token === "string") {
         setupInterceptors();
@@ -316,16 +295,13 @@ export const authService = {
   },
 
   checkAuth: async () => {
-    console.log("[Auth] Checking auth...");
     try {
       const hasToken = await authService.initialize();
-      console.log("[Auth] hasToken:", hasToken);
 
       if (!hasToken) return false;
 
       // Verify token by fetching user profile
       const response = await authService.getSession();
-      console.log("[Auth] Session response:", response);
 
       if (response.error) {
         // Try refresh
@@ -334,7 +310,6 @@ export const authService = {
           response.error,
         );
         const refreshed = await authService.refreshToken();
-        console.log("[Auth] Refresh result:", refreshed);
 
         if (refreshed) {
           // Retry session check or just return true as we have a fresh token

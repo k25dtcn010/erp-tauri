@@ -29,7 +29,6 @@ export const LateEarlyRequestModal: React.FC<LateEarlyRequestModalProps> = ({
     }
 
     // Mock submit logic
-    console.log("Submitting request:", { type, date, time, reason });
 
     openSnackbar({
       type: "success",

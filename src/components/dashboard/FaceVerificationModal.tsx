@@ -209,6 +209,7 @@ interface FaceVerificationModalProps {
   onVerified: (
     photoDataUrl: string,
     metadata: { location?: any; deviceInfo?: any },
+    onlineTrialFailed?: boolean,
   ) => void;
 }
 
@@ -260,7 +261,6 @@ export function FaceVerificationModal({
     workerRef.current.onmessage = (e) => {
       const { type, recordId, error } = e.data;
       if (type === "SUCCESS") {
-        console.log(`[Worker] Successfully processed record ${recordId}`);
       } else if (type === "ERROR") {
         console.error(`[Worker] Failed to process record ${recordId}`, error);
       }
@@ -290,7 +290,6 @@ export function FaceVerificationModal({
       try {
         // @ts-ignore
         wakeLockRef.current = await navigator.wakeLock.request("screen");
-        console.log("[WakeLock] Screen wake lock acquired");
       } catch (err) {
         console.warn("[WakeLock] Failed:", err);
       }
@@ -302,7 +301,6 @@ export function FaceVerificationModal({
       try {
         await wakeLockRef.current.release();
         wakeLockRef.current = null;
-        console.log("[WakeLock] Released");
       } catch (err) {
         console.warn("[WakeLock] Release failed:", err);
       }
@@ -312,8 +310,6 @@ export function FaceVerificationModal({
   // --- CAMERA LOGIC ---
 
   const stopCamera = useCallback(() => {
-    console.log("[Camera] Stopping camera...");
-
     // Clear all intervals
     if (keepAliveIntervalRef.current) {
       clearInterval(keepAliveIntervalRef.current);
@@ -331,7 +327,6 @@ export function FaceVerificationModal({
     // Stop all tracks
     if (streamRef.current) {
       streamRef.current.getTracks().forEach((track) => {
-        console.log(`[Camera] Stopping track: ${track.label}`);
         track.stop();
       });
       streamRef.current = null;
@@ -353,7 +348,6 @@ export function FaceVerificationModal({
     async (deviceId?: string) => {
       if (!isMountedRef.current) return;
 
-      console.log("[Camera] Starting camera...", { deviceId, facing });
       setIsCameraLoading(true);
       setCameraError(null);
 
@@ -368,7 +362,6 @@ export function FaceVerificationModal({
         const deviceInfos = await navigator.mediaDevices.enumerateDevices();
         const videoDevices = deviceInfos.filter((d) => d.kind === "videoinput");
         setDevices(videoDevices);
-        console.log("[Camera] Found devices:", videoDevices.length);
 
         // 4. Build constraints - Lower resolution for stability
         const constraints: MediaStreamConstraints = {
@@ -386,18 +379,14 @@ export function FaceVerificationModal({
           },
         };
 
-        console.log("[Camera] Requesting with constraints:", constraints);
-
         // 5. Get stream
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
 
         if (!isMountedRef.current) {
-          console.log("[Camera] Component unmounted, stopping stream");
           stream.getTracks().forEach((t) => t.stop());
           return;
         }
 
-        console.log("[Camera] Stream obtained:", stream.id);
         streamRef.current = stream;
 
         // 6. Setup hidden video element as source for GPUPixel
@@ -418,16 +407,13 @@ export function FaceVerificationModal({
           // Force play
           const forcePlay = async () => {
             try {
-              console.log("[Camera] Force playing video...");
               await video.play();
-              console.log("[Camera] ✅ Video playing");
             } catch (err) {
               console.error("[Camera] ❌ Play failed:", err);
 
               setTimeout(async () => {
                 try {
                   await video.play();
-                  console.log("[Camera] ✅ Retry play succeeded");
                 } catch (retryErr) {
                   console.error("[Camera] ❌ Retry failed:", retryErr);
                   setCameraError(
@@ -450,7 +436,6 @@ export function FaceVerificationModal({
               console.warn("[Camera] 🔄 Video paused, force playing...");
               try {
                 await video.play();
-                console.log("[Camera] ✅ Resumed");
               } catch (err) {
                 console.error("[Camera] ❌ Resume failed:", err);
               }
@@ -462,7 +447,6 @@ export function FaceVerificationModal({
             if (video.paused) {
               try {
                 await video.play();
-                console.log("[Camera] ✅ Play by touch");
               } catch (err) {
                 console.error("[Camera] ❌ Touch play failed:", err);
               }
@@ -493,8 +477,6 @@ export function FaceVerificationModal({
           : {};
         const settings = track.getSettings();
 
-        console.log("[Camera] Track settings:", settings);
-
         // @ts-ignore
         setHasFlash(!!capabilities.torch);
 
@@ -516,8 +498,6 @@ export function FaceVerificationModal({
             });
           }
         }, 1000);
-
-        console.log("[Camera] ✅ Setup complete");
       } catch (err: any) {
         console.error("[Camera] ❌ Error:", err);
         let message = "Không thể truy cập camera.";
@@ -548,7 +528,6 @@ export function FaceVerificationModal({
   // --- HANDLERS ---
 
   const handleToggleCamera = useCallback(async () => {
-    console.log("[Camera] Toggling camera");
     stopCamera();
     setFacing((prev) => (prev === "front" ? "back" : "front"));
     setTimeout(() => {
@@ -568,15 +547,12 @@ export function FaceVerificationModal({
         advanced: [{ torch: !isFlashOn }],
       });
       setIsFlashOn(!isFlashOn);
-      console.log("[Camera] Flash toggled:", !isFlashOn);
     } catch (err) {
       console.error("[Camera] Flash toggle error:", err);
     }
   }, [mediaStream, hasFlash, isFlashOn]);
 
   const handleCapture = async () => {
-    console.log("[Camera] Capturing photo");
-
     // UI Flash effect
     setFlashActive(true);
     setTimeout(() => setFlashActive(false), 300);
@@ -586,7 +562,6 @@ export function FaceVerificationModal({
 
     if (beautyEnabled && isGPUPixelReady && displayCanvasRef.current) {
       sourceCanvas = displayCanvasRef.current;
-      console.log("[Capture] Using GPUPixel canvas");
     } else if (videoSourceRef.current && captureCanvasRef.current) {
       const video = videoSourceRef.current;
       const canvas = captureCanvasRef.current;
@@ -597,7 +572,6 @@ export function FaceVerificationModal({
         ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
       }
       sourceCanvas = canvas;
-      console.log("[Capture] Using video canvas (fallback)");
     }
 
     if (!sourceCanvas) {
@@ -623,7 +597,6 @@ export function FaceVerificationModal({
       const lon = location ? (location.longitude as number) : 0;
 
       // 2. Online Check-in (Fire & Forget Logic)
-      console.log("[Camera] Attempting online check-in...");
       let employeeId: string | null | undefined = null;
       let companyId: string | null | undefined = null;
       let userId: string | null | undefined = null;
@@ -643,14 +616,13 @@ export function FaceVerificationModal({
           if (!userId) userId = sessData?.userId;
           if (!employeeId) employeeId = sessData?.id;
         }
-
-        console.log("[Camera] Auth Info:", { companyId, userId, employeeId });
       } catch (e) {
         console.warn("Failed to get auth details", e);
       }
 
       let eventId: string | undefined = undefined;
 
+      let onlineTrialFailed = false;
       if (navigator.onLine) {
         try {
           let asyncRes: any = null;
@@ -662,25 +634,23 @@ export function FaceVerificationModal({
 
           if (mode === "check-in") {
             asyncRes = await postApiV3AttendanceCheckInAsync({ body });
-            console.log("[Camera] Check-in Async response:", asyncRes);
           } else if (mode === "check-out") {
             asyncRes = await postApiV3AttendanceCheckOutAsync({
               body,
             });
-            console.log("[Camera] Check-out Async response:", asyncRes);
           }
 
           if (asyncRes && asyncRes.data && (asyncRes.data as any).id) {
             eventId = (asyncRes.data as any).id;
-            console.log("[Camera] Async Event ID found in data.id:", eventId);
           } else if (asyncRes && (asyncRes as any).id) {
             eventId = (asyncRes as any).id;
-            console.log("[Camera] Async Event ID found in root.id:", eventId);
           } else {
             console.warn("[Camera] No Event ID found in response", asyncRes);
+            onlineTrialFailed = true;
           }
         } catch (err) {
           console.error("[Camera] Online check-in failed:", err);
+          onlineTrialFailed = true;
         }
       }
 
@@ -690,7 +660,7 @@ export function FaceVerificationModal({
           ? self.crypto.randomUUID()
           : Date.now().toString() + Math.random().toString(36).substring(2);
 
-      await OfflineAttendanceService.saveMetadata(
+      const saveResult = await OfflineAttendanceService.saveMetadata(
         {
           type: (mode as any) || "check-in",
           timestamp: Date.now(),
@@ -736,7 +706,7 @@ export function FaceVerificationModal({
         deviceInfo,
       };
 
-      onVerified(dataUrl, uiMetadata);
+      onVerified(dataUrl, uiMetadata, onlineTrialFailed);
     } catch (err) {
       console.error("[Capture] Error:", err);
       // Even if error, likely UI should show error or retry
@@ -750,7 +720,6 @@ export function FaceVerificationModal({
 
   useEffect(() => {
     isMountedRef.current = true;
-    console.log("[Lifecycle] Modal opened:", isOpen);
 
     if (isOpen) {
       setVerificationStatus("idle");
@@ -780,9 +749,7 @@ export function FaceVerificationModal({
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.hidden) {
-        console.log("[Visibility] Page hidden");
       } else {
-        console.log("[Visibility] Page visible");
         if (videoSourceRef.current && streamRef.current?.active) {
           videoSourceRef.current.play().catch(console.error);
         }

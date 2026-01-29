@@ -20,6 +20,8 @@ import {
   LogOut,
   Bell,
   Loader2,
+  XCircle,
+  CreditCard,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -28,7 +30,17 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useSnackbar, Box, Tabs } from "zmp-ui";
+import {
+  useSnackbar,
+  Box,
+  Tabs,
+  Sheet,
+  Select as ZSelect,
+  Input as ZInput,
+  DatePicker,
+} from "zmp-ui";
+import { Textarea } from "@/components/ui/textarea";
+const { Option } = ZSelect;
 import { cn } from "@/lib/utils";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { CustomPageHeader } from "@/components/layout/CustomPageHeader";
@@ -37,10 +49,19 @@ import {
   getApiEmployeesMeEmergencyContacts,
   getApiEmployeesMeDependents,
   postApiEmployeesMeAvatarUpload,
-  patchApiEmployeesMe,
   getApiEmployeesByEmployeeIdDocuments,
   postApiEmployeesByEmployeeIdDocuments,
   deleteApiEmployeesByEmployeeIdDocumentsByDocumentId,
+  postApiEmployeesMeEmergencyContacts,
+  putApiEmployeesMeEmergencyContactsContactId,
+  deleteApiEmployeesMeEmergencyContactsContactId,
+  postApiEmployeesMeDependents,
+  putApiEmployeesMeDependentsDependentId,
+  deleteApiEmployeesMeDependentsDependentId,
+  getApiEmployeesEmployeesByEmployeeIdBankAccounts,
+  postApiEmployeesEmployeesByEmployeeIdBankAccounts,
+  putApiEmployeesEmployeesByEmployeeIdBankAccountsByAccountId,
+  deleteApiEmployeesEmployeesByEmployeeIdBankAccountsByAccountId,
 } from "@/client/sdk.gen";
 import { client } from "@/client/client.gen";
 import { authService } from "@/services/auth";
@@ -63,6 +84,10 @@ export default function SettingsPage() {
     location: "",
     birthday: "",
     avatar: "",
+    height: "",
+    weight: "",
+    bloodType: "",
+    healthNotes: "",
   });
 
   // Original user data to compare changes
@@ -73,6 +98,8 @@ export default function SettingsPage() {
 
   // Dependents state
   const [dependents, setDependents] = useState<any[]>([]);
+  // Bank accounts state
+  const [bankAccounts, setBankAccounts] = useState<any[]>([]);
   // Documents state
   const [documents, setDocuments] = useState<any[]>([]);
   const [isFetching, setIsFetching] = useState(true);
@@ -81,6 +108,42 @@ export default function SettingsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const docFileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingDocType, setUploadingDocType] = useState<string | null>(null);
+
+  // States for Add/Edit Modals
+  const [isContactSheetOpen, setIsContactSheetOpen] = useState(false);
+  const [isDependentSheetOpen, setIsDependentSheetOpen] = useState(false);
+  const [editingContactId, setEditingContactId] = useState<string | null>(null);
+  const [editingDependentId, setEditingDependentId] = useState<string | null>(
+    null,
+  );
+  const [isBankSheetOpen, setIsBankSheetOpen] = useState(false);
+  const [editingBankAccountId, setEditingBankAccountId] = useState<
+    string | null
+  >(null);
+
+  const [contactForm, setContactForm] = useState({
+    fullName: "",
+    relationship: "",
+    phone: "",
+    notes: "",
+  });
+
+  const [dependentForm, setDependentForm] = useState({
+    fullName: "",
+    relationship: "",
+    birthday: "",
+    address: "",
+    notes: "",
+  });
+
+  const [bankForm, setBankForm] = useState({
+    bankName: "",
+    accountNumber: "",
+    accountHolderName: "",
+    branchName: "",
+    isDefault: true,
+    notes: "",
+  });
 
   const fetchProfile = async () => {
     try {
@@ -105,6 +168,10 @@ export default function SettingsPage() {
             ? format(new Date(d.birthday), "dd-MM-yyyy")
             : "",
           avatar: d.avatarUrl || "https://i.pravatar.cc/300",
+          height: d.height?.toString() || "",
+          weight: d.weight?.toString() || "",
+          bloodType: d.bloodType || "",
+          healthNotes: d.healthNotes || "",
         };
         setUser(mappedUser);
         setOriginalUser(d);
@@ -125,6 +192,14 @@ export default function SettingsPage() {
         });
         if (docsRes.data && docsRes.data.data) {
           setDocuments(docsRes.data.data);
+        }
+
+        // Fetch bank accounts
+        const bankRes = await getApiEmployeesEmployeesByEmployeeIdBankAccounts({
+          path: { employeeId: profileRes.data.data.id },
+        });
+        if (bankRes.data && bankRes.data.data) {
+          setBankAccounts(bankRes.data.data);
         }
       }
     } catch (error) {
@@ -203,7 +278,7 @@ export default function SettingsPage() {
         path: { employeeId: originalUser.id },
         body: {
           file,
-          documentType: docType,
+          document_type: docType,
         },
       });
 
@@ -276,6 +351,16 @@ export default function SettingsPage() {
   };
 
   const handleSaveProfile = async () => {
+    const phoneRegex = /^0\d{9,10}$/;
+    if (user.phone && !phoneRegex.test(user.phone)) {
+      openSnackbar({
+        type: "error",
+        text: "Số điện thoại không hợp lệ (10-11 số, bắt đầu bằng 0)",
+        duration: 3000,
+      });
+      return;
+    }
+
     setIsLoading(true);
     try {
       // 1. Update name if changed via Better Auth update-user
@@ -292,24 +377,10 @@ export default function SettingsPage() {
         }
       }
 
-      // 2. Update contacts and dependents
-      // The API patchApiEmployeesMe expects the full list of contacts and dependents
-      const res = await patchApiEmployeesMe({
-        body: {
-          emergencyContacts: emergencyContacts.map((c) => ({
-            fullName: c.fullName,
-            relationship: c.relationship,
-            phone: c.phone,
-          })),
-          dependents: dependents.map((d) => ({
-            fullName: d.fullName,
-            relationship: d.relationship,
-            birthday: d.birthday,
-          })),
-        },
-      });
-
-      if (res.error) throw res.error;
+      // 2. Profile other fields
+      // For now we only handle name since birthday/phone etc are often managed in specific ways
+      // But we can add them here if required.
+      // The individual contacts and dependents are now handled in their respective sheets/delete buttons.
 
       openSnackbar({
         type: "success",
@@ -379,6 +450,336 @@ export default function SettingsPage() {
   const handleLogout = async () => {
     await authService.logout();
     navigate("/login");
+  };
+
+  // Emergency Contacts Handlers
+  const handleAddContact = () => {
+    setContactForm({ fullName: "", relationship: "", phone: "", notes: "" });
+    setEditingContactId(null);
+    setIsContactSheetOpen(true);
+  };
+
+  const handleEditContact = (contact: any) => {
+    setContactForm({
+      fullName: contact.fullName || contact.name || "",
+      relationship: contact.relationship || "",
+      phone: contact.phone || "",
+      notes: contact.notes || "",
+    });
+    setEditingContactId(contact.id);
+    setIsContactSheetOpen(true);
+  };
+
+  const handleDeleteContact = async (id: string | undefined) => {
+    if (!id || id.startsWith("new-")) {
+      setEmergencyContacts((prev) => prev.filter((c) => c.id !== id));
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const res = await deleteApiEmployeesMeEmergencyContactsContactId({
+        path: { contactId: id },
+      });
+
+      if (res.error) throw res.error;
+
+      openSnackbar({
+        type: "success",
+        text: "Đã xóa liên hệ khẩn cấp",
+        duration: 3000,
+      });
+
+      await fetchProfile();
+    } catch (error) {
+      console.error("Failed to delete contact:", error);
+      openSnackbar({
+        type: "error",
+        text: "Không thể xóa liên hệ",
+        duration: 3000,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSaveContact = async () => {
+    const phoneRegex = /^0\d{9,10}$/;
+    if (!phoneRegex.test(contactForm.phone)) {
+      openSnackbar({
+        type: "error",
+        text: "Số điện thoại không hợp lệ (10-11 số, bắt đầu bằng 0)",
+        duration: 3000,
+      });
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      if (editingContactId && !editingContactId.startsWith("new-")) {
+        const res = await putApiEmployeesMeEmergencyContactsContactId({
+          path: { contactId: editingContactId },
+          body: {
+            fullName: contactForm.fullName,
+            relationship: contactForm.relationship,
+            phone: contactForm.phone,
+            notes: contactForm.notes,
+          },
+        });
+        if (res.error) throw res.error;
+      } else {
+        const res = await postApiEmployeesMeEmergencyContacts({
+          body: {
+            fullName: contactForm.fullName,
+            relationship: contactForm.relationship,
+            phone: contactForm.phone,
+            notes: contactForm.notes,
+          },
+        });
+        if (res.error) throw res.error;
+      }
+
+      openSnackbar({
+        type: "success",
+        text: editingContactId ? "Đã cập nhật liên hệ" : "Đã thêm liên hệ mới",
+        duration: 3000,
+      });
+
+      setIsContactSheetOpen(false);
+      await fetchProfile();
+    } catch (error) {
+      console.error("Failed to save contact:", error);
+      openSnackbar({
+        type: "error",
+        text: "Không thể lưu thông tin liên hệ",
+        duration: 3000,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Dependents Handlers
+  const handleAddDependent = () => {
+    setDependentForm({
+      fullName: "",
+      relationship: "",
+      birthday: "",
+      address: "",
+      notes: "",
+    });
+    setEditingDependentId(null);
+    setIsDependentSheetOpen(true);
+  };
+
+  const handleEditDependent = (dep: any) => {
+    setDependentForm({
+      fullName: dep.fullName || dep.name || "",
+      relationship: dep.relationship || "",
+      birthday: dep.birthday || "",
+      address: dep.address || "",
+      notes: dep.notes || "",
+    });
+    setEditingDependentId(dep.id);
+    setIsDependentSheetOpen(true);
+  };
+
+  const handleDeleteDependent = async (id: string | undefined) => {
+    if (!id || id.startsWith("new-")) {
+      setDependents((prev) => prev.filter((d) => d.id !== id));
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      const res = await deleteApiEmployeesMeDependentsDependentId({
+        path: { dependentId: id },
+      });
+
+      if (res.error) throw res.error;
+
+      openSnackbar({
+        type: "success",
+        text: "Đã xóa người phụ thuộc",
+        duration: 3000,
+      });
+
+      await fetchProfile();
+    } catch (error) {
+      console.error("Failed to delete dependent:", error);
+      openSnackbar({
+        type: "error",
+        text: "Không thể xóa thông tin",
+        duration: 3000,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSaveDependent = async () => {
+    if (!dependentForm.fullName || !dependentForm.relationship) {
+      openSnackbar({
+        type: "error",
+        text: "Vui lòng điền họ tên và mối quan hệ",
+        duration: 3000,
+      });
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      if (editingDependentId && !editingDependentId.startsWith("new-")) {
+        const res = await putApiEmployeesMeDependentsDependentId({
+          path: { dependentId: editingDependentId },
+          body: {
+            fullName: dependentForm.fullName,
+            relationship: dependentForm.relationship,
+            birthday: dependentForm.birthday,
+            address: dependentForm.address,
+            notes: dependentForm.notes,
+          },
+        });
+        if (res.error) throw res.error;
+      } else {
+        const res = await postApiEmployeesMeDependents({
+          body: {
+            fullName: dependentForm.fullName,
+            relationship: dependentForm.relationship,
+            birthday: dependentForm.birthday,
+            address: dependentForm.address,
+            notes: dependentForm.notes,
+          },
+        });
+        if (res.error) throw res.error;
+      }
+
+      openSnackbar({
+        type: "success",
+        text: editingDependentId
+          ? "Đã cập nhật thông tin"
+          : "Đã thêm người phụ thuộc",
+        duration: 3000,
+      });
+
+      setIsDependentSheetOpen(false);
+      await fetchProfile();
+    } catch (error) {
+      console.error("Failed to save dependent:", error);
+      openSnackbar({
+        type: "error",
+        text: "Không thể lưu thông tin người thân",
+        duration: 3000,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Bank Accounts Handlers
+  const handleAddBankAccount = () => {
+    setBankForm({
+      bankName: "",
+      accountNumber: "",
+      accountHolderName: user.name.toUpperCase(),
+      branchName: "",
+      isDefault: bankAccounts.length === 0,
+      notes: "",
+    });
+    setEditingBankAccountId(null);
+    setIsBankSheetOpen(true);
+  };
+
+  const handleEditBankAccount = (bank: any) => {
+    setBankForm({
+      bankName: bank.bankName || "",
+      accountNumber: bank.accountNumber || "",
+      accountHolderName: bank.accountHolderName || "",
+      branchName: bank.branchName || "",
+      isDefault: bank.isDefault || false,
+      notes: bank.notes || "",
+    });
+    setEditingBankAccountId(bank.id);
+    setIsBankSheetOpen(true);
+  };
+
+  const handleDeleteBankAccount = async (id: string) => {
+    if (!originalUser?.id) return;
+    try {
+      setIsLoading(true);
+      const res =
+        await deleteApiEmployeesEmployeesByEmployeeIdBankAccountsByAccountId({
+          path: { employeeId: originalUser.id, accountId: id },
+        });
+      if (res.error) throw res.error;
+      openSnackbar({
+        type: "success",
+        text: "Đã xóa tài khoản ngân hàng",
+        duration: 3000,
+      });
+      await fetchProfile();
+    } catch (error) {
+      console.error("Failed to delete bank account:", error);
+      openSnackbar({
+        type: "error",
+        text: "Không thể xóa tài khoản",
+        duration: 3000,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSaveBankAccount = async () => {
+    if (!originalUser?.id) return;
+    if (!bankForm.bankName || !bankForm.accountNumber) {
+      openSnackbar({
+        type: "error",
+        text: "Vui lòng điền tên ngân hàng và số tài khoản",
+        duration: 3000,
+      });
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+      if (editingBankAccountId) {
+        const res =
+          await putApiEmployeesEmployeesByEmployeeIdBankAccountsByAccountId({
+            path: {
+              employeeId: originalUser.id,
+              accountId: editingBankAccountId,
+            },
+            body: bankForm,
+          });
+        if (res.error) throw res.error;
+      } else {
+        const res = await postApiEmployeesEmployeesByEmployeeIdBankAccounts({
+          path: { employeeId: originalUser.id },
+          body: bankForm,
+        });
+        if (res.error) throw res.error;
+      }
+
+      openSnackbar({
+        type: "success",
+        text: editingBankAccountId
+          ? "Đã cập nhật tài khoản"
+          : "Đã thêm tài khoản mới",
+        duration: 3000,
+      });
+      setIsBankSheetOpen(false);
+      await fetchProfile();
+    } catch (error) {
+      console.error("Failed to save bank account:", error);
+      openSnackbar({
+        type: "error",
+        text: "Không thể lưu thông tin ngân hàng",
+        duration: 3000,
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -505,10 +906,14 @@ export default function SettingsPage() {
                               <Phone className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
                               <Input
                                 value={user.phone}
-                                onChange={(e) =>
-                                  setUser({ ...user, phone: e.target.value })
-                                }
+                                onChange={(e) => {
+                                  const val = e.target.value.replace(/\D/g, "");
+                                  if (val.length <= 11) {
+                                    setUser({ ...user, phone: val });
+                                  }
+                                }}
                                 className="pl-10 h-12 rounded-xl bg-slate-50 dark:bg-slate-900/50 border-none font-bold text-sm"
+                                placeholder="090..."
                               />
                             </div>
                           </div>
@@ -544,14 +949,15 @@ export default function SettingsPage() {
                           [
                             "personal_photo",
                             "degree_certification",
-                            "id_document",
+                            "identity_card_front",
+                            "identity_card_back",
                             "health_certificate",
                             "cv_resume",
                           ].filter((type) =>
                             documents.some((d) => d.documentType === type),
                           ).length
                         }
-                        /5 Yêu cầu
+                        /6 Yêu cầu
                       </Badge>
                     </div>
                     <Card className="border-gray-100 dark:border-[#353A45] bg-white dark:bg-[#262A31] shadow-sm rounded-2xl overflow-hidden">
@@ -566,8 +972,12 @@ export default function SettingsPage() {
                             label: "Bằng cấp chuyên môn",
                           },
                           {
-                            type: "id_document",
-                            label: "Căn cước công dân",
+                            type: "identity_card_front",
+                            label: "CCCD mặt trước",
+                          },
+                          {
+                            type: "identity_card_back",
+                            label: "CCCD mặt sau",
                           },
                           {
                             type: "health_certificate",
@@ -714,7 +1124,8 @@ export default function SettingsPage() {
                             const firstMissing = [
                               "personal_photo",
                               "degree_certification",
-                              "id_document",
+                              "identity_card_front",
+                              "identity_card_back",
                               "health_certificate",
                               "cv_resume",
                             ].find(
@@ -769,6 +1180,7 @@ export default function SettingsPage() {
                         variant="ghost"
                         size="sm"
                         className="h-8 rounded-full text-orange-600 font-black text-[10px] uppercase tracking-wider"
+                        onClick={handleAddContact}
                       >
                         <Plus className="h-3 w-3 mr-1" /> Thêm mới
                       </Button>
@@ -798,6 +1210,7 @@ export default function SettingsPage() {
                                 variant="ghost"
                                 size="icon"
                                 className="h-9 w-9 rounded-full text-slate-400 hover:text-orange-600 hover:bg-orange-50 dark:hover:bg-orange-900/20"
+                                onClick={() => handleEditContact(contact)}
                               >
                                 <Pencil className="h-3.5 w-3.5" />
                               </Button>
@@ -805,6 +1218,7 @@ export default function SettingsPage() {
                                 variant="ghost"
                                 size="icon"
                                 className="h-9 w-9 rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20"
+                                onClick={() => handleDeleteContact(contact.id)}
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
                               </Button>
@@ -831,6 +1245,7 @@ export default function SettingsPage() {
                         variant="ghost"
                         size="sm"
                         className="h-8 rounded-full text-blue-600 font-black text-[10px] uppercase tracking-wider"
+                        onClick={handleAddDependent}
                       >
                         <Plus className="h-3 w-3 mr-1" /> Thêm mới
                       </Button>
@@ -863,6 +1278,7 @@ export default function SettingsPage() {
                                 variant="ghost"
                                 size="icon"
                                 className="h-9 w-9 rounded-full text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20"
+                                onClick={() => handleEditDependent(dep)}
                               >
                                 <Pencil className="h-3.5 w-3.5" />
                               </Button>
@@ -870,6 +1286,7 @@ export default function SettingsPage() {
                                 variant="ghost"
                                 size="icon"
                                 className="h-9 w-9 rounded-full text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20"
+                                onClick={() => handleDeleteDependent(dep.id)}
                               >
                                 <Trash2 className="h-3.5 w-3.5" />
                               </Button>
@@ -884,6 +1301,98 @@ export default function SettingsPage() {
                         </div>
                       )}
                     </div>
+                  </section>
+                </div>
+              </Tabs.Tab>
+
+              {/* Health Tab */}
+              <Tabs.Tab
+                key="health"
+                label={
+                  <div className="flex items-center gap-2">
+                    <Heart className="h-3.5 w-3.5 text-red-500" />
+                    <span>Sức khỏe</span>
+                  </div>
+                }
+              >
+                <div className="mt-6 space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-400 px-1">
+                  <section className="space-y-4">
+                    <div className="flex items-center justify-between px-1">
+                      <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                        Thông tin sức khỏe
+                      </h3>
+                    </div>
+                    <Card className="p-6 border-gray-100 dark:border-[#353A45] bg-white dark:bg-[#262A31] shadow-sm rounded-2xl space-y-6">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            Chiều cao (cm)
+                          </Label>
+                          <div className="relative">
+                            <Input
+                              type="number"
+                              value={user.height}
+                              onChange={(e) =>
+                                setUser({ ...user, height: e.target.value })
+                              }
+                              placeholder="170"
+                              className="h-12 rounded-xl bg-slate-50 dark:bg-slate-900/50 border-none font-bold text-sm"
+                            />
+                          </div>
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            Cân nặng (kg)
+                          </Label>
+                          <div className="relative">
+                            <Input
+                              type="number"
+                              value={user.weight}
+                              onChange={(e) =>
+                                setUser({ ...user, weight: e.target.value })
+                              }
+                              placeholder="65"
+                              className="h-12 rounded-xl bg-slate-50 dark:bg-slate-900/50 border-none font-bold text-sm"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                          Nhóm máu
+                        </Label>
+                        <ZSelect
+                          placeholder="Chọn nhóm máu"
+                          value={user.bloodType}
+                          onChange={(val) =>
+                            setUser({ ...user, bloodType: val as string })
+                          }
+                          closeOnSelect
+                          mask
+                          className="h-12 bg-slate-50 dark:bg-slate-900/50 rounded-xl"
+                        >
+                          <Option value="A" title="Nhóm máu A" />
+                          <Option value="B" title="Nhóm máu B" />
+                          <Option value="AB" title="Nhóm máu AB" />
+                          <Option value="O" title="Nhóm máu O" />
+                        </ZSelect>
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                          Ghi chú sức khỏe
+                        </Label>
+                        <Textarea
+                          value={user.healthNotes}
+                          onChange={(e) =>
+                            setUser({ ...user, healthNotes: e.target.value })
+                          }
+                          placeholder="Tiền sử bệnh lý, dị ứng..."
+                          className="rounded-xl bg-slate-50 dark:bg-slate-900/50 border-none font-bold min-h-[120px]"
+                        />
+                      </div>
+                    </Card>
                   </section>
                 </div>
               </Tabs.Tab>
@@ -1008,6 +1517,382 @@ export default function SettingsPage() {
           </Button>
         </div>
       )}
+      <Sheet
+        visible={isContactSheetOpen}
+        onClose={() => setIsContactSheetOpen(false)}
+        mask
+        handler
+        swipeToClose
+      >
+        <div className="flex flex-col h-[70vh] w-full bg-white dark:bg-[#1a1d23] rounded-t-3xl overflow-hidden relative text-left">
+          <div className="px-5 py-4 border-b border-gray-100 dark:border-[#353A45] flex items-center justify-between shrink-0 bg-white/95 dark:bg-[#1a1d23]/95 backdrop-blur-sm z-20">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-2xl bg-orange-500/10 flex items-center justify-center text-orange-600 shadow-sm">
+                <Heart className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-slate-900 dark:text-white leading-tight">
+                  {editingContactId ? "Sửa liên hệ" : "Thêm liên hệ khẩn cấp"}
+                </h3>
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  Thông tin người liên hệ lúc khẩn cấp
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={() => setIsContactSheetOpen(false)}
+              className="h-8 w-8 rounded-full bg-gray-50 dark:bg-gray-800 flex items-center justify-center text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            >
+              <XCircle className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-5 space-y-6 pb-24">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                Họ và tên
+              </Label>
+              <ZInput
+                value={contactForm.fullName}
+                onChange={(e) =>
+                  setContactForm({ ...contactForm, fullName: e.target.value })
+                }
+                placeholder="Nhập họ tên"
+                className="h-12 rounded-xl bg-slate-50 dark:bg-slate-900/50 border-none font-bold"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                Mối quan hệ
+              </Label>
+              <ZSelect
+                placeholder="Chọn mối quan hệ"
+                value={contactForm.relationship}
+                onChange={(val) =>
+                  setContactForm({
+                    ...contactForm,
+                    relationship: val as string,
+                  })
+                }
+                closeOnSelect
+                mask
+                className="h-12 bg-slate-50 dark:bg-slate-900/50 rounded-xl"
+              >
+                <Option value="Bố/Mẹ" title="Bố/Mẹ" />
+                <Option value="Vợ/Chồng" title="Vợ/Chồng" />
+                <Option value="Anh/Chị/Em" title="Anh/Chị/Em" />
+                <Option value="Bạn bè" title="Bạn bè" />
+                <Option value="Khác" title="Khác" />
+              </ZSelect>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                Số điện thoại
+              </Label>
+              <ZInput
+                value={contactForm.phone}
+                onChange={(e) => {
+                  const val = e.target.value.replace(/\D/g, "");
+                  if (val.length <= 11) {
+                    setContactForm({ ...contactForm, phone: val });
+                  }
+                }}
+                placeholder="Nhập số điện thoại (10-11 số)"
+                className="h-12 rounded-xl bg-slate-50 dark:bg-slate-900/50 border-none font-bold"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                Ghi chú
+              </Label>
+              <Textarea
+                value={contactForm.notes}
+                onChange={(e) =>
+                  setContactForm({ ...contactForm, notes: e.target.value })
+                }
+                placeholder="Thông tin bổ sung..."
+                className="rounded-xl bg-slate-50 dark:bg-slate-900/50 border-none font-bold min-h-[100px]"
+              />
+            </div>
+          </div>
+
+          <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-100 dark:border-[#353A45] bg-white dark:bg-[#1a1d23] z-30 pb-safe">
+            <Button
+              className="w-full h-14 rounded-2xl bg-orange-600 text-white font-black uppercase tracking-widest shadow-lg shadow-orange-500/20"
+              onClick={handleSaveContact}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+              ) : (
+                "Cập nhật liên hệ"
+              )}
+            </Button>
+          </div>
+        </div>
+      </Sheet>
+
+      <Sheet
+        visible={isDependentSheetOpen}
+        onClose={() => setIsDependentSheetOpen(false)}
+        mask
+        handler
+        swipeToClose
+      >
+        <div className="flex flex-col h-[80vh] w-full bg-white dark:bg-[#1a1d23] rounded-t-3xl overflow-hidden relative text-left">
+          <div className="px-5 py-4 border-b border-gray-100 dark:border-[#353A45] flex items-center justify-between shrink-0 bg-white/95 dark:bg-[#1a1d23]/95 backdrop-blur-sm z-20">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-2xl bg-blue-500/10 flex items-center justify-center text-blue-600 shadow-sm">
+                <Users className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-slate-900 dark:text-white leading-tight">
+                  {editingDependentId ? "Sửa thông tin" : "Thêm người thân"}
+                </h3>
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  Thông tin người phụ thuộc
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={() => setIsDependentSheetOpen(false)}
+              className="h-8 w-8 rounded-full bg-gray-50 dark:bg-gray-800 flex items-center justify-center text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            >
+              <XCircle className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-5 space-y-6 pb-24">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                Họ và tên
+              </Label>
+              <ZInput
+                value={dependentForm.fullName}
+                onChange={(e) =>
+                  setDependentForm({
+                    ...dependentForm,
+                    fullName: e.target.value,
+                  })
+                }
+                placeholder="Nhập họ tên"
+                className="h-12 rounded-xl bg-slate-50 dark:bg-slate-900/50 border-none font-bold"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                Mối quan hệ
+              </Label>
+              <ZSelect
+                placeholder="Chọn mối quan hệ"
+                value={dependentForm.relationship}
+                onChange={(val) =>
+                  setDependentForm({
+                    ...dependentForm,
+                    relationship: val as string,
+                  })
+                }
+                closeOnSelect
+                mask
+                className="h-12 bg-slate-50 dark:bg-slate-900/50 rounded-xl"
+              >
+                <Option value="Con cái" title="Con cái" />
+                <Option value="Vợ/Chồng" title="Vợ/Chồng" />
+                <Option value="Bố/Mẹ" title="Bố/Mẹ" />
+                <Option value="Khác" title="Khác" />
+              </ZSelect>
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                Ngày sinh
+              </Label>
+              <DatePicker
+                mask
+                maskClosable
+                title="Chọn ngày sinh"
+                dateFormat="dd/mm/yyyy"
+                value={
+                  dependentForm.birthday
+                    ? new Date(dependentForm.birthday)
+                    : new Date()
+                }
+                onChange={(value) =>
+                  setDependentForm({
+                    ...dependentForm,
+                    birthday: format(value as Date, "yyyy-MM-dd"),
+                  })
+                }
+                inputClass="w-full h-12 rounded-xl border-none bg-slate-50 dark:bg-slate-900/50 font-bold text-sm text-slate-700 dark:text-slate-200 outline-none transition-all"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                Địa chỉ
+              </Label>
+              <ZInput
+                value={dependentForm.address}
+                onChange={(e) =>
+                  setDependentForm({
+                    ...dependentForm,
+                    address: e.target.value,
+                  })
+                }
+                placeholder="Địa chỉ thường trú"
+                className="h-12 rounded-xl bg-slate-50 dark:bg-slate-900/50 border-none font-bold"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                Ghi chú
+              </Label>
+              <Textarea
+                value={dependentForm.notes}
+                onChange={(e) =>
+                  setDependentForm({ ...dependentForm, notes: e.target.value })
+                }
+                placeholder="Thông tin bổ sung..."
+                className="rounded-xl bg-slate-50 dark:bg-slate-900/50 border-none font-bold min-h-[80px]"
+              />
+            </div>
+          </div>
+
+          <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-100 dark:border-[#353A45] bg-white dark:bg-[#1a1d23] z-30 pb-safe">
+            <Button
+              className="w-full h-14 rounded-2xl bg-blue-600 text-white font-black uppercase tracking-widest shadow-lg shadow-blue-500/20"
+              onClick={handleSaveDependent}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+              ) : (
+                "Cập nhật người thân"
+              )}
+            </Button>
+          </div>
+        </div>
+      </Sheet>
+
+      <Sheet
+        visible={isBankSheetOpen}
+        onClose={() => setIsBankSheetOpen(false)}
+        mask
+        handler
+        swipeToClose
+      >
+        <div className="flex flex-col h-[75vh] w-full bg-white dark:bg-[#1a1d23] rounded-t-3xl overflow-hidden relative text-left">
+          <div className="px-5 py-4 border-b border-gray-100 dark:border-[#353A45] flex items-center justify-between shrink-0 bg-white/95 dark:bg-[#1a1d23]/95 backdrop-blur-sm z-20">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-2xl bg-orange-500/10 flex items-center justify-center text-orange-600 shadow-sm">
+                <CreditCard className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-slate-900 dark:text-white leading-tight">
+                  {editingBankAccountId ? "Sửa tài khoản" : "Thêm ngân hàng"}
+                </h3>
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  Thông tin thanh toán lương
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={() => setIsBankSheetOpen(false)}
+              className="h-8 w-8 rounded-full bg-gray-50 dark:bg-gray-800 flex items-center justify-center text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            >
+              <XCircle className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-5 space-y-6 pb-24">
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                Tên ngân hàng
+              </Label>
+              <ZInput
+                value={bankForm.bankName}
+                onChange={(e) =>
+                  setBankForm({ ...bankForm, bankName: e.target.value })
+                }
+                placeholder="Ví dụ: Vietcombank, Techcombank..."
+                className="h-12 rounded-xl bg-slate-50 dark:bg-slate-900/50 border-none font-bold"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                Số tài khoản
+              </Label>
+              <ZInput
+                value={bankForm.accountNumber}
+                onChange={(e) =>
+                  setBankForm({ ...bankForm, accountNumber: e.target.value })
+                }
+                placeholder="Nhập số tài khoản"
+                className="h-12 rounded-xl bg-slate-50 dark:bg-slate-900/50 border-none font-bold"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                Chủ tài khoản
+              </Label>
+              <ZInput
+                value={bankForm.accountHolderName}
+                onChange={(e) =>
+                  setBankForm({
+                    ...bankForm,
+                    accountHolderName: e.target.value.toUpperCase(),
+                  })
+                }
+                placeholder="Tên in trên thẻ"
+                className="h-12 rounded-xl bg-slate-50 dark:bg-slate-900/50 border-none font-bold"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                Chi nhánh
+              </Label>
+              <ZInput
+                value={bankForm.branchName}
+                onChange={(e) =>
+                  setBankForm({ ...bankForm, branchName: e.target.value })
+                }
+                placeholder="Ví dụ: Ba Đình, Hà Nội"
+                className="h-12 rounded-xl bg-slate-50 dark:bg-slate-900/50 border-none font-bold"
+              />
+            </div>
+            <div className="flex items-center justify-between p-4 bg-slate-50/50 dark:bg-slate-900/50 rounded-2xl">
+              <div>
+                <p className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-tight">
+                  Tài khoản mặc định
+                </p>
+                <p className="text-[10px] font-medium text-slate-500">
+                  Dùng để nhận lương hàng tháng
+                </p>
+              </div>
+              <input
+                type="checkbox"
+                checked={bankForm.isDefault}
+                onChange={(e) =>
+                  setBankForm({ ...bankForm, isDefault: e.target.checked })
+                }
+                className="h-5 w-5 rounded border-gray-300 text-orange-600 focus:ring-orange-600"
+              />
+            </div>
+          </div>
+
+          <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-100 dark:border-[#353A45] bg-white dark:bg-[#1a1d23] z-30 pb-safe">
+            <Button
+              className="w-full h-14 rounded-2xl bg-orange-600 text-white font-black uppercase tracking-widest shadow-lg shadow-orange-500/20"
+              onClick={handleSaveBankAccount}
+              disabled={isLoading}
+            >
+              {isLoading ? (
+                <Loader2 className="h-6 w-6 animate-spin" />
+              ) : (
+                "Lưu tài khoản"
+              )}
+            </Button>
+          </div>
+        </div>
+      </Sheet>
     </PageContainer>
   );
 }

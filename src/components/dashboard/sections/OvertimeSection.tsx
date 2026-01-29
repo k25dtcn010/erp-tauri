@@ -1,17 +1,39 @@
 import { memo } from "react";
-import { Briefcase, Clock, FileClock, Plus } from "lucide-react";
+import {
+  Briefcase,
+  Clock,
+  FileClock,
+  Plus,
+  Calendar,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+} from "lucide-react";
 import { useNavigate } from "zmp-ui";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { format } from "date-fns";
+import { vi } from "date-fns/locale";
+
+export interface OvertimeRequest {
+  id: string;
+  date: string; // ISO string
+  hours: number;
+  status: "pending" | "approved" | "rejected" | "cancelled";
+  startTime: string; // HH:mm
+  endTime: string; // HH:mm
+}
 
 interface OvertimeSectionProps {
   totalOTHours: number;
   pendingOTRequests: number;
+  requests?: OvertimeRequest[];
 }
 
 export const OvertimeSection = memo(function OvertimeSection({
   totalOTHours,
   pendingOTRequests,
+  requests = [],
 }: OvertimeSectionProps) {
   const navigate = useNavigate();
 
@@ -78,16 +100,77 @@ export const OvertimeSection = memo(function OvertimeSection({
       {/* Action Buttons */}
       <div className="grid grid-cols-1 gap-3">
         <Button
-          variant="outline"
           onClick={() => navigate("/overtime?action=new")}
-          className="w-full border-2 border-purple-100 dark:border-purple-900/50 text-purple-600 dark:text-purple-400 rounded-2xl h-14 font-bold hover:bg-purple-50 dark:hover:bg-purple-900/10 transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-purple-500/5"
+          className="w-full bg-purple-600 hover:bg-purple-700 text-white rounded-xl h-11 font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20 border-none"
         >
-          <div className="h-8 w-8 rounded-lg bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-            <Plus className="h-5 w-5" />
+          <div className="p-1 rounded bg-white/20 flex items-center justify-center">
+            <Plus className="h-4 w-4 text-white" />
           </div>
           <span className="text-sm">Đăng ký tăng ca</span>
         </Button>
       </div>
+
+      {/* Recent Requests List */}
+      {requests.length > 0 && (
+        <div className="flex flex-col gap-3">
+          <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">
+            Gần đây
+          </h4>
+          <div className="flex flex-col gap-3">
+            {requests.map((req) => (
+              <div
+                key={req.id}
+                className="p-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 flex items-center justify-between"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex flex-col items-center justify-center w-10 h-10 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-800">
+                    <span className="text-[10px] text-gray-500 font-medium uppercase">
+                      {format(new Date(req.date), "EEE", { locale: vi })}
+                    </span>
+                    <span className="text-sm font-bold text-gray-900 dark:text-gray-100">
+                      {format(new Date(req.date), "dd")}
+                    </span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                      {req.startTime} - {req.endTime}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <Clock className="h-3 w-3 text-gray-400" />
+                      <span className="text-xs text-gray-500">
+                        {req.hours} giờ
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center">
+                  {req.status === "approved" && (
+                    <div className="px-2 py-1 rounded bg-green-50 text-green-600 text-[10px] font-bold uppercase border border-green-100">
+                      Đã duyệt
+                    </div>
+                  )}
+                  {req.status === "pending" && (
+                    <div className="px-2 py-1 rounded bg-orange-50 text-orange-600 text-[10px] font-bold uppercase border border-orange-100">
+                      Chờ duyệt
+                    </div>
+                  )}
+                  {req.status === "rejected" && (
+                    <div className="px-2 py-1 rounded bg-red-50 text-red-600 text-[10px] font-bold uppercase border border-red-100">
+                      Từ chối
+                    </div>
+                  )}
+                  {req.status === "cancelled" && (
+                    <div className="px-2 py-1 rounded bg-gray-50 text-gray-500 text-[10px] font-bold uppercase border border-gray-200">
+                      Đã hủy
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 });

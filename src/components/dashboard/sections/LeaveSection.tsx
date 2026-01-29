@@ -3,15 +3,31 @@ import { Calendar, ShieldCheck, CalendarDays, Plus, Clock } from "lucide-react";
 import { useNavigate } from "zmp-ui";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { format } from "date-fns";
+import { vi } from "date-fns/locale";
+import { useNavigate } from "zmp-ui";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+
+export interface LeaveRequest {
+  id: string;
+  startDate: string; // ISO string
+  endDate: string; // ISO string
+  type: string;
+  status: "pending" | "approved" | "rejected" | "cancelled";
+  days: number;
+}
 
 interface LeaveSectionProps {
   totalLeaveDays: number;
   entitlementLeaveDays: number;
+  requests?: LeaveRequest[];
 }
 
 export const LeaveSection = memo(function LeaveSection({
   totalLeaveDays,
   entitlementLeaveDays,
+  requests = [],
 }: LeaveSectionProps) {
   const navigate = useNavigate();
 
@@ -79,26 +95,88 @@ export const LeaveSection = memo(function LeaveSection({
       {/* Action Buttons */}
       <div className="grid grid-cols-1 gap-3">
         <Button
-          variant="outline"
-          className="w-full border-2 border-orange-100 dark:border-orange-900/50 text-orange-600 dark:text-orange-400 rounded-2xl h-14 font-bold hover:bg-orange-50 dark:hover:bg-orange-900/10 transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-orange-500/5"
+          className="w-full bg-orange-500 hover:bg-orange-600 text-white rounded-xl h-11 font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-orange-500/20 border-none"
           onClick={() => navigate("/leave?action=new-leave")}
         >
-          <div className="h-8 w-8 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center text-orange-600 dark:text-orange-400">
-            <Plus className="h-5 w-5" />
+          <div className="p-1 rounded bg-white/20 flex items-center justify-center text-white">
+            <Plus className="h-4 w-4" />
           </div>
           <span className="text-sm">Đăng ký nghỉ phép</span>
         </Button>
         <Button
           variant="outline"
-          className="w-full border-2 border-orange-100 dark:border-orange-900/50 text-orange-600 dark:text-orange-400 rounded-2xl h-14 font-bold hover:bg-orange-50 dark:hover:bg-orange-900/10 transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+          className="w-full border border-orange-200 dark:border-orange-800 text-orange-600 dark:text-orange-400 rounded-xl h-11 font-bold hover:bg-orange-50 dark:hover:bg-orange-900/10 transition-all active:scale-[0.98] flex items-center justify-center gap-2 bg-transparent"
           onClick={() => navigate("/leave?action=late-early")}
         >
-          <div className="h-8 w-8 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
-            <Clock className="h-5 w-5" />
+          <div className="flex items-center justify-center">
+            <Clock className="h-4 w-4" />
           </div>
           <span className="text-sm">Đăng ký đi muộn, về sớm</span>
         </Button>
       </div>
+
+      {/* Recent Requests List */}
+      {requests.length > 0 && (
+        <div className="flex flex-col gap-3">
+          <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">
+            Gần đây
+          </h4>
+          <div className="flex flex-col gap-3">
+            {requests.map((req) => (
+              <div
+                key={req.id}
+                className="p-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 flex items-center justify-between"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex flex-col items-center justify-center w-10 h-10 rounded-lg bg-orange-50 dark:bg-orange-900/20 border border-orange-100 dark:border-orange-800">
+                    <span className="text-[10px] text-orange-600 font-medium uppercase">
+                      {format(new Date(req.startDate), "EEE", { locale: vi })}
+                    </span>
+                    <span className="text-sm font-bold text-orange-700 dark:text-orange-400">
+                      {format(new Date(req.startDate), "dd")}
+                    </span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                      {req.type}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <CalendarDays className="h-3 w-3 text-gray-400" />
+                      <span className="text-xs text-gray-500">
+                        {req.days} ngày •{" "}
+                        {format(new Date(req.startDate), "MM/yyyy")}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center">
+                  {req.status === "approved" && (
+                    <div className="px-2 py-1 rounded bg-green-50 text-green-600 text-[10px] font-bold uppercase border border-green-100">
+                      Đã duyệt
+                    </div>
+                  )}
+                  {req.status === "pending" && (
+                    <div className="px-2 py-1 rounded bg-orange-50 text-orange-600 text-[10px] font-bold uppercase border border-orange-100">
+                      Chờ duyệt
+                    </div>
+                  )}
+                  {req.status === "rejected" && (
+                    <div className="px-2 py-1 rounded bg-red-50 text-red-600 text-[10px] font-bold uppercase border border-red-100">
+                      Từ chối
+                    </div>
+                  )}
+                  {req.status === "cancelled" && (
+                    <div className="px-2 py-1 rounded bg-gray-50 text-gray-500 text-[10px] font-bold uppercase border border-gray-200">
+                      Đã hủy
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 });

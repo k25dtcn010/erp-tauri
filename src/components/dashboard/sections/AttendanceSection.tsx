@@ -4,7 +4,7 @@ import { vi } from "date-fns/locale";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Text } from "zmp-ui";
+import { Text, useNavigate } from "zmp-ui";
 
 const { Title, Header } = Text;
 
@@ -14,6 +14,8 @@ interface AttendanceSectionProps {
   onCheckIn: () => void;
   onCheckOut: () => void;
   onOpenLateEarlyModal?: () => void;
+  checkInTime?: string | null;
+  checkOutTime?: string | null;
 }
 
 export function AttendanceSection({
@@ -22,7 +24,10 @@ export function AttendanceSection({
   onCheckIn,
   onCheckOut,
   onOpenLateEarlyModal,
+  checkInTime,
+  checkOutTime,
 }: AttendanceSectionProps) {
+  const navigate = useNavigate();
   const isWorking = workStatus === "working" || workStatus === "paused";
 
   return (
@@ -38,10 +43,10 @@ export function AttendanceSection({
           </Title>
         </div>
         <button
-          onClick={onOpenLateEarlyModal}
-          className="text-xs font-black text-orange-500 uppercase tracking-wider bg-orange-50 dark:bg-orange-900/20 px-3 py-1.5 rounded-full border border-orange-100 dark:border-orange-500/10 active:scale-95 transition-all"
+          onClick={() => navigate("/attendance-history")}
+          className="text-xs font-bold text-blue-500 underline underline-offset-4"
         >
-          Đi muộn/Về sớm
+          Xem chi tiết
         </button>
       </div>
 
@@ -116,12 +121,12 @@ export function AttendanceSection({
           <Header
             className={cn(
               "!text-2xl !font-bold tabular-nums m-0",
-              isWorking
+              workStatus !== "idle"
                 ? "text-green-600 dark:text-green-400"
                 : "text-gray-300 dark:text-gray-600",
             )}
           >
-            {workStatus !== "idle" ? format(new Date(), "HH:mm") : "--:--"}
+            {checkInTime || "--:--"}
           </Header>
           <Button
             onClick={onCheckIn}
@@ -157,8 +162,15 @@ export function AttendanceSection({
               )}
             />
           </div>
-          <Header className="!text-2xl !font-bold tabular-nums text-gray-300 dark:text-gray-600 m-0">
-            --:--
+          <Header
+            className={cn(
+              "!text-2xl !font-bold tabular-nums m-0",
+              checkOutTime
+                ? "text-orange-600 dark:text-orange-400"
+                : "text-gray-300 dark:text-gray-600",
+            )}
+          >
+            {checkOutTime || "--:--"}
           </Header>
           <Button
             onClick={onCheckOut}

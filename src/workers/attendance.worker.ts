@@ -204,19 +204,12 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
     const base64Image = images[0]; // Assuming single image for now
 
     try {
-      console.log("[Worker] Starting processing for record:", recordId);
-
       // 1. Watermark
       const watermarkedBlob = await addWatermark(base64Image, {
         employeeCode: metadata.employeeCode,
         location: metadata.location,
         timestamp: metadata.timestamp,
       });
-
-      console.log(
-        "[Worker] Watermark applied. Blob size:",
-        watermarkedBlob.size,
-      );
 
       // 2. Save to Offline DB (IndexedDB)
       const reader = new FileReader();
@@ -225,7 +218,6 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
         reader.onloadend = async () => {
           const dataUrl = reader.result as string;
           await savePhoto(recordId, dataUrl);
-          console.log("[Worker] Photo saved to offline DB");
           resolve(null);
         };
       });
@@ -252,7 +244,6 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
           const formData = new FormData();
           formData.append("file", watermarkedBlob, "attendance.jpg");
 
-          console.log("[Worker] Uploading photo...");
           const uploadRes = await fetch(
             `${apiConfig.baseUrl}/api/v3/files/upload`,
             {
@@ -270,26 +261,16 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
           }
 
           const uploadData = await uploadRes.json();
-          console.log("[Worker] Upload response data:", uploadData);
 
           // User explicitly stated: Use the ID from checkin/checkout response (eventId)
           // as the photoId, NOT the ID from the upload API.
           const photoId = eventId;
 
           if (photoId) {
-            console.log("[Worker] Using event ID as photoId:", photoId);
-
             // B. Update Event
-            console.log(
-              "[Worker] Updating event:",
-              eventId,
-              "with photoId:",
-              photoId,
-            );
 
             // Try the SDK-defined path first
             const updateUrl = `${apiConfig.baseUrl}/api/v3/attendance/events/${eventId}/photo`;
-            console.log("[Worker] Attempting update at:", updateUrl);
 
             const updateRes = await fetch(updateUrl, {
               method: "POST",
@@ -301,9 +282,6 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
             });
 
             if (updateRes.ok) {
-              console.log(
-                "[Worker] Event photo updated successfully (attendance path)",
-              );
             } else {
               const errorText = await updateRes.text();
               console.warn(
@@ -315,10 +293,6 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
               // Fallback to simpler path if the first one fails with 404
               if (updateRes.status === 404) {
                 const fallbackUrl = `${apiConfig.baseUrl}/api/v3/events/${eventId}/photo`;
-                console.log(
-                  "[Worker] Retrying update at fallback path:",
-                  fallbackUrl,
-                );
                 const fallbackRes = await fetch(fallbackUrl, {
                   method: "POST",
                   headers: {
@@ -329,9 +303,6 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
                 });
 
                 if (fallbackRes.ok) {
-                  console.log(
-                    "[Worker] Event photo updated successfully (fallback path)",
-                  );
                 } else {
                   console.error(
                     "[Worker] Event photo update failed (fallback path)",

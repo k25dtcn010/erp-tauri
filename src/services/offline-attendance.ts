@@ -21,6 +21,37 @@ export interface AttendanceRecord {
 
 const STORAGE_KEY = "offline_attendance_records";
 
+const DeviceStorage = {
+  setItem: async (key: string, value: string) => {
+    try {
+      await nativeStorage.setItem(key, value);
+    } catch (e) {
+      console.warn(
+        `[Storage] nativeStorage setItem failed for ${key}, fallback to localStorage`,
+        e,
+      );
+      try {
+        localStorage.setItem(key, value);
+      } catch (localError) {
+        console.error(`[Storage] localStorage setItem also failed`, localError);
+      }
+    }
+  },
+  getItem: async (key: string): Promise<string | null> => {
+    try {
+      const value = await nativeStorage.getItem(key);
+      if ((value as any)?.error) throw (value as any).error;
+      return typeof value === "string" ? value : ((value as any)?.data ?? null);
+    } catch (e) {
+      console.warn(
+        `[Storage] nativeStorage getItem failed for ${key}, fallback to localStorage`,
+        e,
+      );
+      return localStorage.getItem(key);
+    }
+  },
+};
+
 export const OfflineAttendanceService = {
   isOnline: () => {
     return navigator.onLine;
@@ -28,17 +59,19 @@ export const OfflineAttendanceService = {
 
   getRecords: async (): Promise<AttendanceRecord[]> => {
     try {
-      const value = nativeStorage.getItem(STORAGE_KEY);
+      const value = await DeviceStorage.getItem(STORAGE_KEY);
       if (typeof value === "string") {
         try {
-          return JSON.parse(value);
-        } catch {
+          const parsed = JSON.parse(value);
+          return parsed;
+        } catch (err) {
+          console.error("[OfflineService] JSON parse error:", err);
           return [];
         }
       }
       return (value as any) || [];
     } catch (e) {
-      console.error("Error reading offline records from native storage", e);
+      console.error("[OfflineService] Error reading offline records", e);
       return [];
     }
   },
@@ -123,10 +156,14 @@ export const OfflineAttendanceService = {
 
       // 2. Save metadata to Native Storage
       records.push(newRecord);
-      nativeStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+      await DeviceStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+
+      // Verify immediately
+      const verifyRaw = await DeviceStorage.getItem(STORAGE_KEY);
+
       return id; // Return ID
     } catch (e) {
-      console.error("Error saving record", e);
+      console.error("[OfflineService] Error saving record", e);
       return null;
     }
   },
@@ -142,8 +179,6 @@ export const OfflineAttendanceService = {
     const pending = records.filter((r) => !r.synced);
 
     if (pending.length === 0) return 0;
-
-    console.log("[Sync] Uploading pending records:", pending);
 
     // In a real app, you'd iterate and call your API
     let successCount = 0;
@@ -168,7 +203,7 @@ export const OfflineAttendanceService = {
     const remaining = records.filter(
       (r) => !pending.some((p) => p.id === r.id),
     );
-    nativeStorage.setItem(STORAGE_KEY, JSON.stringify(remaining));
+    await DeviceStorage.setItem(STORAGE_KEY, JSON.stringify(remaining));
 
     return successCount;
   },
@@ -181,8 +216,6 @@ export const OfflineAttendanceService = {
 
     if (!record) return false;
 
-    console.log("[Sync] Uploading single record:", record);
-
     const photo = record.photoId ? await getPhoto(record.photoId) : null;
 
     // Simulate API call
@@ -194,7 +227,7 @@ export const OfflineAttendanceService = {
     }
 
     const remaining = records.filter((r) => r.id !== id);
-    nativeStorage.setItem(STORAGE_KEY, JSON.stringify(remaining));
+    await DeviceStorage.setItem(STORAGE_KEY, JSON.stringify(remaining));
 
     return true;
   },
@@ -208,6 +241,6 @@ export const OfflineAttendanceService = {
     }
 
     const remaining = records.filter((r) => r.id !== id);
-    nativeStorage.setItem(STORAGE_KEY, JSON.stringify(remaining));
+    await DeviceStorage.setItem(STORAGE_KEY, JSON.stringify(remaining));
   },
 };

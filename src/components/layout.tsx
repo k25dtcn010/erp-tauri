@@ -32,10 +32,9 @@ const LayoutContent = () => {
   useEffect(() => {
     try {
       const info = getSystemInfo();
-      console.log("[Layout] System Info:", info);
-      if (info.platform === "unknow") {
-        setIsAndroid(true);
-      }
+      // if (info.platform === "unknown") {
+      //   setIsAndroid(true);
+      // }
     } catch (error) {
       console.error("[Layout] Failed to get system info:", error);
     }
@@ -46,18 +45,14 @@ const LayoutContent = () => {
       // If Android, we don't care about auth as they are blocked by modal
       if (isAndroid) return;
 
-      console.log("[Layout] Checking auth effect. isLoginPage:", isLoginPage);
       if (!isLoginPage) {
         const isAuth = await authService.checkAuth();
-        console.log("[Layout] checkAuth result:", isAuth);
         if (!isAuth) {
           console.warn("[Layout] Not authenticated, redirecting to /login");
           navigate("/login");
         } else {
-          console.log("[Layout] Authenticated, stating on page.");
         }
       } else {
-        console.log("[Layout] On login page, skipping check.");
       }
     };
     check();

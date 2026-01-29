@@ -14,33 +14,19 @@ export const ZaloService = {
    */
   async getUserLocation(): Promise<ZaloLocationData> {
     try {
-      console.log("[ZaloService] >>> START getUserLocation flow");
-
       // 1. Get location token from ZMP SDK
-      console.log("[ZaloService] 1. Calling getLocation API...");
       // @ts-ignore
       let locationRes = await getLocation({});
 
       // If token is missing, attempt explicit authorize
       if (!(locationRes as any).token && !(locationRes as any).latitude) {
-        console.log(
-          "[ZaloService] 1. Token empty, attempting explicit authorize...",
-        );
         try {
           await authorize({ scopes: ["scope.userLocation"] });
-          console.log(
-            "[ZaloService] 1. Authorize successful, retrying getLocation...",
-          );
           locationRes = await getLocation({});
         } catch (authError) {
           console.error("[ZaloService] 1. Authorize failed:", authError);
         }
       }
-
-      console.log(
-        "[ZaloService] 1. getLocation response:",
-        JSON.stringify(locationRes),
-      );
 
       const token = (locationRes as any).token;
 
@@ -70,17 +56,8 @@ export const ZaloService = {
         );
       }
 
-      console.log("[ZaloService] 2. Calling getAccessToken API...");
       // 2. Get user access token
       const accessToken = await getAccessToken({});
-      console.log(
-        "[ZaloService] 2. getAccessToken response length:",
-        accessToken?.length,
-      );
-
-      console.log(
-        "[ZaloService] 3. Exchanging tokens with backend: /api/v3/zalo/location",
-      );
 
       // 3. Send tokens to backend to exchange for actual coordinates
       try {
@@ -92,15 +69,7 @@ export const ZaloService = {
           },
         });
 
-        console.log(
-          "[ZaloService] 3. Backend response status:",
-          response.error ? "ERROR" : "SUCCESS",
-        );
         if (response.data) {
-          console.log(
-            "[ZaloService] 3. Backend response data:",
-            JSON.stringify(response.data),
-          );
         }
 
         if (response.error) {
@@ -118,12 +87,6 @@ export const ZaloService = {
             result.message || "Failed to exchange location token",
           );
         }
-
-        console.log(
-          "[ZaloService] <<< SUCCESS: Coordinates received from backend:",
-          result.data.latitude,
-          result.data.longitude,
-        );
 
         return {
           latitude: Number(result.data.latitude),

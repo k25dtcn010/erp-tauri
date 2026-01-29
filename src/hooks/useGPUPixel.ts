@@ -32,8 +32,6 @@ export const GPUPixelLoader = {
     if (loadPromise) return loadPromise;
 
     loadPromise = new Promise((resolve, reject) => {
-      console.log("[GPUPixel] Bắt đầu tải WASM...");
-
       // 1. Tạo Canvas WebGL ẩn
       if (!document.getElementById("gpupixel_canvas")) {
         glCanvas = document.createElement("canvas");
@@ -66,7 +64,6 @@ export const GPUPixelLoader = {
         },
         locateCanvasForWebGL: () => glCanvas,
         onRuntimeInitialized: async function () {
-          console.log("[GPUPixel] Runtime Initialized. Loading resources...");
           // @ts-ignore
           const m = window.Module;
 
@@ -112,7 +109,6 @@ export const GPUPixelLoader = {
             const res = m.ccall("Init", "number", ["string"], ["/gpupixel"]);
             if (res < 0) throw new Error(`Init failed code: ${res}`);
 
-            console.log("[GPUPixel] Ready.");
             wasmModule = m;
             resolve(m);
           } catch (err) {
@@ -128,31 +124,21 @@ export const GPUPixelLoader = {
 
       // 6. Load Script
       try {
-        console.log("[GPUPixelLoader] Bắt đầu xử lý script injection...");
-
         // KỸ THUẬT CHÈN LOG VÀO TRONG MODULE APP
         // Ta cộng thêm dòng log vào ngay đầu nội dung file JS lấy được
-        const debugHeader = `
-          console.log("%c[Internal-Blob] Bắt đầu thực thi gpupixel_app.js!", "background: #222; color: #bada55");
-          console.log("[Internal-Blob] Kiểm tra window.Module:", window.Module ? "Đã tồn tại" : "Chưa có");
-        `;
-        
+        const debugHeader = ``;
+
         // Nối chuỗi: Header log + Nội dung gốc
         const finalJsContent = debugHeader + "\n" + gpupixelJsContent;
-
-        console.log(`[GPUPixelLoader] Đã tạo nội dung script (độ dài: ${finalJsContent.length})`);
 
         const blob = new Blob([finalJsContent], { type: "text/javascript" });
         const scriptUrl = URL.createObjectURL(blob);
 
-        console.log("[GPUPixelLoader] Blob URL đã tạo:", scriptUrl);
-
         const script = document.createElement("script");
         script.src = scriptUrl;
-        
+
         // Log khi script được trình duyệt tải xong (chưa chắc đã chạy xong logic, nhưng đã load file)
         script.onload = () => {
-          console.log("[GPUPixelLoader] Thẻ <script> đã kích hoạt sự kiện onload.");
           URL.revokeObjectURL(scriptUrl); // Dọn dẹp bộ nhớ
         };
 
@@ -162,11 +148,12 @@ export const GPUPixelLoader = {
           reject(new Error("Failed to inject gpupixel script blob"));
         };
 
-        console.log("[GPUPixelLoader] Đang append script vào document.body...");
         document.body.appendChild(script);
-
       } catch (e) {
-        console.error("[GPUPixelLoader] Exception trong quá trình tạo Blob:", e);
+        console.error(
+          "[GPUPixelLoader] Exception trong quá trình tạo Blob:",
+          e,
+        );
         reject(e);
       }
     });
@@ -253,9 +240,6 @@ export const useGPUPixel = ({
 
     // Nếu chưa sẵn sàng, request frame tiếp theo và thoát
     if (!canvas || !video || video.readyState < 2) {
-      if (video && video.readyState < 2 && Math.random() < 0.001) {
-        console.log("[useGPUPixel] Video not ready yet (readyState < 2)");
-      }
       requestRef.current = requestAnimationFrame(processFrame);
       return;
     }

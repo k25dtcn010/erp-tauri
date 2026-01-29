@@ -1,6 +1,20 @@
 .zaui-page {
-  padding: calc(var(--zaui-safe-area-inset-top, 0px) + 44px) 8px
-    calc(var(--zaui-safe-area-inset-bottom, 0px) + 81px) 8px;
+  padding: calc(
+      max(
+          var(--zaui-safe-area-inset-top, 0px),
+          var(--safe-area-inset-top, 0px)
+        ) +
+        44px
+    )
+    8px
+    calc(
+      max(
+          var(--zaui-safe-area-inset-bottom, 0px),
+          var(--safe-area-inset-bottom, 0px)
+        ) +
+        81px
+    )
+    8px;
 }
 
 .section-container {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, Suspense } from "react";
 import { useSnackbar, useNavigate, Text } from "zmp-ui";
 import { GreetingSection } from "@/components/dashboard/sections/GreetingSection";
 import { AttendanceSection } from "@/components/dashboard/sections/AttendanceSection";
@@ -11,7 +11,8 @@ import {
   LeaveSection,
   LeaveRequest,
 } from "@/components/dashboard/sections/LeaveSection";
-import { FaceVerificationModal } from "@/components/dashboard/FaceVerificationModal";
+import { PreCheckModal } from "@/components/dashboard/PreCheckModal";
+import { AnticheatService } from "@/services/anticheat";
 import { OfflineAttendanceService } from "@/services/offline-attendance";
 import { WifiOff, RefreshCw, ChevronRight } from "lucide-react";
 import { UnsyncedRecordsSheet } from "@/components/dashboard/UnsyncedRecordsSheet";
@@ -20,6 +21,15 @@ import { getApiV3AttendanceToday } from "@/client-timekeeping/sdk.gen";
 import { getApiEmployeesMe } from "@/client/sdk.gen";
 import { CustomPageHeader } from "@/components/layout/CustomPageHeader";
 import { format } from "date-fns";
+import { useSheetBackHandler } from "@/hooks/use-sheet-back-handler";
+import { useSyncStore } from "@/store/sync-store";
+
+// Lazy load heavy components
+const FaceVerificationModal = React.lazy(() =>
+  import("@/components/dashboard/FaceVerificationModal").then((module) => ({
+    default: module.FaceVerificationModal,
+  })),
+);
 
 const DashboardPage: React.FC = () => {
   const [workStatus, setWorkStatus] = useState<"idle" | "working" | "paused">(
@@ -27,13 +37,32 @@ const DashboardPage: React.FC = () => {
   );
   const [checkInTime, setCheckInTime] = useState<string | null>(null);
   const [checkOutTime, setCheckOutTime] = useState<string | null>(null);
-  const [currentTime, setCurrentTime] = useState(new Date());
+  const [todaySessions, setTodaySessions] = useState<any[]>([]);
+
   const [isFaceModalOpen, setIsFaceModalOpen] = useState(false);
+  const [isPreCheckModalOpen, setIsPreCheckModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<string>("check-in");
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [pendingSync, setPendingSync] = useState(0);
-  const [isSyncing, setIsSyncing] = useState(false);
+
+  const {
+    pendingCount: pendingSync,
+    isSyncing,
+    refreshPendingCount,
+  } = useSyncStore();
+
   const [isSyncSheetOpen, setIsSyncSheetOpen] = useState(false);
+
+  // Handle Android back button for sheets
+  const closeFaceModal = useCallback(() => setIsFaceModalOpen(false), []);
+  const closeSyncSheet = useCallback(() => setIsSyncSheetOpen(false), []);
+  const closePreCheckModal = useCallback(
+    () => setIsPreCheckModalOpen(false),
+    [],
+  );
+
+  useSheetBackHandler(isFaceModalOpen, closeFaceModal);
+  useSheetBackHandler(isSyncSheetOpen, closeSyncSheet);
+  useSheetBackHandler(isPreCheckModalOpen, closePreCheckModal);
 
   const { openSnackbar } = useSnackbar();
   const navigate = useNavigate();
@@ -50,11 +79,12 @@ const DashboardPage: React.FC = () => {
   });
 
   // Fetch today's attendance status
-  const fetchTodayStatus = async () => {
+  const fetchTodayStatus = useCallback(async () => {
     try {
       const res = await getApiV3AttendanceToday();
       if (res.data) {
         const { activeSession, sessions } = res.data as any;
+        setTodaySessions(sessions || []);
 
         if (activeSession) {
           setWorkStatus("working");
@@ -77,22 +107,13 @@ const DashboardPage: React.FC = () => {
     } catch (error) {
       console.error("Failed to fetch today's attendance status", error);
     }
-  };
+  }, []);
 
   useEffect(() => {
     if (isOnline) {
       fetchTodayStatus();
     }
-  }, [isOnline]);
-
-  const updatePendingCount = async () => {
-    try {
-      const records = await OfflineAttendanceService.getRecords();
-      setPendingSync(records.length);
-    } catch (err) {
-      console.error("[Dashboard] updatePendingCount error:", err);
-    }
-  };
+  }, [isOnline, fetchTodayStatus]);
 
   // Fetch user data
   useEffect(() => {
@@ -128,73 +149,115 @@ const DashboardPage: React.FC = () => {
     window.addEventListener("online", handleOnline);
     window.addEventListener("offline", handleOffline);
 
-    updatePendingCount();
+    refreshPendingCount();
     // Check every 5 seconds
-    const interval = setInterval(updatePendingCount, 5000);
+    const interval = setInterval(refreshPendingCount, 5000);
 
     return () => {
       window.removeEventListener("online", handleOnline);
       window.removeEventListener("offline", handleOffline);
       clearInterval(interval);
     };
+  }, [refreshPendingCount]);
+
+  // Initialize Anticheat Service
+  useEffect(() => {
+    AnticheatService.init().catch((err) =>
+      console.error("Anticheat init failed", err),
+    );
   }, []);
 
   // Auto-sync removed as per user request (manual only)
 
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-    return () => clearInterval(timer);
+  const handlePreCheckSuccess = useCallback(() => {
+    console.log("[Dashboard] handlePreCheckSuccess called");
+    setIsPreCheckModalOpen(false);
+    // Slight delay to allow the sheet to close smoothly before opening the next one
+    setTimeout(() => {
+      console.log("[Dashboard] Opening FaceVerificationModal");
+      setIsFaceModalOpen(true);
+    }, 200);
   }, []);
 
-  const handleCheckIn = () => {
-    setModalMode("check-in");
-    setIsFaceModalOpen(true);
-  };
+  const handleCheckAction = useCallback(
+    async (mode: "check-in" | "check-out") => {
+      console.log(`[Dashboard] handleCheckAction: ${mode}`);
+      setModalMode(mode);
 
-  const handleCheckOut = () => {
-    setModalMode("check-out");
-    setIsFaceModalOpen(true);
-  };
+      // Perform background security check
+      try {
+        const result = await AnticheatService.scanEnvironment();
+        if (result.isSafe) {
+          console.log("[Dashboard] Background check passed. Proceeding...");
+          handlePreCheckSuccess();
+        } else {
+          console.log(
+            "[Dashboard] Background check failed. Opening PreCheckModal.",
+          );
+          setIsPreCheckModalOpen(true);
+        }
+      } catch (e) {
+        console.error("[Dashboard] Background check error:", e);
+        // On error, fallback to opening modal so user can see/retry the check there
+        setIsPreCheckModalOpen(true);
+      }
+    },
+    [handlePreCheckSuccess],
+  );
 
-  const onVerified = async (
-    photoDataUrl: string,
-    metadata: { location?: any; deviceInfo?: any },
-    onlineTrialFailed?: boolean,
-  ) => {
-    setIsFaceModalOpen(false);
+  const handleCheckIn = useCallback(() => {
+    handleCheckAction("check-in");
+  }, [handleCheckAction]);
 
-    // Refresh pending count since modal just saved a record
-    await updatePendingCount();
+  const handleCheckOut = useCallback(() => {
+    handleCheckAction("check-out");
+  }, [handleCheckAction]);
 
-    // Refresh today's status from API
-    if (isOnline && !onlineTrialFailed) {
-      setTimeout(fetchTodayStatus, 1000); // Give background worker a moment
-    }
+  const onVerified = useCallback(
+    async (
+      photoDataUrl: string,
+      metadata: { location?: any; deviceInfo?: any },
+      onlineTrialFailed?: boolean,
+    ) => {
+      setIsFaceModalOpen(false);
 
-    const showSyncWarning = !isOnline || onlineTrialFailed;
+      // Refresh pending count since modal just saved a record
+      await refreshPendingCount();
 
-    if (modalMode === "check-in") {
-      setWorkStatus("working");
-      openSnackbar({
-        type: showSyncWarning ? "warning" : "success",
-        text: showSyncWarning
-          ? "Đã lưu check-in (Chờ đồng bộ)"
-          : "Vào ca thành công!",
-        duration: 3000,
-      });
-    } else {
-      setWorkStatus("idle");
-      openSnackbar({
-        type: showSyncWarning ? "warning" : "success",
-        text: showSyncWarning
-          ? "Đã lưu check-out (Chờ đồng bộ)"
-          : "Ra ca thành công!",
-        duration: 3000,
-      });
-    }
-  };
+      // Refresh today's status from API
+      if (isOnline && !onlineTrialFailed) {
+        setTimeout(fetchTodayStatus, 1000); // Give background worker a moment
+      }
+
+      const showSyncWarning = !isOnline || onlineTrialFailed;
+
+      if (modalMode === "check-in") {
+        setWorkStatus("working");
+        openSnackbar({
+          type: showSyncWarning ? "warning" : "success",
+          text: showSyncWarning
+            ? "Đã lưu check-in (Chờ đồng bộ)"
+            : "Vào ca thành công!",
+          duration: 3000,
+        });
+      } else {
+        setWorkStatus("idle");
+        openSnackbar({
+          type: showSyncWarning ? "warning" : "success",
+          text: showSyncWarning
+            ? "Đã lưu check-out (Chờ đồng bộ)"
+            : "Ra ca thành công!",
+          duration: 3000,
+        });
+      }
+    },
+    [isOnline, modalMode, openSnackbar, refreshPendingCount, fetchTodayStatus],
+  );
+
+  const handleOpenLateEarlyModal = useCallback(
+    () => navigate("/leave?action=late-early"),
+    [navigate],
+  );
 
   const mockHistory: any[] = [
     {
@@ -305,17 +368,23 @@ const DashboardPage: React.FC = () => {
           <div className="absolute top-0 right-0 w-32 h-32 bg-orange-500/5 blur-3xl rounded-full" />
 
           <div className="flex items-center gap-3 relative z-10">
-            <div className="p-2.5 rounded-full bg-orange-500/20 text-orange-600">
+            <div
+              className={`p-2.5 rounded-full ${isSyncing ? "bg-orange-500/30" : "bg-orange-500/20"} text-orange-600 transition-colors`}
+            >
               <RefreshCw
                 className={`h-5 w-5 ${isSyncing ? "animate-spin" : ""}`}
               />
             </div>
             <div className="flex flex-col">
               <Text className="!text-sm !font-bold text-orange-700 m-0">
-                {pendingSync} dữ liệu chưa được tải lên
+                {isSyncing
+                  ? "Đang đồng bộ..."
+                  : `${pendingSync} dữ liệu chưa được tải lên`}
               </Text>
               <Text className="!text-xs text-orange-600/70 m-0">
-                Chạm để đồng bộ ngay khi có mạng
+                {isSyncing
+                  ? "Vui lòng giữ kết nối mạng"
+                  : "Chạm để đồng bộ ngay khi có mạng"}
               </Text>
             </div>
           </div>
@@ -328,12 +397,12 @@ const DashboardPage: React.FC = () => {
 
       <AttendanceSection
         workStatus={workStatus}
-        currentTime={currentTime}
         onCheckIn={handleCheckIn}
         onCheckOut={handleCheckOut}
         onOpenLateEarlyModal={() => navigate("/leave?action=late-early")}
         checkInTime={checkInTime}
         checkOutTime={checkOutTime}
+        sessions={todaySessions}
       />
 
       <div className="grid grid-cols-1 gap-6">
@@ -356,19 +425,26 @@ const DashboardPage: React.FC = () => {
         recentHistory={mockHistory}
       />
 
-      <FaceVerificationModal
-        isOpen={isFaceModalOpen}
-        onOpenChange={setIsFaceModalOpen}
-        mode={modalMode}
-        currentTime={currentTime}
-        employeeCode={employeeCode}
-        onVerified={onVerified}
+      <Suspense fallback={null}>
+        <FaceVerificationModal
+          isOpen={isFaceModalOpen}
+          onOpenChange={setIsFaceModalOpen}
+          mode={modalMode}
+          employeeCode={employeeCode}
+          onVerified={onVerified}
+        />
+      </Suspense>
+
+      <PreCheckModal
+        isOpen={isPreCheckModalOpen}
+        onClose={() => setIsPreCheckModalOpen(false)}
+        onSuccess={handlePreCheckSuccess}
       />
 
       <UnsyncedRecordsSheet
         isOpen={isSyncSheetOpen}
         onClose={() => setIsSyncSheetOpen(false)}
-        onSyncComplete={updatePendingCount}
+        onSyncComplete={refreshPendingCount}
       />
     </PageContainer>
   );

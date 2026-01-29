@@ -1,5 +1,6 @@
 import { client } from "@/client-timekeeping/client.gen";
 import { getLocation, getAccessToken, authorize } from "zmp-sdk/apis";
+import { AnticheatService } from "./anticheat";
 
 export interface ZaloLocationData {
   latitude: number;
@@ -11,8 +12,29 @@ export interface ZaloLocationData {
 export const ZaloService = {
   /**
    * Get user location following the new Zalo Mini App guide (Token exchange)
+   * On Android Native, uses AnticheatService for secure location.
    */
   async getUserLocation(): Promise<ZaloLocationData> {
+    // 0. Native Android Anticheat Bypass
+    if (AnticheatService.isAndroidNative()) {
+      try {
+        const secureLoc = await AnticheatService.getSecureLocation();
+
+        // Convert SecureLocation to ZaloLocationData format
+        return {
+          latitude: secureLoc.latitude || 0,
+          longitude: secureLoc.longitude || 0,
+          provider: secureLoc.provider,
+          timestamp: String(Date.now()), // Anticheat returns number, API expects string usually or handle it
+        };
+      } catch (e) {
+        console.error(
+          "[ZaloService] Anticheat location failed, falling back to Zalo SDK",
+          e,
+        );
+      }
+    }
+
     try {
       // 1. Get location token from ZMP SDK
       // @ts-ignore

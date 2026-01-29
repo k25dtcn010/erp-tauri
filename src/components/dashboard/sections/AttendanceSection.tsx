@@ -1,4 +1,4 @@
-import { Clock, Fingerprint } from "lucide-react";
+import { Clock, Fingerprint, Timer } from "lucide-react";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 import { Card } from "@/components/ui/card";
@@ -8,46 +8,70 @@ import { Text, useNavigate } from "zmp-ui";
 
 const { Title, Header } = Text;
 
+import { useCurrentTime } from "@/hooks/use-current-time";
+
+interface AttendanceSessionItem {
+  id: string;
+  checkInAt: string;
+  checkOutAt?: string | null;
+  status: string;
+  workedHours?: number;
+}
+
 interface AttendanceSectionProps {
   workStatus: "idle" | "working" | "paused";
-  currentTime: Date;
   onCheckIn: () => void;
   onCheckOut: () => void;
   onOpenLateEarlyModal?: () => void;
   checkInTime?: string | null;
   checkOutTime?: string | null;
+  sessions?: AttendanceSessionItem[];
 }
 
 export function AttendanceSection({
   workStatus,
-  currentTime,
   onCheckIn,
   onCheckOut,
   onOpenLateEarlyModal,
   checkInTime,
   checkOutTime,
+  sessions = [],
 }: AttendanceSectionProps) {
   const navigate = useNavigate();
+  const currentTime = useCurrentTime();
   const isWorking = workStatus === "working" || workStatus === "paused";
+
+  const getStatusDisplay = (status: string) => {
+    switch (status) {
+      case "COMPLETED":
+        return {
+          label: "Hoàn thành",
+          color: "text-green-600",
+          bg: "bg-green-50",
+        };
+      case "PENDING_REVIEW":
+        return {
+          label: "Chờ duyệt",
+          color: "text-orange-600",
+          bg: "bg-orange-50",
+        };
+      case "ACTIVE":
+        return { label: "Đang làm", color: "text-blue-600", bg: "bg-blue-50" };
+      default:
+        return { label: status, color: "text-gray-600", bg: "bg-gray-50" };
+    }
+  };
 
   return (
     <div className="flex flex-col gap-4  mt-6">
       {/* Section Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400">
-            <Clock className="h-5 w-5" />
-          </div>
-          <Title className="!text-lg !font-bold text-blue-900 dark:text-blue-100 m-0">
-            Chấm công
-          </Title>
+      <div className="flex items-center gap-3">
+        <div className="p-2 rounded-lg bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400">
+          <Clock className="h-5 w-5" />
         </div>
-        <button
-          onClick={() => navigate("/attendance-history")}
-          className="text-xs font-bold text-blue-500 underline underline-offset-4"
-        >
-          Xem chi tiết
-        </button>
+        <Title className="!text-lg !font-bold text-blue-900 dark:text-blue-100 m-0">
+          Chấm công
+        </Title>
       </div>
 
       {/* Main Stats Card */}
@@ -186,6 +210,77 @@ export function AttendanceSection({
           </Button>
         </div>
       </div>
+
+      {/* Today's Sessions List */}
+      {sessions.length > 0 && (
+        <div className="flex flex-col gap-3 mt-2">
+          <div className="flex items-center justify-between px-1">
+            <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">
+              Các ca hôm nay
+            </h4>
+            <button
+              onClick={() => navigate("/attendance-history")}
+              className="text-[10px] font-bold text-blue-500 underline underline-offset-4"
+            >
+              Xem tất cả
+            </button>
+          </div>
+          <div className="flex flex-col gap-3">
+            {[...sessions]
+              .sort(
+                (a, b) =>
+                  new Date(b.checkInAt).getTime() -
+                  new Date(a.checkInAt).getTime(),
+              )
+              .map((session) => {
+                const status = getStatusDisplay(session.status);
+                return (
+                  <div
+                    key={session.id}
+                    className="p-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 flex items-center justify-between transition-all"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex flex-col items-center justify-center w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800">
+                        <Clock className="h-5 w-5 text-blue-600" />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+                          {format(new Date(session.checkInAt), "HH:mm")} -{" "}
+                          {session.checkOutAt
+                            ? format(new Date(session.checkOutAt), "HH:mm")
+                            : "--:--"}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <Timer className="h-3 w-3 text-gray-400" />
+                          <span className="text-xs text-gray-500">
+                            {session.workedHours
+                              ? `${session.workedHours.toFixed(2)} giờ`
+                              : "Đang tính..."}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center">
+                      <div
+                        className={cn(
+                          "px-2 py-1 rounded text-[10px] font-bold uppercase border",
+                          status.bg,
+                          status.color,
+                          status.color
+                            .replace("text-", "border-")
+                            .replace("600", "100"),
+                        )}
+                      >
+                        {status.label}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

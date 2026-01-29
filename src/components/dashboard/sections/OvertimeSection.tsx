@@ -97,19 +97,6 @@ export const OvertimeSection = memo(function OvertimeSection({
         </div>
       </Card>
 
-      {/* Action Buttons */}
-      <div className="grid grid-cols-1 gap-3">
-        <Button
-          onClick={() => navigate("/overtime?action=new")}
-          className="w-full bg-purple-600 hover:bg-purple-700 text-white rounded-xl h-11 font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20 border-none"
-        >
-          <div className="p-1 rounded bg-white/20 flex items-center justify-center">
-            <Plus className="h-4 w-4 text-white" />
-          </div>
-          <span className="text-sm">Đăng ký tăng ca</span>
-        </Button>
-      </div>
-
       {/* Recent Requests List */}
       {requests.length > 0 && (
         <div className="flex flex-col gap-3">
@@ -171,6 +158,19 @@ export const OvertimeSection = memo(function OvertimeSection({
           </div>
         </div>
       )}
+
+      {/* Action Buttons */}
+      <div className="grid grid-cols-1 gap-3">
+        <Button
+          onClick={() => navigate("/overtime?action=new")}
+          className="w-full bg-purple-600 hover:bg-purple-700 text-white rounded-xl h-11 font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-purple-600/20 border-none"
+        >
+          <div className="p-1 rounded bg-white/20 flex items-center justify-center">
+            <Plus className="h-4 w-4 text-white" />
+          </div>
+          <span className="text-sm">Đăng ký tăng ca</span>
+        </Button>
+      </div>
     </div>
   );
 });

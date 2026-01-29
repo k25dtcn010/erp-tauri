@@ -20,6 +20,7 @@ import {
   postApiV3AttendanceCheckOutAsync,
 } from "../../client-timekeeping/sdk.gen";
 import { authService } from "../../services/auth";
+import { useSyncStore } from "../../store/sync-store";
 
 // --- CONFIGURATIONS ---
 const MODAL_CONFIGS = {
@@ -200,11 +201,12 @@ const CameraControls = memo(function CameraControls({
 
 // --- MAIN COMPONENT ---
 
+import { useCurrentTime } from "../../hooks/use-current-time";
+
 interface FaceVerificationModalProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   mode: string;
-  currentTime: Date;
   employeeCode?: string;
   onVerified: (
     photoDataUrl: string,
@@ -217,10 +219,10 @@ export function FaceVerificationModal({
   isOpen,
   onOpenChange,
   mode,
-  currentTime,
   employeeCode,
   onVerified,
 }: FaceVerificationModalProps) {
+  const currentTime = useCurrentTime();
   // State: UI & Status
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [verificationStatus, setVerificationStatus] = useState<
@@ -258,11 +260,22 @@ export function FaceVerificationModal({
       { type: "module" },
     );
 
-    workerRef.current.onmessage = (e) => {
-      const { type, recordId, error } = e.data;
+    workerRef.current.onmessage = async (e) => {
+      const { type, recordId, synced, error } = e.data;
       if (type === "SUCCESS") {
+        if (synced && recordId) {
+          console.log(
+            `[Worker] Record ${recordId} synced successfully. Removing from offline storage.`,
+          );
+          await OfflineAttendanceService.deleteRecord(recordId);
+        }
+        // Update sync state
+        useSyncStore.getState().setSyncing(false);
+        useSyncStore.getState().refreshPendingCount();
       } else if (type === "ERROR") {
         console.error(`[Worker] Failed to process record ${recordId}`, error);
+        useSyncStore.getState().setSyncing(false);
+        useSyncStore.getState().refreshPendingCount();
       }
     };
 
@@ -593,8 +606,11 @@ export function FaceVerificationModal({
         getDeviceInfo({}).catch(() => null),
       ]);
 
-      const lat = location ? (location.latitude as number) : 0;
-      const lon = location ? (location.longitude as number) : 0;
+      const lat = location?.latitude ?? 0;
+      const lon = location?.longitude ?? 0;
+
+      console.log("[FaceVerificationModal] Captured Location:", location);
+      console.log("[FaceVerificationModal] Using Coordinates:", { lat, lon });
 
       // 2. Online Check-in (Fire & Forget Logic)
       let employeeId: string | null | undefined = null;
@@ -670,8 +686,12 @@ export function FaceVerificationModal({
         recordId,
       );
 
+      // Immediately allow UI to see pending record
+      await useSyncStore.getState().refreshPendingCount();
+
       // 4. Send to Worker
       if (workerRef.current) {
+        useSyncStore.getState().setSyncing(true); // START SYNCING
         const token = await authService.getAccessToken();
         const baseUrl = "https://api-timekeeping.canhhnac.xyz"; // TODO: Use env or config
 

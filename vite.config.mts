@@ -16,5 +16,9 @@ export default () => {
         "@": "/src",
       },
     },
+    optimizeDeps: {
+      exclude: ["zmp-sdk", "zmp-ui"],
+      include: ["react-is", "prop-types"],
+    },
   });
 };

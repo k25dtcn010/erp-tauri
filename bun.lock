@@ -33,6 +33,7 @@
         "vaul": "^1.1.2",
         "zmp-sdk": "latest",
         "zmp-ui": "latest",
+        "zustand": "^5.0.10",
       },
       "devDependencies": {
         "@tauri-apps/cli": "^2",
@@ -959,6 +960,8 @@
     "zmp-ui": ["zmp-ui@1.11.12-7", "", { "dependencies": { "@babel/runtime": "^7.18.9", "@react-spring/web": "9.5.5", "@use-gesture/react": "^10.2.22", "clsx": "^1.2.1", "react-is": "^18.2.0", "react-router-dom": "^6.3.0", "react-transition-group": "^4.4.5", "resize-observer-polyfill": "^1.5.1" } }, "sha512-SifqaQ8K+78AKBZGrAqUucFPDZodhwDFMNNkXQfbCjinEpEl5T67LjfAHVEBnOrUdxREFsp3dkAsnK5yK+3Mgg=="],
 
     "zmp-vite-plugin": ["zmp-vite-plugin@1.1.6", "", { "peerDependencies": { "vite": "^4.2.0 || ^5.0.0" } }, "sha512-t20oEFRGT8Bh5y7F4PxvAoLZCQc6ZeFal53EhjJTwU+mRxKC5JajdHmzgeQbGf/c9lYwjF8Z1CFddeAwmNFTkA=="],
+
+    "zustand": ["zustand@5.0.10", "", { "peerDependencies": { "@types/react": ">=18.0.0", "immer": ">=9.0.6", "react": ">=18.0.0", "use-sync-external-store": ">=1.2.0" }, "optionalPeers": ["@types/react", "immer", "react", "use-sync-external-store"] }, "sha512-U1AiltS1O9hSy3rul+Ub82ut2fqIAefiSuwECWt6jlMVUGejvf+5omLcRBSzqbRagSM3hQZbtzdeRc6QVScXTg=="],
 
     "@babel/cli/commander": ["commander@6.2.1", "", {}, "sha512-U7VdrJFnJgo4xjrHpTzu0yrHPGImdsmD95ZlgYSEajAn2JKzDhDTPG9kBTefmObL2w/ngeZnilk+OV9CG3d7UA=="],
 

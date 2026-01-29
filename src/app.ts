@@ -14,6 +14,10 @@ import Layout from "@/components/layout";
 
 // Expose app configuration
 import appConfig from "../app-config.json";
+import { AnticheatService } from "@/services/anticheat";
+
+// Initialize Anticheat if on Android Native
+AnticheatService.init().catch(console.error);
 
 if (!window.APP_CONFIG) {
   window.APP_CONFIG = appConfig as any;

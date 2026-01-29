@@ -5,6 +5,11 @@ import {
   getPhoto,
   deletePhoto as deletePhotoFromDB,
 } from "@/lib/indexed-db";
+import {
+  postApiV3FilesUpload,
+  postApiV3AttendanceCheckInAsync,
+  postApiV3AttendanceCheckOutAsync,
+} from "@/client-timekeeping/sdk.gen";
 
 export interface AttendanceRecord {
   id: string;
@@ -180,28 +185,71 @@ export const OfflineAttendanceService = {
 
     if (pending.length === 0) return 0;
 
-    // In a real app, you'd iterate and call your API
     let successCount = 0;
+    // We will build a new list of records to keep (failed ones + synced ones that we mark synced)
+    // Actually we usually remove synced records from this list entirely or mark them synced.
+    // The current logic removes them.
+
+    const successfullySyncedIds: string[] = [];
+
     for (const record of pending) {
       try {
-        const photo = record.photoId ? await getPhoto(record.photoId) : null;
-        // Simulate API call
-        await new Promise((resolve) => setTimeout(resolve, 800));
+        let serverPhotoId: string | null = null;
 
-        // Success: remove photo from IndexedDB and mark as synced/remove from metadata
+        // 1. Upload Photo if exists
+        if (record.photoId) {
+          const base64 = await getPhoto(record.photoId);
+          if (base64) {
+            const blob = dataURItoBlob(base64);
+            const formData = new FormData();
+            formData.append("file", blob, "offline-attendance.jpg");
+
+            // Use SDK to upload
+            // Note: We cast body to any because SDK generation for FormData can be tricky with types
+            const uploadRes = await postApiV3FilesUpload({
+              body: formData as any,
+            });
+
+            if (uploadRes.data && (uploadRes.data as any).fid) {
+              serverPhotoId = (uploadRes.data as any).fid;
+            }
+          }
+        }
+
+        // 2. Call Check-in/Check-out Async API
+        const payload = {
+          latitude: record.location?.latitude,
+          longitude: record.location?.longitude,
+          photoId: serverPhotoId,
+          eventTime: new Date(record.timestamp).toISOString(),
+        };
+
+        if (record.type === "check-in") {
+          await postApiV3AttendanceCheckInAsync({ body: payload });
+        } else if (record.type === "check-out") {
+          await postApiV3AttendanceCheckOutAsync({ body: payload });
+        } else {
+          console.warn(
+            `[Sync] Unknown record type: ${record.type}, skipping API call but marking handled.`,
+          );
+        }
+
+        // 3. Cleanup Local Data
         if (record.photoId) {
           await deletePhotoFromDB(record.photoId);
         }
+        successfullySyncedIds.push(record.id);
         successCount++;
       } catch (e) {
         console.error(`Failed to sync record ${record.id}`, e);
+        // Do not add to successfullySyncedIds, so it remains in storage
       }
     }
 
-    // Update storage: remove synced records
-    // For simplicity in this demo, we remove them from the list
+    // Update storage: Keep records that were NOT successfully synced
+    // (We also keep previously synced records if we wanted to keep history, but here we just purge pending)
     const remaining = records.filter(
-      (r) => !pending.some((p) => p.id === r.id),
+      (r) => !successfullySyncedIds.includes(r.id),
     );
     await DeviceStorage.setItem(STORAGE_KEY, JSON.stringify(remaining));
 
@@ -216,20 +264,54 @@ export const OfflineAttendanceService = {
 
     if (!record) return false;
 
-    const photo = record.photoId ? await getPhoto(record.photoId) : null;
+    try {
+      let serverPhotoId: string | null = null;
 
-    // Simulate API call
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+      // 1. Upload Photo if exists
+      if (record.photoId) {
+        const base64 = await getPhoto(record.photoId);
+        if (base64) {
+          const blob = dataURItoBlob(base64);
+          const formData = new FormData();
+          formData.append("file", blob, "offline-attendance.jpg");
 
-    // Success: Remove photo and metadata
-    if (record.photoId) {
-      await deletePhotoFromDB(record.photoId);
+          const uploadRes = await postApiV3FilesUpload({
+            body: formData as any,
+          });
+
+          if (uploadRes.data && (uploadRes.data as any).fid) {
+            serverPhotoId = (uploadRes.data as any).fid;
+          }
+        }
+      }
+
+      // 2. Call Async API
+      const payload = {
+        latitude: record.location?.latitude,
+        longitude: record.location?.longitude,
+        photoId: serverPhotoId,
+        eventTime: new Date(record.timestamp).toISOString(),
+      };
+
+      if (record.type === "check-in") {
+        await postApiV3AttendanceCheckInAsync({ body: payload });
+      } else if (record.type === "check-out") {
+        await postApiV3AttendanceCheckOutAsync({ body: payload });
+      }
+
+      // 3. Cleanup
+      if (record.photoId) {
+        await deletePhotoFromDB(record.photoId);
+      }
+
+      const remaining = records.filter((r) => r.id !== id);
+      await DeviceStorage.setItem(STORAGE_KEY, JSON.stringify(remaining));
+
+      return true;
+    } catch (e) {
+      console.error(`Failed to sync record ${id}`, e);
+      throw e;
     }
-
-    const remaining = records.filter((r) => r.id !== id);
-    await DeviceStorage.setItem(STORAGE_KEY, JSON.stringify(remaining));
-
-    return true;
   },
 
   deleteRecord: async (id: string) => {
@@ -244,3 +326,15 @@ export const OfflineAttendanceService = {
     await DeviceStorage.setItem(STORAGE_KEY, JSON.stringify(remaining));
   },
 };
+
+function dataURItoBlob(dataURI: string) {
+  const split = dataURI.split(",");
+  const byteString = atob(split[1]);
+  const mimeString = split[0].split(":")[1].split(";")[0];
+  const ab = new ArrayBuffer(byteString.length);
+  const ia = new Uint8Array(ab);
+  for (let i = 0; i < byteString.length; i++) {
+    ia[i] = byteString.charCodeAt(i);
+  }
+  return new Blob([ab], { type: mimeString });
+}

@@ -96,13 +96,21 @@ export const AttendanceHistorySection = memo(function AttendanceHistorySection({
   return (
     <div className="flex flex-col gap-4  mt-8 pb-10">
       {/* Section Header */}
-      <div className="flex items-center gap-3 px-1">
-        <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400">
-          <CalendarCheck className="h-5 w-5" />
+      <div className="flex items-center justify-between px-1">
+        <div className="flex items-center gap-3">
+          <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400">
+            <CalendarCheck className="h-5 w-5" />
+          </div>
+          <Title className="!text-lg !font-bold text-blue-900 dark:text-blue-100 m-0">
+            Lịch sử Chấm công
+          </Title>
         </div>
-        <Title className="!text-lg !font-bold text-blue-900 dark:text-blue-100 m-0">
-          Lịch sử Chấm công
-        </Title>
+        <button
+          onClick={() => navigate("/attendance-history")}
+          className="text-xs font-bold text-blue-500 underline underline-offset-4"
+        >
+          Xem chi tiết
+        </button>
       </div>
 
       {/* Stats Summary Card */}
@@ -139,8 +147,8 @@ export const AttendanceHistorySection = memo(function AttendanceHistorySection({
         </div>
       </Card>
 
-      {/* History List using zmp-ui List */}
-      <div className="mt-2">
+      {/* Recent History List */}
+      <div className="flex flex-col gap-3">
         {isLoading ? (
           <div className="py-12 flex justify-center">
             <div className="h-8 w-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
@@ -153,80 +161,65 @@ export const AttendanceHistorySection = memo(function AttendanceHistorySection({
             <Text className="!text-sm m-0">Không có dữ liệu chấm công</Text>
           </div>
         ) : (
-          <List
-            dataSource={recentHistory}
-            renderItem={(item: HistoryItem) => {
-              const config = getStatusConfig(item.status);
-              return (
-                <div key={item.id} className="mb-3">
-                  <Card className="p-4 border-none bg-white dark:bg-slate-900 shadow-sm hover:shadow-md transition-all duration-300 rounded-2xl active:scale-[0.98]">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div
-                          className={cn(
-                            "w-12 h-12 rounded-2xl flex flex-col items-center justify-center border transition-all",
-                            config.iconBg,
-                            config.color,
-                            "border-transparent",
-                          )}
-                        >
-                          <span className="text-[10px] font-bold uppercase opacity-60">
-                            Th{format(item.date, "M")}
-                          </span>
-                          <span className="text-lg font-black leading-none mt-0.5">
-                            {format(item.date, "dd")}
-                          </span>
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <div className="flex items-center gap-2">
-                            <Header className="!text-sm !font-bold text-slate-900 dark:text-white m-0 capitalize">
-                              {format(item.date, "EEEE", { locale: vi })}
-                            </Header>
-                            <div
-                              className={cn(
-                                "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider",
-                                config.bg,
-                                config.color,
-                              )}
-                            >
-                              {config.label}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-3">
-                            <div className="flex items-center gap-1.5">
-                              <Timer className="h-3 w-3 text-slate-400" />
-                              <Text className="!text-xs !text-slate-500 m-0">
-                                {item.checkIn || "--:--"}
-                              </Text>
-                            </div>
-                            <div className="h-1 w-1 rounded-full bg-slate-300" />
-                            <div className="flex items-center gap-1.5">
-                              <div className="h-3 w-3 rounded-full border border-slate-300 flex items-center justify-center">
-                                <div className="h-1 w-1 rounded-full bg-slate-400" />
-                              </div>
-                              <Text className="!text-xs !text-slate-500 m-0">
-                                {item.checkOut || "--:--"}
-                              </Text>
-                            </div>
+          <>
+            <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">
+              Gần đây
+            </h4>
+            <div className="flex flex-col gap-3">
+              {recentHistory.map((item) => {
+                const config = getStatusConfig(item.status);
+                return (
+                  <div
+                    key={item.id}
+                    className="p-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-100 dark:border-gray-700 flex items-center justify-between cursor-pointer active:scale-[0.98] transition-all"
+                    onClick={() => navigate("/attendance-history")}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex flex-col items-center justify-center w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800">
+                        <span className="text-[10px] text-blue-600 font-medium uppercase">
+                          Th{format(item.date, "M")}
+                        </span>
+                        <span className="text-sm font-bold text-blue-700 dark:text-blue-400">
+                          {format(item.date, "dd")}
+                        </span>
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-sm font-medium text-gray-900 dark:text-gray-100 capitalize">
+                          {format(item.date, "EEEE", { locale: vi })}
+                        </span>
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-1.5">
+                            <Timer className="h-3 w-3 text-gray-400" />
+                            <span className="text-xs text-gray-500">
+                              {item.checkIn || "--:--"} -{" "}
+                              {item.checkOut || "--:--"}
+                            </span>
                           </div>
                         </div>
                       </div>
-                      <ChevronRight className="h-5 w-5 text-slate-300" />
                     </div>
-                  </Card>
-                </div>
-              );
-            }}
-          />
+
+                    <div className="flex items-center">
+                      <div
+                        className={cn(
+                          "px-2 py-1 rounded text-[10px] font-bold uppercase border",
+                          config.bg,
+                          config.color,
+                          config.color
+                            .replace("text-", "border-")
+                            .replace("600", "100"),
+                        )}
+                      >
+                        {config.label}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
-
-      <button
-        onClick={() => navigate("/attendance-history")}
-        className="w-full py-4 text-blue-600 dark:text-blue-400 font-bold text-sm bg-blue-50 dark:bg-blue-900/20 rounded-2xl active:scale-[0.98] transition-all mt-2"
-      >
-        Xem tất cả lịch sử
-      </button>
     </div>
   );
 });

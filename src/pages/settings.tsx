@@ -806,7 +806,7 @@ export default function SettingsPage() {
             </p>
           </div>
         ) : (
-          <Box className="pb-16">
+          <Box>
             {/* Profile Header section with Avatar replacement logic */}
             <div className="relative overflow-hidden bg-gradient-to-b from-orange-500/10 to-transparent pb-8 pt-6">
               <div className="flex flex-col items-center">
@@ -1500,7 +1500,7 @@ export default function SettingsPage() {
 
       {/* Sticky Save Footer */}
       {!isFetching && (
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-100 dark:border-[#353A45] bg-white dark:bg-[#1a1d23]/80 backdrop-blur-xl z-50 pb-safe">
+        <div className="p-4 border-t border-gray-100 dark:border-[#353A45] bg-white dark:bg-[#1a1d23]/80 backdrop-blur-xl z-50 pb-safe">
           <Button
             className="w-full h-14 rounded-2xl bg-orange-600 text-white font-black text-sm uppercase tracking-[0.15em] shadow-xl shadow-orange-600/20 flex items-center justify-center gap-3 hover:bg-orange-700 transition-all active:scale-[0.98]"
             onClick={handleSaveProfile}

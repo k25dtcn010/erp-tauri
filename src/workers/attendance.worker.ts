@@ -62,6 +62,12 @@ const addWatermark = async (
   imageSource: string,
   options: WatermarkOptions,
 ): Promise<Blob> => {
+  if (!options) {
+    console.error("[Worker] Watermark options are missing or undefined");
+    throw new Error("Watermark options missing");
+  }
+  console.log("[Worker] addWatermark options:", JSON.stringify(options));
+
   // 1. Load Image
   const originalImage = await loadImageBitmap(imageSource);
   const originalWidth = originalImage.width;
@@ -125,10 +131,16 @@ const addWatermark = async (
 
   const codeStr = options.employeeCode;
   let locationStr = "";
-  if (options.location.address) {
+  if (options.location?.address) {
     locationStr = options.location.address;
-  } else {
+  } else if (
+    options.location &&
+    typeof options.location.latitude === "number" &&
+    typeof options.location.longitude === "number"
+  ) {
     locationStr = `${options.location.latitude.toFixed(6)}, ${options.location.longitude.toFixed(6)}`;
+  } else {
+    locationStr = "Unknown Location";
   }
 
   // 7. Draw Shadow
@@ -200,6 +212,7 @@ const addWatermark = async (
 // --- WORKER HANDLER ---
 self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
   if (e.data.type === "PROCESS_ATTENDANCE") {
+    console.log("[Worker] Received PROCESS_ATTENDANCE event", e.data.payload);
     const { images, metadata, recordId, eventId, apiConfig } = e.data.payload;
     const base64Image = images[0]; // Assuming single image for now
 
@@ -223,6 +236,7 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
       });
 
       // 3. Upload & Update Event (if online and eventId provided)
+      let isSynced = false;
       if (eventId && apiConfig.baseUrl) {
         try {
           // Prepare Headers
@@ -262,9 +276,8 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
 
           const uploadData = await uploadRes.json();
 
-          // User explicitly stated: Use the ID from checkin/checkout response (eventId)
-          // as the photoId, NOT the ID from the upload API.
-          const photoId = eventId;
+          // Use the 'fid' returned from the upload API
+          const photoId = uploadData.fid || uploadData.id;
 
           if (photoId) {
             // B. Update Event
@@ -282,6 +295,7 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
             });
 
             if (updateRes.ok) {
+              isSynced = true;
             } else {
               const errorText = await updateRes.text();
               console.warn(
@@ -303,6 +317,7 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
                 });
 
                 if (fallbackRes.ok) {
+                  isSynced = true;
                 } else {
                   console.error(
                     "[Worker] Event photo update failed (fallback path)",
@@ -325,7 +340,7 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
       }
 
       // Done
-      self.postMessage({ type: "SUCCESS", recordId });
+      self.postMessage({ type: "SUCCESS", recordId, synced: isSynced });
     } catch (err) {
       console.error("[Worker] Processing failed:", err);
       self.postMessage({ type: "ERROR", recordId, error: err });

@@ -90,11 +90,11 @@ export const LeaveSection = memo(function LeaveSection({
       </Card>
 
       {/* Recent Requests List */}
-      {requests.length > 0 && (
-        <div className="flex flex-col gap-3">
-          <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">
-            Gần đây
-          </h4>
+      <div className="flex flex-col gap-3">
+        <h4 className="text-sm font-bold text-gray-700 dark:text-gray-300">
+          Gần đây
+        </h4>
+        {requests.length > 0 ? (
           <div className="flex flex-col gap-3">
             {requests.map((req) => (
               <div
@@ -149,8 +149,12 @@ export const LeaveSection = memo(function LeaveSection({
               </div>
             ))}
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="p-4 rounded-xl bg-gray-50/50 dark:bg-gray-800/50 border border-dashed border-gray-200 dark:border-gray-700 flex items-center justify-center py-8">
+            <span className="text-xs text-gray-500 italic">Không có yêu cầu nghỉ phép nào gần đây</span>
+          </div>
+        )}
+      </div>
 
       {/* Action Buttons */}
       <div className="grid grid-cols-1 gap-3">

@@ -54,7 +54,7 @@ const { Option } = Select;
 interface AttendanceRecord {
   id?: string;
   date: Date;
-  status: "normal" | "late" | "absent" | "leave" | "holiday" | "weekend";
+  status: "normal" | "late" | "absent" | "leave" | "holiday" | "weekend" | "none";
   checkIn?: string;
   checkOut?: string;
   totalHours?: number;
@@ -74,7 +74,6 @@ interface AttendanceRecord {
 const AttendanceHistoryPage = () => {
   const navigate = useNavigate();
   const [selectedMonth, setSelectedMonth] = useState(new Date());
-  const [filterStatus, setFilterStatus] = useState("all");
   const [isLoading, setIsLoading] = useState(false);
   const [selectedDate, setSelectedDate] = useState<AttendanceRecord | null>(
     null,
@@ -89,6 +88,12 @@ const AttendanceHistoryPage = () => {
   useSheetBackHandler(isDetailOpen, closeDetail);
   useSheetBackHandler(isModalVisible, closeModal);
 
+  const [userName, setUserName] = useState<string>(() => {
+    return localStorage.getItem("cached_userName") || "";
+  });
+  const [userAvatar, setUserAvatar] = useState<string>(() => {
+    return localStorage.getItem("cached_userAvatar") || "";
+  });
   const [employeeId, setEmployeeId] = useState<string>(() => {
     return localStorage.getItem("cached_employeeId") || "";
   });
@@ -96,20 +101,30 @@ const AttendanceHistoryPage = () => {
 
   // Fetch user data
   useEffect(() => {
-    if (employeeId) return;
     const fetchUser = async () => {
       try {
         const res = await getApiEmployeesMe();
         if (res.data) {
           const data = (res.data as any).data;
-          setEmployeeId(data.id || "");
+          const fullName = data.fullName;
+          const avatar = data.avatarUrl || "";
+          const id = data.id || "";
+
+          setUserName(fullName);
+          setUserAvatar(avatar);
+          setEmployeeId(id);
+
+          // Cache the data
+          localStorage.setItem("cached_userName", fullName);
+          localStorage.setItem("cached_userAvatar", avatar);
+          localStorage.setItem("cached_employeeId", id);
         }
       } catch (error) {
         console.error("Failed to fetch user information", error);
       }
     };
     fetchUser();
-  }, [employeeId]);
+  }, []);
 
   const fetchHistory = useCallback(async () => {
     if (!employeeId) return;
@@ -201,17 +216,12 @@ const AttendanceHistoryPage = () => {
 
       return {
         date,
-        status: isWeekend ? "weekend" : isFuture ? "normal" : "absent",
+        status: isWeekend ? "weekend" : isFuture ? "none" : "absent",
         totalHours: 0,
         sessions: [],
       } as AttendanceRecord;
     });
   }, [selectedMonth, apiData]);
-
-  const filteredData = useMemo(() => {
-    if (filterStatus === "all") return attendanceData;
-    return attendanceData.filter((d) => d.status === filterStatus);
-  }, [attendanceData, filterStatus]);
 
   // Calendar stats
   const stats = useMemo(() => {
@@ -280,6 +290,13 @@ const AttendanceHistoryPage = () => {
           text: "text-purple-600",
           bg: "bg-purple-50",
         };
+      case "none":
+        return {
+          label: "Chưa đến",
+          color: "bg-gray-100",
+          text: "text-gray-400",
+          bg: "bg-gray-50",
+        };
       default:
         return {
           label: "Không xác định",
@@ -310,10 +327,11 @@ const AttendanceHistoryPage = () => {
     <PageContainer
       header={
         <CustomPageHeader
-          title="Lịch sử"
+          title="LỊCH SỬ"
           subtitle="Chấm công"
           onBack={() => navigate(-1)}
-          variant="blue"
+          user={{ name: userName, avatar: userAvatar }}
+          variant="default"
         />
       }
     >
@@ -382,31 +400,6 @@ const AttendanceHistoryPage = () => {
           </p>
         </div>
       </Card>
-
-      {/* Filter Bar (Shadcn/Custom) */}
-      <div className="overflow-x-auto no-scrollbar py-2 -mx-1 px-1 flex items-center gap-3">
-        {[
-          { label: "Tất cả", value: "all" },
-          { label: "Bình thường", value: "normal" },
-          { label: "Đi muộn", value: "late" },
-          { label: "Vắng mặt", value: "absent" },
-          { label: "Nghỉ phép", value: "leave" },
-        ].map((filter) => (
-          <Badge
-            key={filter.value}
-            variant={filterStatus === filter.value ? "default" : "outline"}
-            className={cn(
-              "whitespace-nowrap px-4 py-2 rounded-full text-xs font-bold transition-all cursor-pointer shrink-0",
-              filterStatus === filter.value
-                ? "bg-blue-600 border-blue-600 text-white shadow-md shadow-blue-500/20"
-                : "bg-white dark:bg-[#262A31] border-gray-100 dark:border-gray-800 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800",
-            )}
-            onClick={() => setFilterStatus(filter.value)}
-          >
-            {filter.label}
-          </Badge>
-        ))}
-      </div>
 
       {/* Calendar Section (Shadcn Card) */}
       <div className="space-y-4">

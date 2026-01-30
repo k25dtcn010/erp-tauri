@@ -16,6 +16,7 @@ import { AnticheatService } from "@/services/anticheat";
 import { OfflineAttendanceService } from "@/services/offline-attendance";
 import { WifiOff, RefreshCw, ChevronRight } from "lucide-react";
 import { UnsyncedRecordsSheet } from "@/components/dashboard/UnsyncedRecordsSheet";
+import { GpsRegistrationModal } from "@/components/dashboard/GpsRegistrationModal";
 import { PageContainer } from "@/components/layout/PageContainer";
 import {
   getApiV3AttendanceToday,
@@ -26,6 +27,7 @@ import {
 } from "@/client-timekeeping/sdk.gen";
 import { getApiEmployeesMe } from "@/client/sdk.gen";
 import { CustomPageHeader } from "@/components/layout/CustomPageHeader";
+import { MainHeader } from "@/components/layout/MainHeader";
 import {
   format,
   startOfMonth,
@@ -83,6 +85,8 @@ const DashboardPage: React.FC = () => {
   } = useSyncStore();
 
   const [isSyncSheetOpen, setIsSyncSheetOpen] = useState(false);
+  const [isGpsModalOpen, setIsGpsModalOpen] = useState(false);
+  const [gpsData, setGpsData] = useState<any>(null);
 
   // Handle Android back button for sheets
   const closeFaceModal = useCallback(() => setIsFaceModalOpen(false), []);
@@ -472,11 +476,27 @@ const DashboardPage: React.FC = () => {
       photoDataUrl: string,
       metadata: { location?: any; deviceInfo?: any },
       onlineTrialFailed?: boolean,
+      responseData?: any,
     ) => {
       setIsFaceModalOpen(false);
 
       // Refresh pending count since modal just saved a record
       await refreshPendingCount();
+
+      // Check if response is PENDING_APPROVAL and has GPS info
+      if (
+        responseData?.status === "PENDING_APPROVAL" &&
+        responseData?.nearestLocation
+      ) {
+        setGpsData({
+          latitude: metadata.location?.latitude || 0,
+          longitude: metadata.location?.longitude || 0,
+          distance: responseData.nearestLocation.distance,
+          nearestLocationName: responseData.nearestLocation.name,
+        });
+        setIsGpsModalOpen(true);
+        return;
+      }
 
       // Refresh today's status and history from API
       if (isOnline && !onlineTrialFailed) {
@@ -581,11 +601,9 @@ const DashboardPage: React.FC = () => {
   return (
     <PageContainer
       header={
-        <CustomPageHeader
-          title={userName || "TỔNG QUAN"}
+        <MainHeader
+          title="TỔNG QUAN"
           subtitle="Dashboard"
-          user={{ name: userName, avatar: userAvatar }}
-          variant="default"
         />
       }
     >
@@ -688,6 +706,19 @@ const DashboardPage: React.FC = () => {
         onClose={() => setIsSyncSheetOpen(false)}
         onSyncComplete={refreshPendingCount}
       />
+
+      {gpsData && (
+        <GpsRegistrationModal
+          isOpen={isGpsModalOpen}
+          onClose={() => setIsGpsModalOpen(false)}
+          location={gpsData}
+          employeeId={employeeId}
+          onSuccess={() => {
+            fetchDashboardData();
+            if (employeeId) fetchHistoryData(employeeId);
+          }}
+        />
+      )}
     </PageContainer>
   );
 };

@@ -669,6 +669,7 @@ export function FaceVerificationModal({
       let eventId: string | undefined = undefined;
 
       let onlineTrialFailed = false;
+      let responseData: any = null;
       if (navigator.onLine) {
         try {
           let asyncRes: any = null;
@@ -685,6 +686,8 @@ export function FaceVerificationModal({
               body,
             });
           }
+
+          responseData = asyncRes?.data || asyncRes;
 
           if (asyncRes && asyncRes.data && (asyncRes.data as any).id) {
             eventId = (asyncRes.data as any).id;
@@ -764,7 +767,7 @@ export function FaceVerificationModal({
         deviceInfo,
       };
 
-      onVerified(dataUrl, uiMetadata, onlineTrialFailed);
+      onVerified(dataUrl, uiMetadata, onlineTrialFailed, responseData);
     } catch (err) {
       console.error("[Capture] Error:", err);
       // Even if error, likely UI should show error or retry

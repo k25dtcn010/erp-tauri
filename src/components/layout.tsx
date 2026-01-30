@@ -22,12 +22,33 @@ import SettingsPage from "@/pages/settings";
 import UnderDevelopmentPage from "@/pages/under-development";
 import BottomNav from "./BottomNav";
 import AndroidRestrictionModal from "./AndroidRestrictionModal";
+import { useUserStore } from "@/store/user-store";
 
 const LayoutContent = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const isLoginPage = location.pathname === "/login";
   const [isAndroid, setIsAndroid] = useState(false);
+  const { fetchUser, setIsOnline } = useUserStore();
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, [setIsOnline]);
+
+  useEffect(() => {
+    if (!isLoginPage) {
+      fetchUser();
+    }
+  }, [isLoginPage, fetchUser]);
 
   useEffect(() => {
     try {

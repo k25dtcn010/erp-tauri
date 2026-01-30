@@ -8,42 +8,42 @@ import { nativeStorage } from "zmp-sdk/apis";
 
 // --- Storage Helper ---
 const DeviceStorage = {
-  setItem: async (key: string, value: string) => {
+  setItem: (key: string, value: string) => {
     try {
-      await nativeStorage.setItem(key, value);
+      nativeStorage.setItem(key, value);
     } catch (e) {
-      console.warn(
-        `[Storage] nativeStorage setItem failed for ${key}, fallback to localStorage`,
-        e,
-      );
+      // console.warn(
+      //   `[Storage] nativeStorage setItem failed for ${key}, fallback to localStorage`,
+      //   e,
+      // );
       try {
         localStorage.setItem(key, value);
       } catch (localError) {
-        console.error(`[Storage] localStorage setItem also failed`, localError);
+        // console.error(`[Storage] localStorage setItem also failed`, localError);
       }
     }
   },
-  getItem: async (key: string): Promise<string | null> => {
+  getItem: (key: string): string | null => {
     try {
-      const value = await nativeStorage.getItem(key);
+      const value = nativeStorage.getItem(key);
       if ((value as any)?.error) throw (value as any).error;
       return typeof value === "string" ? value : ((value as any)?.data ?? null);
     } catch (e) {
-      console.warn(
-        `[Storage] nativeStorage getItem failed for ${key}, fallback to localStorage`,
-        e,
-      );
+      // console.warn(
+      //   `[Storage] nativeStorage getItem failed for ${key}, fallback to localStorage`,
+      //   e,
+      // );
       return localStorage.getItem(key);
     }
   },
-  removeItem: async (key: string) => {
+  removeItem: (key: string) => {
     try {
-      await nativeStorage.removeItem(key);
+      nativeStorage.removeItem(key);
     } catch (e) {
-      console.warn(
-        `[Storage] nativeStorage removeItem failed for ${key}, fallback to localStorage`,
-        e,
-      );
+      // console.warn(
+      //   `[Storage] nativeStorage removeItem failed for ${key}, fallback to localStorage`,
+      //   e,
+      // );
       localStorage.removeItem(key);
     }
   },

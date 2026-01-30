@@ -254,33 +254,63 @@ export function FaceVerificationModal({
   const workerRef = useRef<Worker | null>(null);
 
   useEffect(() => {
-    // Initialize Web Worker
-    workerRef.current = new Worker(
-      new URL("../../workers/attendance.worker.ts", import.meta.url),
-      { type: "module" },
-    );
+    let isTerminated = false;
+    const workerUrl = new URL("../../workers/attendance.worker.ts", import.meta.url);
 
-    workerRef.current.onmessage = async (e) => {
-      const { type, recordId, synced, error } = e.data;
-      if (type === "SUCCESS") {
-        if (synced && recordId) {
-          console.log(
-            `[Worker] Record ${recordId} synced successfully. Removing from offline storage.`,
-          );
-          await OfflineAttendanceService.deleteRecord(recordId);
+    const initWorker = async () => {
+      try {
+        // Fetch worker script to bypass cross-origin restriction
+        const response = await fetch(workerUrl.toString());
+        const script = await response.text();
+        const blob = new Blob([script], { type: "application/javascript" });
+        const blobUrl = URL.createObjectURL(blob);
+
+        if (isTerminated) {
+          URL.revokeObjectURL(blobUrl);
+          return;
         }
-        // Update sync state
-        useSyncStore.getState().setSyncing(false);
-        useSyncStore.getState().refreshPendingCount();
-      } else if (type === "ERROR") {
-        console.error(`[Worker] Failed to process record ${recordId}`, error);
-        useSyncStore.getState().setSyncing(false);
-        useSyncStore.getState().refreshPendingCount();
+
+        workerRef.current = new Worker(blobUrl, { type: "module" });
+
+        workerRef.current.onerror = (err) => {
+          console.error("[Worker] ❌ Lỗi hệ thống Worker:", err.message, err);
+        };
+
+        workerRef.current.onmessageerror = (err) => {
+          console.error("[Worker] ❌ Lỗi truyền tin (Message Error):", err);
+        };
+
+        workerRef.current.onmessage = async (e) => {
+          const { type, recordId, synced, error } = e.data;
+          if (type === "SUCCESS") {
+            if (synced && recordId) {
+              console.log(
+                `[Worker] Record ${recordId} synced successfully. Removing from offline storage.`,
+              );
+              await OfflineAttendanceService.deleteRecord(recordId);
+            }
+            // Update sync state
+            useSyncStore.getState().setSyncing(false);
+            useSyncStore.getState().refreshPendingCount();
+          } else if (type === "ERROR") {
+            console.error(`[Worker] Failed to process record ${recordId}`, error);
+            useSyncStore.getState().setSyncing(false);
+            useSyncStore.getState().refreshPendingCount();
+          }
+        };
+      } catch (err) {
+        console.error("[Worker] Initialization failed:", err);
       }
     };
 
+    initWorker();
+
     return () => {
-      workerRef.current?.terminate();
+      isTerminated = true;
+      if (workerRef.current) {
+        workerRef.current.terminate();
+        workerRef.current = null;
+      }
     };
   }, []);
   const keepAliveIntervalRef = useRef<any>(null);
@@ -690,10 +720,18 @@ export function FaceVerificationModal({
       await useSyncStore.getState().refreshPendingCount();
 
       // 4. Send to Worker
+      console.log("[FaceVerificationModal] 🚀 Chuẩn bị gửi dữ liệu vào Worker. RecordId:", recordId);
       if (workerRef.current) {
         useSyncStore.getState().setSyncing(true); // START SYNCING
         const token = await authService.getAccessToken();
         const baseUrl = "https://api-timekeeping.canhhnac.xyz"; // TODO: Use env or config
+
+        console.log("[FaceVerificationModal] 📤 Đang gọi worker.postMessage với payload:", {
+          recordId,
+          eventId,
+          hasToken: !!token,
+          baseUrl
+        });
 
         workerRef.current.postMessage({
           type: "PROCESS_ATTENDANCE",

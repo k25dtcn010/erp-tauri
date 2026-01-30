@@ -22,19 +22,16 @@ export interface AttendanceRecord {
   };
   deviceInfo?: any;
   photoId?: string; // ID to retrieve from IndexedDB
+  metadataSynced?: boolean;
 }
 
 const STORAGE_KEY = "offline_attendance_records";
 
 const DeviceStorage = {
-  setItem: async (key: string, value: string) => {
+  setItem: (key: string, value: string) => {
     try {
-      await nativeStorage.setItem(key, value);
+      nativeStorage.setItem(key, value);
     } catch (e) {
-      console.warn(
-        `[Storage] nativeStorage setItem failed for ${key}, fallback to localStorage`,
-        e,
-      );
       try {
         localStorage.setItem(key, value);
       } catch (localError) {
@@ -42,16 +39,12 @@ const DeviceStorage = {
       }
     }
   },
-  getItem: async (key: string): Promise<string | null> => {
+  getItem: (key: string): string | null => {
     try {
-      const value = await nativeStorage.getItem(key);
+      const value = nativeStorage.getItem(key);
       if ((value as any)?.error) throw (value as any).error;
       return typeof value === "string" ? value : ((value as any)?.data ?? null);
     } catch (e) {
-      console.warn(
-        `[Storage] nativeStorage getItem failed for ${key}, fallback to localStorage`,
-        e,
-      );
       return localStorage.getItem(key);
     }
   },
@@ -62,21 +55,19 @@ export const OfflineAttendanceService = {
     return navigator.onLine;
   },
 
-  getRecords: async (): Promise<AttendanceRecord[]> => {
+  getRecords: (): AttendanceRecord[] => {
     try {
-      const value = await DeviceStorage.getItem(STORAGE_KEY);
+      const value = DeviceStorage.getItem(STORAGE_KEY);
       if (typeof value === "string") {
         try {
           const parsed = JSON.parse(value);
           return parsed;
         } catch (err) {
-          console.error("[OfflineService] JSON parse error:", err);
           return [];
         }
       }
       return (value as any) || [];
     } catch (e) {
-      console.error("[OfflineService] Error reading offline records", e);
       return [];
     }
   },
@@ -102,6 +93,7 @@ export const OfflineAttendanceService = {
       undefined,
       id,
       true,
+      true,
     );
     return !!result;
   },
@@ -111,8 +103,9 @@ export const OfflineAttendanceService = {
     photoDataUrl?: string,
     explicitId?: string,
     skipPhotoSave: boolean = false,
+    metadataSynced: boolean = false,
   ) => {
-    const records = await OfflineAttendanceService.getRecords();
+    const records = OfflineAttendanceService.getRecords();
     const id =
       explicitId ||
       (self.crypto && self.crypto.randomUUID
@@ -131,18 +124,14 @@ export const OfflineAttendanceService = {
           longitude: locResponse.longitude,
         };
       }
-    } catch (e) {
-      console.warn("Failed to get location", e);
-    }
+    } catch (e) {}
 
     try {
       if (!deviceInfo) {
         const deviceResponse = await getDeviceInfo({});
         deviceInfo = deviceResponse;
       }
-    } catch (e) {
-      console.warn("Failed to get device info", e);
-    }
+    } catch (e) {}
 
     const newRecord: AttendanceRecord = {
       ...record,
@@ -151,6 +140,7 @@ export const OfflineAttendanceService = {
       location,
       deviceInfo,
       photoId: photoDataUrl || skipPhotoSave ? id : undefined,
+      metadataSynced,
     };
 
     try {
@@ -164,11 +154,10 @@ export const OfflineAttendanceService = {
       await DeviceStorage.setItem(STORAGE_KEY, JSON.stringify(records));
 
       // Verify immediately
-      const verifyRaw = await DeviceStorage.getItem(STORAGE_KEY);
+      const verifyRaw = DeviceStorage.getItem(STORAGE_KEY);
 
       return id; // Return ID
     } catch (e) {
-      console.error("[OfflineService] Error saving record", e);
       return null;
     }
   },
@@ -180,7 +169,7 @@ export const OfflineAttendanceService = {
   syncRecords: async (): Promise<number> => {
     if (!navigator.onLine) return 0;
 
-    const records = await OfflineAttendanceService.getRecords();
+    const records = OfflineAttendanceService.getRecords();
     const pending = records.filter((r) => !r.synced);
 
     if (pending.length === 0) return 0;
@@ -229,9 +218,6 @@ export const OfflineAttendanceService = {
         } else if (record.type === "check-out") {
           await postApiV3AttendanceCheckOutAsync({ body: payload });
         } else {
-          console.warn(
-            `[Sync] Unknown record type: ${record.type}, skipping API call but marking handled.`,
-          );
         }
 
         // 3. Cleanup Local Data

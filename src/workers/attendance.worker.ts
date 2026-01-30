@@ -1,5 +1,34 @@
 /* eslint-disable no-restricted-globals */
-import { savePhoto } from "../lib/indexed-db";
+
+// --- INLINED INDEXEDDB LOGIC (Required for Blob Workers) ---
+const DB_NAME = "TimekeepingDB";
+const STORE_NAME = "attendance_photos";
+const DB_VERSION = 1;
+
+async function openDB(): Promise<IDBDatabase> {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+    request.onupgradeneeded = (event) => {
+      const db = (event.target as IDBOpenDBRequest).result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: "id" });
+      }
+    };
+    request.onsuccess = (event) => resolve((event.target as IDBOpenDBRequest).result);
+    request.onerror = (event) => reject((event.target as IDBOpenDBRequest).error);
+  });
+}
+
+async function savePhoto(id: string, photoDataUrl: string): Promise<void> {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const transaction = db.transaction(STORE_NAME, "readwrite");
+    const store = transaction.objectStore(STORE_NAME);
+    const request = store.put({ id, photoDataUrl });
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error);
+  });
+}
 
 // --- TYPES ---
 interface WatermarkOptions {
@@ -211,8 +240,9 @@ const addWatermark = async (
 
 // --- WORKER HANDLER ---
 self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
+  console.log("[Worker] 📥 Đã nhận được message từ Main Thread:", e.data.type);
   if (e.data.type === "PROCESS_ATTENDANCE") {
-    console.log("[Worker] Received PROCESS_ATTENDANCE event", e.data.payload);
+    console.log("[Worker] 📦 Payload chi tiết:", JSON.stringify(e.data.payload, null, 2));
     const { images, metadata, recordId, eventId, apiConfig } = e.data.payload;
     const base64Image = images[0]; // Assuming single image for now
 

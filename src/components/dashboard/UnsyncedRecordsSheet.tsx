@@ -197,15 +197,17 @@ export const UnsyncedRecordsSheet: React.FC<UnsyncedRecordsSheetProps> = ({
                     </div>
 
                     <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-gray-400 hover:text-red-500"
-                        onClick={(e) => handleDelete(record.id, e)}
-                        disabled={syncingIds[record.id] || isSyncingAll}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
+                      {!record.metadataSynced && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-gray-400 hover:text-red-500"
+                          onClick={(e) => handleDelete(record.id, e)}
+                          disabled={syncingIds[record.id] || isSyncingAll}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
                       <Button
                         size="sm"
                         className="h-8 text-xs gap-1"

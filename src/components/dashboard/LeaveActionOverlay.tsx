@@ -95,7 +95,7 @@ const LeaveActionOverlay: React.FC = () => {
       return "Số dư phép không đủ để thực hiện yêu cầu này";
     }
     if (message.toLowerCase().includes("overlap")) {
-      return "Thời gian nghỉ bị trùng với một đơn khác đã đăng ký";
+      return "Thời gian nghỉ bị trùng với một đơn khác đã xin";
     }
     return message || "Gửi yêu cầu thất bại. Vui lòng thử lại sau";
   };
@@ -181,7 +181,7 @@ const LeaveActionOverlay: React.FC = () => {
           </div>
           <div className="flex flex-col items-start leading-tight whitespace-nowrap z-10">
             <span className="text-[9px] uppercase font-black text-orange-600/60 dark:text-orange-400/60 tracking-widest block text-left mb-0.5">
-              Đăng ký đơn
+              Tạo đơn
             </span>
             <span className="block text-left text-xs font-bold text-slate-700 dark:text-slate-200">
               Đi muộn / Về sớm

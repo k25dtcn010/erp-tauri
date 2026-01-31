@@ -46,6 +46,7 @@ import {
 } from "@/components/ui/chart";
 import { CustomPageHeader } from "@/components/layout/CustomPageHeader";
 import { TimePicker } from "@/components/common/TimePicker";
+import { useUserStore } from "@/store/user-store";
 import {
   getApiV3OvertimeSchedules,
   postApiV3OvertimeSchedules,
@@ -66,6 +67,7 @@ const { Option } = ZSelect;
 
 const OvertimePage: React.FC = () => {
   const navigate = useNavigate();
+  const { userName, userAvatar } = useUserStore();
   const { openSnackbar } = useSnackbar();
   const [activeTab, setActiveTab] = useState("stats");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -322,6 +324,7 @@ const OvertimePage: React.FC = () => {
           <CustomPageHeader
             title="Tăng ca"
             subtitle="Overtime"
+            user={{ name: userName, avatar: userAvatar }}
             onBack={() => navigate(-1)}
             variant="purple"
           />

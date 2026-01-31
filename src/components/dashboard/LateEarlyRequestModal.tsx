@@ -50,7 +50,7 @@ export const LateEarlyRequestModal: React.FC<LateEarlyRequestModalProps> = ({
       <div className="p-4 pb-10 bg-white dark:bg-[#1a1d23] rounded-t-3xl min-h-[60vh]">
         <div className="flex justify-between items-center mb-6">
           <Text className="text-xl font-black text-slate-800 dark:text-white">
-            Đăng ký Đi muộn / Về sớm
+            Xin Đi muộn / Về sớm
           </Text>
           <button
             onClick={onClose}
@@ -96,13 +96,13 @@ export const LateEarlyRequestModal: React.FC<LateEarlyRequestModalProps> = ({
             <div className="space-y-3">
               <label className="text-[11px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
                 <CalendarDays className="h-3.5 w-3.5 text-orange-500" />
-                Ngày đăng ký
+                Ngày xin nghỉ
               </label>
 
               <DatePicker
                 mask
                 maskClosable
-                title="Chọn ngày đăng ký"
+                title="Chọn ngày xin nghỉ"
                 dateFormat="dd/mm/yyyy"
                 value={date}
                 onChange={(value) => setDate(value as Date)}
@@ -114,7 +114,7 @@ export const LateEarlyRequestModal: React.FC<LateEarlyRequestModalProps> = ({
             <div className="space-y-3">
               <label className="text-[11px] font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
                 <Clock className="h-3.5 w-3.5 text-orange-500" />
-                Giờ đăng ký
+                Giờ xin nghỉ
               </label>
               <TimePicker
                 value={time}

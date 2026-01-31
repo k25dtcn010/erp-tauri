@@ -1,90 +1,87 @@
 import React from "react";
-import { Modal, Box, Text, Button } from "zmp-ui";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { Button } from "zmp-ui";
 import { AlertCircle, Download, ShieldAlert } from "lucide-react";
+import { getSystemInfo } from "zmp-sdk";
+import { useAppConfigStore } from "@/store/config-store";
 
-interface AndroidRestrictionModalProps {
-  visible: boolean;
-}
+const AndroidRestrictionModal: React.FC = () => {
+  const { features, androidAppLink } = useAppConfigStore();
+  const [shouldShow, setShouldShow] = React.useState(false);
 
-const AndroidRestrictionModal: React.FC<AndroidRestrictionModalProps> = ({
-  visible,
-}) => {
+  React.useEffect(() => {
+    try {
+      const info = getSystemInfo();
+      // Hiện modal nếu: Tính năng chặn đang bật VÀ thiết bị là Android
+      if (features.enableAndroidRestriction && info.platform === "android") {
+        setShouldShow(true);
+      } else {
+        setShouldShow(false);
+      }
+    } catch (error) {
+      console.error("Failed to check system info:", error);
+    }
+  }, [features.enableAndroidRestriction]);
+
   const handleDownloadApp = () => {
-    window.open(
-      "https://play.google.com/store/apps/details?id=com.fiveminutes.hrm",
-      "_blank",
-    );
+    if (androidAppLink) {
+      window.open(androidAppLink, "_blank");
+    }
   };
 
   return (
-    <Modal
-      visible={visible}
-      maskClosable={false}
-      verticalActions
-      className="android-restriction-modal"
-    >
-      <Box className="flex flex-col items-center text-center">
-        {/* Animated Security Icon Section */}
-        <Box className="relative mb-8 mt-2">
-          <Box className="w-24 h-24 bg-gradient-to-br from-red-50 to-orange-50 dark:from-red-950/20 dark:to-orange-950/20 rounded-full flex items-center justify-center relative overflow-hidden">
-            {/* Background decorative pulse */}
-            <Box className="absolute inset-0 bg-red-500/10 animate-ping rounded-full" />
+    <Dialog open={shouldShow}>
+      <DialogContent
+        hideClose={true}
+        onPointerDownOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+        className="max-w-[340px] p-0 overflow-hidden border-none"
+      >
+        <div className="bg-white p-8 flex flex-col items-center text-center">
+          {/* Animated Security Icon Section */}
+          <div className="relative mb-8 mt-2">
+            <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center relative">
+              <div className="absolute inset-0 bg-red-500/10 animate-ping rounded-full" />
+              <div className="relative z-10 w-14 h-14 bg-white rounded-2xl shadow-lg flex items-center justify-center border border-red-100">
+                <ShieldAlert className="w-8 h-8 text-red-500" />
+              </div>
+            </div>
+            <div className="absolute -bottom-1 -right-1 bg-red-500 text-white p-1 rounded-full border-2 border-white shadow-lg">
+              <AlertCircle className="w-3 h-3" />
+            </div>
+          </div>
 
-            <Box className="relative z-10 w-16 h-16 bg-white dark:bg-gray-800 rounded-2xl shadow-xl flex items-center justify-center border border-red-100 dark:border-red-900/30">
-              <ShieldAlert className="w-10 h-10 text-red-500" />
-            </Box>
-          </Box>
+          <DialogHeader className="space-y-3">
+            <DialogTitle className="text-xl font-black text-slate-900 leading-tight">
+              Oops! <span className="text-red-500">Android</span> được hỗ trợ qua App
+            </DialogTitle>
+            <DialogDescription className="text-sm font-medium text-slate-500 leading-relaxed">
+              Để đảm bảo <span className="font-bold text-slate-900">bảo mật tối đa</span> và trải nghiệm tốt nhất, vui lòng sử dụng ứng dụng chính thức.
+            </DialogDescription>
+          </DialogHeader>
 
-          <Box className="absolute -bottom-2 -right-2 bg-red-500 text-white p-1.5 rounded-full border-4 border-white dark:border-gray-900 shadow-lg animate-bounce">
-            <AlertCircle className="w-4 h-4" />
-          </Box>
-        </Box>
-
-        {/* Content Section */}
-        <Box className="max-w-[280px] mx-auto">
-          <Text className="text-2xl font-black mb-2 text-gray-900 dark:text-white tracking-tight">
-            Oops! <span className="text-red-500">Android</span> được hỗ trợ qua
-            App
-          </Text>
-
-          <Box className="w-12 h-1 bg-red-500 mx-auto mb-6 rounded-full opacity-30" />
-
-          <Box className="space-y-4 mb-8">
-            <Text className="text-gray-600 dark:text-gray-400 text-base leading-relaxed">
-              Để đảm bảo{" "}
-              <span className="font-bold text-gray-900 dark:text-gray-100">
-                bảo mật tối đa
-              </span>{" "}
-              và trải nghiệm tốt nhất, vui lòng sử dụng ứng dụng chính thức trên
-              thiết bị Android.
-            </Text>
-
-            <Box className="py-3 px-4 bg-blue-50 dark:bg-blue-900/20 rounded-2xl inline-flex items-center gap-2 border border-blue-100 dark:border-blue-800/30">
-              <Box className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-              <Text className="text-blue-700 dark:text-blue-300 font-semibold text-sm">
-                Ứng dụng "5 Minutes" đã sẵn sàng
-              </Text>
-            </Box>
-          </Box>
-        </Box>
-
-        {/* Action Section */}
-        <Box className="w-full space-y-3">
-          <Button
-            fullWidth
-            prefixIcon={<Download className="w-5 h-5" />}
-            onClick={handleDownloadApp}
-            className="bg-gray-900 dark:bg-white text-white dark:text-gray-900 h-14 rounded-2xl text-lg font-bold transition-all active:scale-95 shadow-xl shadow-gray-500/20 dark:shadow-none"
-          >
-            Tải về ngay
-          </Button>
-
-          <Text className="text-[11px] text-gray-400 dark:text-gray-500 uppercase tracking-[0.2em] font-bold py-4">
-            Security Force • Five Minutes
-          </Text>
-        </Box>
-      </Box>
-    </Modal>
+          <div className="w-full mt-8">
+            <Button
+              fullWidth
+              prefixIcon={<Download className="w-4 h-4" />}
+              onClick={handleDownloadApp}
+              className="h-14 rounded-2xl bg-slate-900 text-white font-black uppercase text-xs tracking-widest shadow-xl shadow-slate-900/20 active:scale-[0.98] transition-all"
+            >
+              Tải ứng dụng ngay
+            </Button>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-6">
+              Security Force • Five Minutes
+            </p>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 };
 

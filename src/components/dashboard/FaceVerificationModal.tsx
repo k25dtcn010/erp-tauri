@@ -202,6 +202,7 @@ const CameraControls = memo(function CameraControls({
 // --- MAIN COMPONENT ---
 
 import { useCurrentTime } from "../../hooks/use-current-time";
+import AttendanceWorker from "../../workers/attendance.worker?worker&inline";
 
 interface FaceVerificationModalProps {
   isOpen: boolean;
@@ -254,59 +255,37 @@ export function FaceVerificationModal({
   const workerRef = useRef<Worker | null>(null);
 
   useEffect(() => {
-    let isTerminated = false;
-    const workerUrl = new URL("../../workers/attendance.worker.ts", import.meta.url);
+    const worker = new AttendanceWorker();
+    workerRef.current = worker;
 
-    const initWorker = async () => {
-      try {
-        // Fetch worker script to bypass cross-origin restriction
-        const response = await fetch(workerUrl.toString());
-        const script = await response.text();
-        const blob = new Blob([script], { type: "application/javascript" });
-        const blobUrl = URL.createObjectURL(blob);
+    worker.onerror = (err) => {
+      console.error("[Worker] ❌ Lỗi hệ thống Worker:", err.message, err);
+    };
 
-        if (isTerminated) {
-          URL.revokeObjectURL(blobUrl);
-          return;
+    worker.onmessageerror = (err) => {
+      console.error("[Worker] ❌ Lỗi truyền tin (Message Error):", err);
+    };
+
+    worker.onmessage = async (e) => {
+      const { type, recordId, synced, error } = e.data;
+      if (type === "SUCCESS") {
+        if (synced && recordId) {
+          console.log(
+            `[Worker] Record ${recordId} synced successfully. Removing from offline storage.`,
+          );
+          await OfflineAttendanceService.deleteRecord(recordId);
         }
-
-        workerRef.current = new Worker(blobUrl, { type: "module" });
-
-        workerRef.current.onerror = (err) => {
-          console.error("[Worker] ❌ Lỗi hệ thống Worker:", err.message, err);
-        };
-
-        workerRef.current.onmessageerror = (err) => {
-          console.error("[Worker] ❌ Lỗi truyền tin (Message Error):", err);
-        };
-
-        workerRef.current.onmessage = async (e) => {
-          const { type, recordId, synced, error } = e.data;
-          if (type === "SUCCESS") {
-            if (synced && recordId) {
-              console.log(
-                `[Worker] Record ${recordId} synced successfully. Removing from offline storage.`,
-              );
-              await OfflineAttendanceService.deleteRecord(recordId);
-            }
-            // Update sync state
-            useSyncStore.getState().setSyncing(false);
-            useSyncStore.getState().refreshPendingCount();
-          } else if (type === "ERROR") {
-            console.error(`[Worker] Failed to process record ${recordId}`, error);
-            useSyncStore.getState().setSyncing(false);
-            useSyncStore.getState().refreshPendingCount();
-          }
-        };
-      } catch (err) {
-        console.error("[Worker] Initialization failed:", err);
+        // Update sync state
+        useSyncStore.getState().setSyncing(false);
+        useSyncStore.getState().refreshPendingCount();
+      } else if (type === "ERROR") {
+        console.error(`[Worker] Failed to process record ${recordId}`, error);
+        useSyncStore.getState().setSyncing(false);
+        useSyncStore.getState().refreshPendingCount();
       }
     };
 
-    initWorker();
-
     return () => {
-      isTerminated = true;
       if (workerRef.current) {
         workerRef.current.terminate();
         workerRef.current = null;

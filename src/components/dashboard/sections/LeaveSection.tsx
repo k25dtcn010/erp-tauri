@@ -165,17 +165,16 @@ export const LeaveSection = memo(function LeaveSection({
           <div className="p-1 rounded bg-white/20 flex items-center justify-center text-white">
             <Plus className="h-4 w-4" />
           </div>
-          <span className="text-sm">Đăng ký nghỉ phép</span>
+          <span className="text-sm">Xin nghỉ phép</span>
         </Button>
         <Button
-          variant="outline"
-          className="w-full border border-orange-200 dark:border-orange-800 text-orange-600 dark:text-orange-400 rounded-xl h-11 font-bold hover:bg-orange-50 dark:hover:bg-orange-900/10 transition-all active:scale-[0.98] flex items-center justify-center gap-2 bg-transparent"
+          className="w-full bg-orange-500 hover:bg-orange-600 text-white rounded-xl h-11 font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-orange-500/20 border-none"
           onClick={() => navigate("/leave?action=late-early")}
         >
-          <div className="flex items-center justify-center">
+          <div className="p-1 rounded bg-white/20 flex items-center justify-center text-white">
             <Clock className="h-4 w-4" />
           </div>
-          <span className="text-sm">Đăng ký đi muộn, về sớm</span>
+          <span className="text-sm">Xin đi muộn, về sớm</span>
         </Button>
       </div>
     </div>

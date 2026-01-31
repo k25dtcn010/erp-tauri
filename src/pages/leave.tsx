@@ -41,6 +41,7 @@ import { cn } from "@/lib/utils";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { CustomPageHeader } from "@/components/layout/CustomPageHeader";
 import LeaveActionOverlay from "@/components/dashboard/LeaveActionOverlay";
+import { useUserStore } from "@/store/user-store";
 import {
   getApiV3LeaveRequestsMy,
   getApiV3LeavePoliciesBalances,
@@ -52,6 +53,7 @@ const { Option } = ZSelect;
 
 const LeavePage: React.FC = () => {
   const navigate = useNavigate();
+  const { userName, userAvatar } = useUserStore();
   const [activeTab, setActiveTab] = useState("balance");
 
   const [leaveBalances, setLeaveBalances] = useState<any[]>([]);
@@ -169,6 +171,7 @@ const LeavePage: React.FC = () => {
           <CustomPageHeader
             title="Nghỉ phép"
             subtitle="Leave"
+            user={{ name: userName, avatar: userAvatar }}
             onBack={() => navigate(-1)}
             variant="orange"
           />

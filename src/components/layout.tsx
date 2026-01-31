@@ -23,6 +23,8 @@ import UnderDevelopmentPage from "@/pages/under-development";
 import BottomNav from "./BottomNav";
 import AndroidRestrictionModal from "./AndroidRestrictionModal";
 import { useUserStore } from "@/store/user-store";
+import { useAppConfigStore } from "@/store/config-store";
+import BadgeNotification from "./layout/BadgeNotification";
 
 const LayoutContent = () => {
   const location = useLocation();
@@ -30,6 +32,24 @@ const LayoutContent = () => {
   const isLoginPage = location.pathname === "/login";
   const [isAndroid, setIsAndroid] = useState(false);
   const { fetchUser, setIsOnline } = useUserStore();
+  const { badges, dismissedBadgeIds, snoozedBadgeIds, fetchConfigs } = useAppConfigStore();
+
+  useEffect(() => {
+    if (!isLoginPage) {
+      fetchConfigs();
+    }
+  }, [isLoginPage, fetchConfigs]);
+
+  const activeBadges = badges.filter((b) => {
+    // Check if permanently dismissed in current session
+    if (dismissedBadgeIds.includes(b.id)) return false;
+
+    // Check if snoozed for 24h
+    const snoozeExpiry = snoozedBadgeIds[b.id];
+    if (snoozeExpiry && Date.now() < snoozeExpiry) return false;
+
+    return true;
+  });
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -81,6 +101,9 @@ const LayoutContent = () => {
 
   return (
     <Box className="flex-1 flex flex-col overflow-hidden">
+      {!isLoginPage && activeBadges.map((badge) => (
+        <BadgeNotification key={badge.id} badge={badge} />
+      ))}
       <AnimationRoutes>
         <Route path="/login" element={<LoginPage />}></Route>
         <Route path="/" element={<DashboardPage />}></Route>

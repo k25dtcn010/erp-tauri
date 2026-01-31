@@ -45,6 +45,7 @@ import { cn } from "@/lib/utils";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { CustomPageHeader } from "@/components/layout/CustomPageHeader";
 import {
+  patchApiEmployeesMe,
   getApiEmployeesMe,
   getApiEmployeesMeEmergencyContacts,
   getApiEmployeesMeDependents,
@@ -65,6 +66,7 @@ import {
 } from "@/client/sdk.gen";
 import { client } from "@/client/client.gen";
 import { authService } from "@/services/auth";
+import { useAppConfigStore } from "@/store/config-store";
 
 export default function SettingsPage() {
   const navigate = useNavigate();
@@ -72,6 +74,7 @@ export default function SettingsPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [activeTab, setActiveTab] = useState("profile");
+  const { features } = useAppConfigStore();
 
   // Profile data state
   const [user, setUser] = useState({
@@ -378,9 +381,22 @@ export default function SettingsPage() {
       }
 
       // 2. Profile other fields
-      // For now we only handle name since birthday/phone etc are often managed in specific ways
-      // But we can add them here if required.
-      // The individual contacts and dependents are now handled in their respective sheets/delete buttons.
+      // Cập nhật thông tin sức khỏe và các thông tin cá nhân khác
+      const profileUpdate = await patchApiEmployeesMe({
+        body: {
+          phone: user.phone,
+          // Chuyển đổi định dạng ngày sinh nếu cần (dd-mm-yyyy -> yyyy-mm-dd)
+          birthday: user.birthday ? user.birthday.split("-").reverse().join("-") : null,
+          height: user.height ? Number(user.height) : null,
+          weight: user.weight ? Number(user.weight) : null,
+          bloodType: user.bloodType,
+          healthNotes: user.healthNotes,
+        },
+      });
+
+      if (profileUpdate.error) {
+        throw new Error("Không thể cập nhật thông tin hồ sơ");
+      }
 
       openSnackbar({
         type: "success",
@@ -1486,91 +1502,83 @@ export default function SettingsPage() {
                 }
               >
                 <div className="mt-6 space-y-8 animate-in fade-in slide-in-from-bottom-2 duration-400 px-1">
-                  {/* Password Management */}
                   <section className="space-y-4">
-                    <div className="px-1 text-center py-4 bg-orange-50/50 dark:bg-orange-950/10 rounded-2xl border border-orange-100 dark:border-orange-900/20 mb-6">
-                      <Lock className="h-10 w-10 text-orange-600 mx-auto mb-3" />
-                      <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider">
-                        Đổi mật khẩu
-                      </h4>
-                      <p className="text-xs font-medium text-slate-500 dark:text-slate-400 mt-1 max-w-[240px] mx-auto">
-                        Mật khẩu nên có ít nhất 8 ký tự bao gồm chữ cái và số.
-                      </p>
-                    </div>
-
-                    <Card className="p-6 border-gray-100 dark:border-[#353A45] bg-white dark:bg-[#262A31] shadow-sm rounded-2xl space-y-5">
-                      <div className="space-y-2">
-                        <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                          Mật khẩu hiện tại
-                        </Label>
-                        <div className="relative">
-                          <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                          <Input
-                            type={showPassword ? "text" : "password"}
-                            placeholder="••••••••"
-                            value={currentPassword}
-                            onChange={(e) => setCurrentPassword(e.target.value)}
-                            className="pl-10 pr-10 h-12 rounded-xl bg-slate-50 dark:bg-slate-900/50 border-none font-bold"
-                          />
+                    <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                      Đổi mật khẩu
+                    </h3>
+                    <Card className="p-6 border-gray-100 dark:border-[#353A45] bg-white dark:bg-[#262A31] shadow-sm rounded-2xl space-y-4">
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            Mật khẩu hiện tại
+                          </Label>
+                          <div className="relative">
+                            <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                            <Input
+                              type={showPassword ? "text" : "password"}
+                              value={currentPassword}
+                              onChange={(e) => setCurrentPassword(e.target.value)}
+                              className="pl-10 pr-10 h-12 rounded-xl bg-slate-50 dark:bg-slate-900/50 border-none font-bold text-sm"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setShowPassword(!showPassword)}
+                              className="absolute right-3 top-3 text-slate-400 hover:text-orange-500 transition-colors"
+                            >
+                              {showPassword ? (
+                                <EyeOff className="h-4 w-4" />
+                              ) : (
+                                <Eye className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
-                          Mật khẩu mới
-                        </Label>
-                        <div className="relative">
-                          <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                          <Input
-                            type={showPassword ? "text" : "password"}
-                            placeholder="Tối thiểu 8 ký tự"
-                            value={newPassword}
-                            onChange={(e) => setNewPassword(e.target.value)}
-                            className="pl-10 pr-10 h-12 rounded-xl bg-slate-50 dark:bg-slate-900/50 border-none font-bold"
-                          />
-                          <button
-                            onClick={() => setShowPassword(!showPassword)}
-                            className="absolute right-3 top-3.5 text-slate-400 hover:text-orange-600 transition-colors"
-                          >
-                            {showPassword ? (
-                              <EyeOff className="h-4 w-4" />
-                            ) : (
-                              <Eye className="h-4 w-4" />
-                            )}
-                          </button>
+                        <div className="space-y-2">
+                          <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                            Mật khẩu mới
+                          </Label>
+                          <div className="relative">
+                            <Lock className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                            <Input
+                              type={showPassword ? "text" : "password"}
+                              value={newPassword}
+                              onChange={(e) => setNewPassword(e.target.value)}
+                              className="pl-10 pr-10 h-12 rounded-xl bg-slate-50 dark:bg-slate-900/50 border-none font-bold text-sm"
+                            />
+                          </div>
                         </div>
+                        <Button
+                          onClick={handleChangePassword}
+                          disabled={isLoading}
+                          className="w-full h-12 rounded-xl bg-slate-900 dark:bg-orange-600 text-white font-bold text-sm uppercase tracking-wider mt-2"
+                        >
+                          {isLoading ? (
+                            <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                          ) : (
+                            <Save className="h-4 w-4 mr-2" />
+                          )}
+                          Cập nhật mật khẩu
+                        </Button>
                       </div>
-                      <Button
-                        onClick={handleChangePassword}
-                        disabled={isLoading}
-                        className="w-full h-12 rounded-xl bg-slate-900 dark:bg-orange-600 text-white font-black uppercase text-xs tracking-widest shadow-lg shadow-orange-500/10 hover:bg-slate-800 transition-all active:scale-[0.98]"
-                      >
-                        {isLoading ? (
-                          <Loader2 className="h-5 w-5 animate-spin" />
-                        ) : (
-                          "Cập nhật mật khẩu"
-                        )}
-                      </Button>
                     </Card>
                   </section>
 
-                  {/* System & Logout */}
-                  <section className="pt-4 space-y-4">
+                  <section className="space-y-4">
+                    <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                      Đăng xuất
+                    </h3>
                     <Button
-                      variant="outline"
-                      className="w-full h-14 justify-between rounded-2xl border-red-100 dark:border-red-900/30 bg-red-50/30 dark:bg-red-950/10 p-4 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/20 group transition-all"
+                      variant="ghost"
                       onClick={handleLogout}
+                      className="w-full h-14 rounded-2xl bg-red-50 dark:bg-red-950/20 text-red-600 font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 border border-red-100 dark:border-red-900/20 hover:bg-red-100 dark:hover:bg-red-900/30 transition-all"
                     >
-                      <div className="flex items-center gap-3">
-                        <LogOut className="h-5 w-5 group-hover:-translate-x-1 transition-transform" />
-                        <span className="font-bold">
-                          Đăng xuất khỏi thiết bị
-                        </span>
-                      </div>
-                      <ChevronRight className="h-4 w-4 opacity-50" />
+                      <LogOut className="h-5 w-5" />
+                      Đăng xuất tài khoản
                     </Button>
                   </section>
                 </div>
               </Tabs.Tab>
+
             </Tabs>
           </Box>
         )}

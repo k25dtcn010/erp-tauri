@@ -49,79 +49,34 @@ export const CustomPageHeader: React.FC<CustomPageHeaderProps> = ({
   className,
 }) => {
   const styles = variantStyles[variant];
-  const initials = user?.name
-    ? user.name
-        .split(" ")
-        .map((n) => n[0])
-        .join("")
-        .substring(0, 2)
-        .toUpperCase()
-    : "AD";
 
   return (
-    <div
-      className={cn(
-        "relative flex items-center justify-center w-full",
-        className,
-      )}
-    >
-      <div className="absolute left-0 top-1/2 -translate-y-1/2 z-10">
+    <div className={cn("flex items-center w-full relative h-12", className)}>
+      <div className="absolute left-0 top-1/2 -translate-y-1/2 z-20">
         {onBack && (
           <Button
             variant="ghost"
             size="icon"
-            className="h-10 w-10 rounded-full bg-white/80 dark:bg-white/5 hover:bg-white dark:hover:bg-white/10 transition-all active:scale-95 shrink-0 shadow-sm border border-gray-100 dark:border-white/5"
+            className="h-9 w-9 -ml-1 rounded-full text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:hover:bg-white/10 dark:text-slate-400 transition-all"
             onClick={onBack}
           >
-            <ChevronLeft className="h-6 w-6 text-slate-500 dark:text-slate-400" />
+            <ChevronLeft className="h-6 w-6" />
           </Button>
         )}
       </div>
 
-      <div className="flex items-center gap-3 bg-white/80 dark:bg-white/5 backdrop-blur-md pl-1.5 pr-2 py-1.5 rounded-full border border-gray-200/50 dark:border-white/10 shadow-sm hover:shadow-md transition-all duration-300 ring-1 ring-black/5 dark:ring-white/5 z-0">
-        <div className="relative shrink-0">
-          <Avatar className="h-10 w-10 border-2 border-white dark:border-gray-800 shadow-sm transition-transform hover:scale-105">
-            <AvatarImage
-              src={user?.avatar || "https://i.pravatar.cc/150?u=a"}
-              alt={user?.name || "User"}
-              className="object-cover"
-            />
-            <AvatarFallback
-              className={cn(
-                "bg-gradient-to-br text-white font-bold text-xs",
-                styles.avatarGradient,
-              )}
-            >
-              {initials}
-            </AvatarFallback>
-          </Avatar>
-          <div className="absolute bottom-0 right-0 bg-green-500 h-3 w-3 rounded-full border-2 border-white dark:border-gray-800 shadow-[0_0_0_1px_rgba(255,255,255,1)] dark:shadow-none" />
-        </div>
-
-        <div className="flex flex-col min-w-[100px] px-1 justify-center">
-          <h1 className="text-sm font-black text-slate-800 dark:text-gray-100 leading-none uppercase tracking-tight truncate max-w-[140px]">
-            {title}
-          </h1>
-          <span
-            className={cn(
-              "text-[10px] font-bold bg-clip-text text-transparent bg-gradient-to-r uppercase tracking-widest opacity-90 mt-0.5",
-              styles.textGradient,
-            )}
-          >
-            {subtitle}
-          </span>
-        </div>
-
-        <div className="w-px h-8 bg-gray-100 dark:bg-white/10 mx-1" />
-
-        <Button
-          variant="ghost"
-          size="icon"
-          className="h-9 w-9 rounded-full hover:bg-gray-100 dark:hover:bg-white/10 relative shrink-0 transition-colors"
+      <div className="w-full flex flex-col items-center justify-center z-10 px-10">
+        <h1 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tight leading-none text-center truncate w-full">
+          {title}
+        </h1>
+        <span
+          className={cn(
+            "text-[10px] font-bold text-transparent bg-clip-text bg-gradient-to-r uppercase tracking-widest mt-0.5 text-center truncate w-full",
+            styles.textGradient,
+          )}
         >
-          <Bell className="h-5 w-5 text-gray-500 dark:text-gray-400" />
-          <span className="absolute top-2.5 right-2.5 h-2 w-2 bg-red-500 rounded-full border border-white dark:border-[#1a1d23]" />
-        </Button>
+          {subtitle}
+        </span>
       </div>
     </div>
   );

@@ -53,7 +53,7 @@ const { Option } = ZSelect;
 
 const LeavePage: React.FC = () => {
   const navigate = useNavigate();
-  const { userName, userAvatar } = useUserStore();
+  const { userName, userAvatar, employeeId } = useUserStore();
   const [activeTab, setActiveTab] = useState("balance");
 
   const [leaveBalances, setLeaveBalances] = useState<any[]>([]);
@@ -62,17 +62,28 @@ const LeavePage: React.FC = () => {
   const [filter, setFilter] = useState("all");
 
   const fetchData = async () => {
+    if (!employeeId) return;
     setLoading(true);
     try {
       const [balancesRes, requestsRes] = await Promise.all([
-        getApiV3LeavePoliciesBalances(),
+        getApiV3LeavePoliciesBalances({
+          query: { employeeId },
+        }),
         getApiV3LeaveRequestsMy({
           query: { limit: "50" },
         }),
       ]);
 
       if (balancesRes.data?.balances) {
-        setLeaveBalances(balancesRes.data.balances);
+        // Deduplicate by policyId and fiscalYear to prevent duplicates if API returns extra data
+        const uniqueBalancesMap = new Map();
+        balancesRes.data.balances.forEach((b: any) => {
+          const key = `${b.policyId}-${b.fiscalYear}`;
+          if (!uniqueBalancesMap.has(key)) {
+            uniqueBalancesMap.set(key, b);
+          }
+        });
+        setLeaveBalances(Array.from(uniqueBalancesMap.values()));
       }
 
       if (requestsRes.data?.requests) {
@@ -86,8 +97,10 @@ const LeavePage: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (employeeId) {
+      fetchData();
+    }
+  }, [employeeId]);
 
   useEffect(() => {
     const handleRefresh = () => fetchData();
@@ -261,9 +274,9 @@ const LeavePage: React.FC = () => {
                     <span>Chi tiết định mức</span>
                     <Info className="h-3.5 w-3.5 opacity-50" />
                   </h3>
-                  {leaveBalances.map((balance, idx) => (
+                  {leaveBalances.map((balance) => (
                     <Card
-                      key={idx}
+                      key={balance.id}
                       className="p-5 border-gray-100 dark:border-[#353A45] bg-white dark:bg-[#262A31] shadow-sm hover:shadow-md transition-all duration-300 rounded-2xl"
                     >
                       <div className="flex items-center gap-5">
@@ -356,7 +369,7 @@ const LeavePage: React.FC = () => {
                         className={cn(
                           "p-5 border-gray-100 dark:border-[#353A45] bg-white dark:bg-[#262A31] shadow-sm relative overflow-hidden transition-all hover:shadow-md hover:translate-y-[-2px] rounded-2xl group",
                           req.status?.toLowerCase() === "cancelled" &&
-                            "opacity-60 grayscale-[0.3]",
+                          "opacity-60 grayscale-[0.3]",
                         )}
                       >
                         <div className="flex justify-between items-start mb-5">

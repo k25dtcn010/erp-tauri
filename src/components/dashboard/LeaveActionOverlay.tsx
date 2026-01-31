@@ -10,6 +10,7 @@ import {
   Send,
   CheckCircle2,
 } from "lucide-react";
+import { useUserStore } from "@/store/user-store";
 import { Sheet, Select as ZSelect, DatePicker, useSnackbar } from "zmp-ui";
 import { LateEarlyRequestModal } from "./LateEarlyRequestModal";
 import {
@@ -28,6 +29,7 @@ import {
 const { Option } = ZSelect;
 
 const LeaveActionOverlay: React.FC = () => {
+  const { employeeId } = useUserStore();
   const [isSheetVisible, setIsSheetVisible] = useState(false);
   const [isLateEarlyModalOpen, setIsLateEarlyModalOpen] = useState(false);
   const [startDate, setStartDate] = useState(startOfDay(new Date()));
@@ -60,11 +62,23 @@ const LeaveActionOverlay: React.FC = () => {
     });
 
     // Fetch balances
-    getApiV3LeavePoliciesBalances().then((res) => {
-      if (res.data && res.data.balances) {
-        setBalances(res.data.balances as any[]);
-      }
-    });
+    if (employeeId) {
+      getApiV3LeavePoliciesBalances({
+        query: { employeeId },
+      }).then((res) => {
+        if (res.data && res.data.balances) {
+          // Deduplicate by policyId and fiscalYear
+          const uniqueBalancesMap = new Map();
+          res.data.balances.forEach((b: any) => {
+            const key = `${b.policyId}-${b.fiscalYear}`;
+            if (!uniqueBalancesMap.has(key)) {
+              uniqueBalancesMap.set(key, b);
+            }
+          });
+          setBalances(Array.from(uniqueBalancesMap.values()));
+        }
+      });
+    }
 
     // Get companyId from user info
     getApiEmployeesMe().then((res) => {
@@ -76,7 +90,7 @@ const LeaveActionOverlay: React.FC = () => {
         if (cId) setCompanyId(cId);
       }
     });
-  }, []);
+  }, [employeeId]);
 
   const calculateDays = () => {
     if (!startDate || !endDate) return 0;

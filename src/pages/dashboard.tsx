@@ -13,28 +13,24 @@ import {
 } from "@/components/dashboard/sections/LeaveSection";
 import { PreCheckModal } from "@/components/dashboard/PreCheckModal";
 import { AnticheatService } from "@/services/anticheat";
-import { OfflineAttendanceService } from "@/services/offline-attendance";
 import { WifiOff, RefreshCw, ChevronRight } from "lucide-react";
 import { UnsyncedRecordsSheet } from "@/components/dashboard/UnsyncedRecordsSheet";
 import { GpsRegistrationModal } from "@/components/dashboard/GpsRegistrationModal";
 import { PageContainer } from "@/components/layout/PageContainer";
 import {
-  getApiV3AttendanceToday,
-  getApiV3OvertimeSchedules,
   getApiV3AttendanceHistory,
   getApiV3LeaveRequestsMy,
   getApiV3LeavePoliciesBalances,
+  getApiV3OvertimeSchedules,
 } from "@/client-timekeeping/sdk.gen";
+import { useAttendanceStore } from "@/store/attendance-store";
 import { getApiEmployeesMe } from "@/client/sdk.gen";
-import { CustomPageHeader } from "@/components/layout/CustomPageHeader";
 import { MainHeader } from "@/components/layout/MainHeader";
 import {
   format,
   startOfMonth,
   endOfMonth,
-  subDays,
   parseISO,
-  isSameDay,
 } from "date-fns";
 import { useSheetBackHandler } from "@/hooks/use-sheet-back-handler";
 import { useSyncStore } from "@/store/sync-store";
@@ -47,12 +43,15 @@ const FaceVerificationModal = React.lazy(() =>
 );
 
 const DashboardPage: React.FC = () => {
-  const [workStatus, setWorkStatus] = useState<"idle" | "working" | "paused">(
-    "idle",
-  );
-  const [checkInTime, setCheckInTime] = useState<string | null>(null);
-  const [checkOutTime, setCheckOutTime] = useState<string | null>(null);
-  const [todaySessions, setTodaySessions] = useState<any[]>([]);
+  const {
+    workStatus,
+    checkInTime,
+    checkOutTime,
+    todaySessions,
+    fetchTodayAttendance,
+    performCheckIn,
+    performCheckOut
+  } = useAttendanceStore();
 
   const [isFaceModalOpen, setIsFaceModalOpen] = useState(false);
   const [isPreCheckModalOpen, setIsPreCheckModalOpen] = useState(false);
@@ -68,6 +67,10 @@ const DashboardPage: React.FC = () => {
   const [overtimeRequests, setOvertimeRequests] = useState<OvertimeRequest[]>(
     [],
   );
+  const [todayOvertimeSchedule, setTodayOvertimeSchedule] = useState<{
+    startTime: string;
+    endTime: string;
+  } | null>(null);
 
   // Attendance History state
   const [historyStats, setHistoryStats] = useState({
@@ -162,41 +165,11 @@ const DashboardPage: React.FC = () => {
     }
   }, []);
 
-  const fetchDashboardData = useCallback(async () => {
-    try {
-      const res = await getApiV3AttendanceToday();
-      if (res.data) {
-        const { activeSession, sessions } = res.data as any;
-        setTodaySessions(sessions || []);
-
-        if (activeSession) {
-          setWorkStatus("working");
-          setCheckInTime(format(new Date(activeSession.checkInAt), "HH:mm"));
-          setCheckOutTime(null);
-        } else if (sessions && sessions.length > 0) {
-          // If no active session, check the latest completed session of today
-          const lastSession = sessions[0]; // Assuming they are sorted descending or just take the first
-          setWorkStatus("idle");
-          setCheckInTime(format(new Date(lastSession.checkInAt), "HH:mm"));
-          if (lastSession.checkOutAt) {
-            setCheckOutTime(format(new Date(lastSession.checkOutAt), "HH:mm"));
-          }
-        } else {
-          setWorkStatus("idle");
-          setCheckInTime(null);
-          setCheckOutTime(null);
-        }
-      }
-    } catch (error) {
-      console.error("Failed to fetch today's attendance status", error);
-    }
-  }, []);
-
   useEffect(() => {
     if (isOnline) {
-      fetchDashboardData();
+      fetchTodayAttendance();
     }
-  }, [isOnline, fetchDashboardData]);
+  }, [isOnline, fetchTodayAttendance]);
 
   // Fetch user data
   useEffect(() => {
@@ -273,6 +246,24 @@ const DashboardPage: React.FC = () => {
         ).length;
         setTotalOTHours(total);
         setPendingOTRequests(pending);
+
+        // Find today's overtime
+        const todayStr = format(now, "yyyy-MM-dd");
+        const todayOT = records.find(
+          (r: any) =>
+            r.date === todayStr &&
+            (r.status === "APPROVED" ||
+              r.status === "COMPLETED" ||
+              r.status === "ACTIVE"),
+        );
+        if (todayOT) {
+          setTodayOvertimeSchedule({
+            startTime: todayOT.startTime,
+            endTime: todayOT.endTime,
+          });
+        } else {
+          setTodayOvertimeSchedule(null);
+        }
 
         // 2. Get top 3 most recent items from the month
         const sortedRecords = [...records].sort((a, b) => {
@@ -376,19 +367,20 @@ const DashboardPage: React.FC = () => {
   useEffect(() => {
     const handleRefresh = () => {
       fetchLeaveData();
-      fetchDashboardData();
+      fetchTodayAttendance();
     };
     window.addEventListener("leave-request-submitted", handleRefresh);
     return () =>
       window.removeEventListener("leave-request-submitted", handleRefresh);
-  }, [fetchLeaveData, fetchDashboardData]);
+  }, [fetchLeaveData, fetchTodayAttendance]);
 
   useEffect(() => {
     if (employeeId && isOnline) {
       fetchOvertimeData(employeeId);
       fetchHistoryData(employeeId);
       fetchLeaveData();
-      fetchDashboardData();
+      fetchLeaveData();
+      fetchTodayAttendance();
     }
   }, [
     employeeId,
@@ -396,7 +388,7 @@ const DashboardPage: React.FC = () => {
     fetchOvertimeData,
     fetchHistoryData,
     fetchLeaveData,
-    fetchDashboardData,
+    fetchTodayAttendance,
   ]);
 
   // Check network status and pending records
@@ -473,14 +465,44 @@ const DashboardPage: React.FC = () => {
 
   const onVerified = useCallback(
     async (
-      photoDataUrl: string,
       metadata: { location?: any; deviceInfo?: any },
       onlineTrialFailed?: boolean,
       responseData?: any,
     ) => {
+      const currentTimeStr = format(new Date(), "HH:mm");
+      const showSyncWarning = !isOnline || onlineTrialFailed;
+
+      console.log("[Dashboard] onVerified: Immediate Optimistic Update", {
+        modalMode,
+        currentTimeStr,
+        isOnline,
+        onlineTrialFailed
+      });
+
+      // 1. PERFORM OPTIMISTIC UPDATE IMMEDIATELY
+      if (modalMode === "check-in") {
+        performCheckIn(currentTimeStr);
+        openSnackbar({
+          type: showSyncWarning ? "warning" : "success",
+          text: showSyncWarning
+            ? "Đã lưu check-in (Chờ đồng bộ)"
+            : "Vào ca thành công!",
+          duration: 3000,
+        });
+      } else {
+        performCheckOut(currentTimeStr);
+        openSnackbar({
+          type: showSyncWarning ? "warning" : "success",
+          text: showSyncWarning
+            ? "Đã lưu check-out (Chờ đồng bộ)"
+            : "Ra ca thành công!",
+          duration: 3000,
+        });
+      }
+
       setIsFaceModalOpen(false);
 
-      // Refresh pending count since modal just saved a record
+      // 2. Background Task: Refresh pending count
       await refreshPendingCount();
 
       // Check if response is PENDING_APPROVAL and has GPS info
@@ -498,46 +520,34 @@ const DashboardPage: React.FC = () => {
         return;
       }
 
-      // Refresh today's status and history from API
-      if (isOnline && !onlineTrialFailed) {
-        setTimeout(() => {
-          fetchDashboardData();
-          if (employeeId) fetchHistoryData(employeeId);
-          fetchLeaveData();
-        }, 1000); // Give background worker a moment
-      }
+      // 3. Data Consistency Refreshes
+      console.log("[Dashboard] onVerified: Scheduling consistency fetches...");
 
-      const showSyncWarning = !isOnline || onlineTrialFailed;
+      // Immediate-ish fetch (wait for server to process async task)
+      setTimeout(() => {
+        console.log("[Dashboard] Initial consistency fetch...");
+        fetchTodayAttendance();
+        if (employeeId) fetchHistoryData(employeeId);
+        fetchLeaveData();
+      }, 1000);
 
-      if (modalMode === "check-in") {
-        setWorkStatus("working");
-        openSnackbar({
-          type: showSyncWarning ? "warning" : "success",
-          text: showSyncWarning
-            ? "Đã lưu check-in (Chờ đồng bộ)"
-            : "Vào ca thành công!",
-          duration: 3000,
-        });
-      } else {
-        setWorkStatus("idle");
-        openSnackbar({
-          type: showSyncWarning ? "warning" : "success",
-          text: showSyncWarning
-            ? "Đã lưu check-out (Chờ đồng bộ)"
-            : "Ra ca thành công!",
-          duration: 3000,
-        });
-      }
+      // Delayed fetch (ensure eventual consistency)
+      setTimeout(() => {
+        console.log("[Dashboard] Final consistency fetch...");
+        fetchTodayAttendance();
+      }, 5000);
     },
     [
       isOnline,
       modalMode,
       openSnackbar,
       refreshPendingCount,
-      fetchDashboardData,
+      fetchTodayAttendance,
       employeeId,
       fetchHistoryData,
       fetchLeaveData,
+      performCheckIn,
+      performCheckOut,
     ],
   );
 
@@ -662,6 +672,8 @@ const DashboardPage: React.FC = () => {
         checkInTime={checkInTime}
         checkOutTime={checkOutTime}
         sessions={todaySessions}
+        shift={{ startTime: "08:00", endTime: "17:00" }}
+        overtime={todayOvertimeSchedule}
       />
 
       <div className="grid grid-cols-1 gap-6">
@@ -714,7 +726,7 @@ const DashboardPage: React.FC = () => {
           location={gpsData}
           employeeId={employeeId}
           onSuccess={() => {
-            fetchDashboardData();
+            fetchTodayAttendance();
             if (employeeId) fetchHistoryData(employeeId);
           }}
         />

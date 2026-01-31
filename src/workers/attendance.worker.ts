@@ -367,6 +367,11 @@ self.onmessage = async (e: MessageEvent<WorkerMessage>) => {
           console.error("[Worker] Online background processing failed:", err);
           // Non-fatal, offline photo is already saved
         }
+      } else {
+        console.log("[Worker] ℹ️ Skipping online sync (late photo upload) because eventId or baseUrl is missing.", {
+          eventId,
+          baseUrl: apiConfig.baseUrl
+        });
       }
 
       // Done

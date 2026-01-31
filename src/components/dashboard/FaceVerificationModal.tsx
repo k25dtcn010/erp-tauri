@@ -114,9 +114,8 @@ const CameraControls = memo(function CameraControls({
       <button
         onClick={toggleCamera}
         disabled={isLoading || devices.length < 2}
-        className={`flex flex-col items-center gap-1.5 group ${
-          isLoading || devices.length < 2 ? "opacity-40 cursor-not-allowed" : ""
-        }`}
+        className={`flex flex-col items-center gap-1.5 group ${isLoading || devices.length < 2 ? "opacity-40 cursor-not-allowed" : ""
+          }`}
       >
         <div className="h-11 w-11 rounded-full flex items-center justify-center border transition-all bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 group-hover:bg-gray-200 dark:group-hover:bg-gray-700 group-active:scale-95">
           <SwitchCamera className="h-5 w-5 text-gray-600 dark:text-gray-300" />
@@ -130,31 +129,27 @@ const CameraControls = memo(function CameraControls({
       <button
         onClick={toggleBeauty}
         disabled={isLoading || !isGPUPixelReady}
-        className={`flex flex-col items-center gap-1.5 group ${
-          isLoading || !isGPUPixelReady ? "opacity-50 cursor-not-allowed" : ""
-        }`}
+        className={`flex flex-col items-center gap-1.5 group ${isLoading || !isGPUPixelReady ? "opacity-50 cursor-not-allowed" : ""
+          }`}
       >
         <div
-          className={`h-11 w-11 rounded-full flex items-center justify-center border transition-all ${
-            beautyEnabled && isGPUPixelReady && !isLoading
-              ? "bg-pink-500 border-pink-400 text-white group-active:scale-95"
-              : "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 group-hover:bg-gray-200 dark:group-hover:bg-gray-700 group-active:scale-95"
-          }`}
+          className={`h-11 w-11 rounded-full flex items-center justify-center border transition-all ${beautyEnabled && isGPUPixelReady && !isLoading
+            ? "bg-pink-500 border-pink-400 text-white group-active:scale-95"
+            : "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 group-hover:bg-gray-200 dark:group-hover:bg-gray-700 group-active:scale-95"
+            }`}
         >
           <Sparkles
-            className={`h-5 w-5 ${
-              beautyEnabled && isGPUPixelReady && !isLoading
-                ? "fill-current text-white"
-                : "text-gray-600 dark:text-gray-300"
-            }`}
+            className={`h-5 w-5 ${beautyEnabled && isGPUPixelReady && !isLoading
+              ? "fill-current text-white"
+              : "text-gray-600 dark:text-gray-300"
+              }`}
           />
         </div>
         <span
-          className={`text-[10px] font-medium ${
-            beautyEnabled && isGPUPixelReady && !isLoading
-              ? "text-pink-600 dark:text-pink-400"
-              : "text-gray-500 dark:text-gray-400"
-          }`}
+          className={`text-[10px] font-medium ${beautyEnabled && isGPUPixelReady && !isLoading
+            ? "text-pink-600 dark:text-pink-400"
+            : "text-gray-500 dark:text-gray-400"
+            }`}
         >
           Làm đẹp
         </span>
@@ -164,33 +159,29 @@ const CameraControls = memo(function CameraControls({
       <button
         onClick={toggleFlash}
         disabled={isLoading || !hasFlash}
-        className={`flex flex-col items-center gap-1.5 group ${
-          isLoading || !hasFlash ? "opacity-40 cursor-not-allowed" : ""
-        }`}
+        className={`flex flex-col items-center gap-1.5 group ${isLoading || !hasFlash ? "opacity-40 cursor-not-allowed" : ""
+          }`}
       >
         <div
-          className={`h-11 w-11 rounded-full flex items-center justify-center border transition-all ${
-            isLoading || !hasFlash
-              ? "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700"
-              : isFlashOn
-                ? "bg-yellow-500 border-yellow-400 text-white group-active:scale-95"
-                : "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 group-hover:bg-gray-200 dark:group-hover:bg-gray-700 group-active:scale-95"
-          }`}
+          className={`h-11 w-11 rounded-full flex items-center justify-center border transition-all ${isLoading || !hasFlash
+            ? "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700"
+            : isFlashOn
+              ? "bg-yellow-500 border-yellow-400 text-white group-active:scale-95"
+              : "bg-gray-100 dark:bg-gray-800 border-gray-200 dark:border-gray-700 group-hover:bg-gray-200 dark:group-hover:bg-gray-700 group-active:scale-95"
+            }`}
         >
           <Zap
-            className={`h-5 w-5 ${
-              isFlashOn && hasFlash && !isLoading
-                ? "fill-current text-white"
-                : "text-gray-600 dark:text-gray-300"
-            }`}
+            className={`h-5 w-5 ${isFlashOn && hasFlash && !isLoading
+              ? "fill-current text-white"
+              : "text-gray-600 dark:text-gray-300"
+              }`}
           />
         </div>
         <span
-          className={`text-[10px] font-medium ${
-            isFlashOn && hasFlash && !isLoading
-              ? "text-yellow-600 dark:text-yellow-400"
-              : "text-gray-500 dark:text-gray-400"
-          }`}
+          className={`text-[10px] font-medium ${isFlashOn && hasFlash && !isLoading
+            ? "text-yellow-600 dark:text-yellow-400"
+            : "text-gray-500 dark:text-gray-400"
+            }`}
         >
           {isFlashOn && hasFlash && !isLoading ? "Bật" : "Tắt"}
         </span>
@@ -374,32 +365,34 @@ export function FaceVerificationModal({
       setCameraError(null);
 
       try {
-        // 1. Request Zalo permission
-        // await requestCameraPermission({});
+        console.log("[Camera] 1. Requesting Zalo permission...");
 
-        // 2. Request wake lock
-        // await requestWakeLock();
+        // --- BẢN SỬA LỖI: Tránh treo app khi request permission ---
+        // -----------------------------------------------------------
 
         // 3. Enumerate devices
+        console.log("[Camera] 2. Enumerating devices...");
         const deviceInfos = await navigator.mediaDevices.enumerateDevices();
         const videoDevices = deviceInfos.filter((d) => d.kind === "videoinput");
         setDevices(videoDevices);
 
-        // 4. Build constraints - Lower resolution for stability
+        if (videoDevices.length === 0) {
+          console.warn("[Camera] No video devices found!");
+        }
+
+        // 4. Build constraints
         const constraints: MediaStreamConstraints = {
           audio: false,
           video: {
-            deviceId: deviceId ? { exact: deviceId } : undefined,
             facingMode: deviceId
               ? undefined
               : facing === "front"
                 ? "user"
                 : "environment",
-            width: { ideal: 640, max: 1280 },
-            height: { ideal: 480, max: 720 },
-            frameRate: { ideal: 30, max: 30 },
           },
         };
+
+        console.log("[Camera] 3. calling getUserMedia");
 
         // 5. Get stream
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -411,37 +404,23 @@ export function FaceVerificationModal({
 
         streamRef.current = stream;
 
-        // 6. Setup hidden video element as source for GPUPixel
+        // 6. Setup hidden video element
         if (videoSourceRef.current) {
           const video = videoSourceRef.current;
-
-          // Set all attributes
           video.muted = true;
           video.playsInline = true;
           video.autoplay = true;
           video.setAttribute("playsinline", "true");
           video.setAttribute("webkit-playsinline", "true");
-          video.setAttribute("x-webkit-airplay", "deny");
-
-          // Set srcObject
           video.srcObject = stream;
 
-          // Force play
           const forcePlay = async () => {
             try {
               await video.play();
             } catch (err) {
-              console.error("[Camera] ❌ Play failed:", err);
-
+              console.error("[Camera] ❌ Play failed, retrying...", err);
               setTimeout(async () => {
-                try {
-                  await video.play();
-                } catch (retryErr) {
-                  console.error("[Camera] ❌ Retry failed:", retryErr);
-                  setCameraError(
-                    "Không thể phát video. Hãy chạm vào màn hình.",
-                  );
-                }
+                try { await video.play(); } catch (e) { }
               }, 300);
             }
           };
@@ -452,91 +431,39 @@ export function FaceVerificationModal({
             video.onloadedmetadata = forcePlay;
           }
 
-          // AGGRESSIVE PLAY INTERVAL - 500ms
-          aggressivePlayIntervalRef.current = setInterval(async () => {
-            if (video.paused && streamRef.current?.active) {
-              console.warn("[Camera] 🔄 Video paused, force playing...");
-              try {
-                await video.play();
-              } catch (err) {
-                console.error("[Camera] ❌ Resume failed:", err);
-              }
-            }
-          }, 500);
-
-          // Touch handler
+          // Touch/Click resume handler
           const touchPlayHandler = async () => {
-            if (video.paused) {
-              try {
-                await video.play();
-              } catch (err) {
-                console.error("[Camera] ❌ Touch play failed:", err);
-              }
-            }
+            if (video.paused) await video.play().catch(() => { });
           };
-
           video.addEventListener("touchstart", touchPlayHandler);
           video.addEventListener("click", touchPlayHandler);
         }
 
-        // Set stream to state (this will trigger GPUPixel hook)
         setMediaStream(stream);
 
-        // 7. Track capabilities
+        // Track listener
         const track = stream.getVideoTracks()[0];
-
         track.addEventListener("ended", () => {
-          console.error("[Camera] ❌ Track ended!");
           setCameraError("Camera bị ngắt kết nối.");
         });
 
-        track.addEventListener("mute", () => {
-          console.warn("[Camera] ⚠️ Track muted");
-        });
-
-        const capabilities = track.getCapabilities
-          ? track.getCapabilities()
-          : {};
-        const settings = track.getSettings();
-
+        // Capabilities check
+        const capabilities = track.getCapabilities ? track.getCapabilities() : {};
         // @ts-ignore
         setHasFlash(!!capabilities.torch);
+        const settings = track.getSettings();
+        if (settings.deviceId) setCurrentDeviceId(settings.deviceId);
 
-        if (settings.deviceId) {
-          setCurrentDeviceId(settings.deviceId);
-        }
-
-        // 8. Keep-alive
-        keepAliveIntervalRef.current = setInterval(() => {
-          if (streamRef.current && videoSourceRef.current) {
-            const _ = videoSourceRef.current.currentTime;
-
-            const tracks = streamRef.current.getVideoTracks();
-            tracks.forEach((t) => {
-              if (!t.enabled) {
-                console.warn("[Camera] ⚠️ Re-enabling track");
-                t.enabled = true;
-              }
-            });
-          }
-        }, 1000);
       } catch (err: any) {
         console.error("[Camera] ❌ Error:", err);
         let message = "Không thể truy cập camera.";
-
-        if (
-          err.name === "NotAllowedError" ||
-          err.name === "PermissionDeniedError"
-        ) {
+        if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
           message = "Vui lòng cấp quyền camera trong cài đặt Zalo.";
         } else if (err.name === "NotFoundError") {
           message = "Không tìm thấy camera.";
         } else if (err.name === "NotReadableError") {
           message = "Camera đang được sử dụng bởi ứng dụng khác.";
-        } else if (err.name === "OverconstrainedError") {
-          message = "Thiết bị không hỗ trợ cấu hình này.";
         }
-
         setCameraError(message);
       } finally {
         if (isMountedRef.current) {
@@ -544,7 +471,7 @@ export function FaceVerificationModal({
         }
       }
     },
-    [facing, requestWakeLock, releaseWakeLock],
+    [facing], // Removed requestWakeLock/releaseWakeLock deps for simplicity unless necessary
   );
 
   // --- HANDLERS ---
@@ -746,7 +673,7 @@ export function FaceVerificationModal({
         deviceInfo,
       };
 
-      onVerified(dataUrl, uiMetadata, onlineTrialFailed, responseData);
+      onVerified(uiMetadata, onlineTrialFailed, responseData);
     } catch (err) {
       console.error("[Capture] Error:", err);
       // Even if error, likely UI should show error or retry
@@ -831,13 +758,11 @@ export function FaceVerificationModal({
         <Box className="flex-1 flex flex-col items-center">
           {/* CAMERA CONTAINER */}
           <div
-            className={`relative shrink-0 h-56 w-56 sm:h-64 sm:w-64 md:h-72 md:w-72 rounded-full overflow-hidden border-4 ${
-              verificationStatus === "success"
-                ? "border-green-500 shadow-green-500/50"
-                : modalConfig.borderColor
-            } shadow-2xl bg-black ${modalConfig.glowColor} ${
-              verificationStatus === "verifying" ? "animate-border-glow" : ""
-            } group transition-all duration-500`}
+            className={`relative shrink-0 h-56 w-56 sm:h-64 sm:w-64 md:h-72 md:w-72 rounded-full overflow-hidden border-4 ${verificationStatus === "success"
+              ? "border-green-500 shadow-green-500/50"
+              : modalConfig.borderColor
+              } shadow-2xl bg-black ${modalConfig.glowColor} ${verificationStatus === "verifying" ? "animate-border-glow" : ""
+              } group transition-all duration-500`}
           >
             {/* Hidden Video Source (for getUserMedia stream) */}
             <video
@@ -851,9 +776,8 @@ export function FaceVerificationModal({
             {/* Display Canvas (GPUPixel renders here) */}
             <canvas
               ref={displayCanvasRef}
-              className={`absolute inset-0 h-full w-full object-cover ${
-                !isBackCamera ? "transform scale-x-[-1]" : ""
-              }`}
+              className={`absolute inset-0 h-full w-full object-cover ${!isBackCamera ? "transform scale-x-[-1]" : ""
+                }`}
               style={{
                 position: "absolute",
                 top: 0,
@@ -873,36 +797,32 @@ export function FaceVerificationModal({
               <img
                 src={capturedImage}
                 alt="Captured"
-                className={`absolute inset-0 h-full w-full object-cover ${
-                  !isBackCamera ? "transform scale-x-[-1]" : ""
-                }`}
+                className={`absolute inset-0 h-full w-full object-cover ${!isBackCamera ? "transform scale-x-[-1]" : ""
+                  }`}
                 style={{ zIndex: 5 }}
               />
             )}
 
             {/* Shutter Effect */}
             <div
-              className={`absolute inset-0 rounded-full bg-white pointer-events-none transition-opacity duration-300 ${
-                flashActive ? "opacity-100" : "opacity-0"
-              }`}
+              className={`absolute inset-0 rounded-full bg-white pointer-events-none transition-opacity duration-300 ${flashActive ? "opacity-100" : "opacity-0"
+                }`}
               style={{ zIndex: 30 }}
             />
 
             {/* Success Overlay */}
             <div
-              className={`absolute inset-0 rounded-full bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center transition-opacity duration-700 ease-out ${
-                verificationStatus === "success"
-                  ? "opacity-100"
-                  : "opacity-0 pointer-events-none"
-              }`}
+              className={`absolute inset-0 rounded-full bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center transition-opacity duration-700 ease-out ${verificationStatus === "success"
+                ? "opacity-100"
+                : "opacity-0 pointer-events-none"
+                }`}
               style={{ zIndex: 30 }}
             >
               <div
-                className={`rounded-full p-3 mb-3 bg-gradient-to-br from-green-400 to-emerald-600 shadow-lg shadow-green-500/40 transition-all duration-500 ease-out ${
-                  verificationStatus === "success"
-                    ? "scale-100 opacity-100"
-                    : "scale-50 opacity-0"
-                }`}
+                className={`rounded-full p-3 mb-3 bg-gradient-to-br from-green-400 to-emerald-600 shadow-lg shadow-green-500/40 transition-all duration-500 ease-out ${verificationStatus === "success"
+                  ? "scale-100 opacity-100"
+                  : "scale-50 opacity-0"
+                  }`}
               >
                 <CheckCircle2 className="h-8 w-8 text-white drop-shadow-md" />
               </div>
@@ -997,11 +917,10 @@ export function FaceVerificationModal({
           <Button
             onClick={handleCapture}
             disabled={verificationStatus !== "idle" || showError || showLoading}
-            className={`w-full ${
-              verificationStatus === "success"
-                ? "bg-green-600 hover:bg-green-700"
-                : modalConfig.buttonColor
-            } text-white h-12 text-lg shadow-lg active:scale-[0.98] transition-all`}
+            className={`w-full ${verificationStatus === "success"
+              ? "bg-green-600 hover:bg-green-700"
+              : modalConfig.buttonColor
+              } text-white h-12 text-lg shadow-lg active:scale-[0.98] transition-all`}
           >
             {verificationStatus === "verifying" ? (
               <>

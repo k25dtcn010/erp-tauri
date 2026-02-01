@@ -53,7 +53,7 @@ export const CustomPageHeader: React.FC<CustomPageHeaderProps> = ({
   return (
     <div className={cn("flex items-center w-full relative h-12", className)}>
       <div className="absolute left-0 top-1/2 -translate-y-1/2 z-20">
-        {onBack && (
+        {onBack ? (
           <Button
             variant="ghost"
             size="icon"
@@ -62,7 +62,7 @@ export const CustomPageHeader: React.FC<CustomPageHeaderProps> = ({
           >
             <ChevronLeft className="h-6 w-6" />
           </Button>
-        )}
+        ) : null}
       </div>
 
       <div className="w-full flex flex-col items-center justify-center z-10 px-10">

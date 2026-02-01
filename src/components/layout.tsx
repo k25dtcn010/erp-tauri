@@ -10,7 +10,7 @@ import {
   useNavigate,
 } from "zmp-ui";
 import { AppProps } from "zmp-ui/app";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { authService } from "@/services/auth";
 
 import LoginPage from "@/pages/login";
@@ -30,9 +30,9 @@ const LayoutContent = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const isLoginPage = location.pathname === "/login";
-  const [isAndroid, setIsAndroid] = useState(false);
   const { fetchUser, setIsOnline } = useUserStore();
-  const { badges, dismissedBadgeIds, snoozedBadgeIds, fetchConfigs } = useAppConfigStore();
+  const { badges, dismissedBadgeIds, snoozedBadgeIds, fetchConfigs } =
+    useAppConfigStore();
 
   useEffect(() => {
     if (!isLoginPage) {
@@ -40,16 +40,18 @@ const LayoutContent = () => {
     }
   }, [isLoginPage, fetchConfigs]);
 
-  const activeBadges = badges.filter((b) => {
-    // Check if permanently dismissed in current session
-    if (dismissedBadgeIds.includes(b.id)) return false;
+  const activeBadges = useMemo(() => {
+    return badges.filter((b) => {
+      // Check if permanently dismissed in current session
+      if (dismissedBadgeIds.includes(b.id)) return false;
 
-    // Check if snoozed for 24h
-    const snoozeExpiry = snoozedBadgeIds[b.id];
-    if (snoozeExpiry && Date.now() < snoozeExpiry) return false;
+      // Check if snoozed for 24h
+      const snoozeExpiry = snoozedBadgeIds[b.id];
+      if (snoozeExpiry && Date.now() < snoozeExpiry) return false;
 
-    return true;
-  });
+      return true;
+    });
+  }, [badges, dismissedBadgeIds, snoozedBadgeIds]);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -71,39 +73,25 @@ const LayoutContent = () => {
   }, [isLoginPage, fetchUser]);
 
   useEffect(() => {
-    try {
-      const info = getSystemInfo();
-      // if (info.platform === "unknown") {
-      //   setIsAndroid(true);
-      // }
-    } catch (error) {
-      console.error("[Layout] Failed to get system info:", error);
-    }
-  }, []);
-
-  useEffect(() => {
     const check = async () => {
-      // If Android, we don't care about auth as they are blocked by modal
-      if (isAndroid) return;
+      if (isLoginPage) return;
 
-      if (!isLoginPage) {
-        const isAuth = await authService.checkAuth();
-        if (!isAuth) {
-          console.warn("[Layout] Not authenticated, redirecting to /login");
-          navigate("/login");
-        } else {
-        }
-      } else {
-      }
+      const isAuth = await authService.checkAuth();
+      if (isAuth) return;
+
+      console.warn("[Layout] Not authenticated, redirecting to /login");
+      navigate("/login");
     };
     check();
-  }, [isLoginPage, isAndroid, navigate]);
+  }, [isLoginPage, navigate]);
 
   return (
     <Box className="flex-1 flex flex-col overflow-hidden">
-      {!isLoginPage && activeBadges.map((badge) => (
-        <BadgeNotification key={badge.id} badge={badge} />
-      ))}
+      {!isLoginPage
+        ? activeBadges.map((badge) => (
+            <BadgeNotification key={badge.id} badge={badge} />
+          ))
+        : null}
       <AnimationRoutes>
         <Route path="/login" element={<LoginPage />}></Route>
         <Route path="/" element={<DashboardPage />}></Route>
@@ -116,9 +104,9 @@ const LayoutContent = () => {
         <Route path="/settings" element={<SettingsPage />}></Route>
         <Route path="*" element={<UnderDevelopmentPage />}></Route>
       </AnimationRoutes>
-      {!isLoginPage && <BottomNav />}
+      {!isLoginPage ? <BottomNav /> : null}
 
-      <AndroidRestrictionModal visible={isAndroid} />
+      <AndroidRestrictionModal />
     </Box>
   );
 };

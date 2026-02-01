@@ -8,22 +8,13 @@ import { CustomPageHeader } from "@/components/layout/CustomPageHeader";
 
 const UnderDevelopmentPage: React.FC = () => {
   const navigate = useNavigate();
-  const { userName, userAvatar, fetchUser } = useUserStore();
+  const { userName, fetchUser } = useUserStore();
 
   useEffect(() => {
     if (!userName) {
       fetchUser();
     }
   }, [userName, fetchUser]);
-
-  const initials = userName
-    ? userName
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .substring(0, 2)
-      .toUpperCase()
-    : "ND";
 
   const CustomHeader = (
     <CustomPageHeader

@@ -57,11 +57,11 @@ export function PageContainer({
             header
           ) : (
             <>
-              {leftAction && (
+              {leftAction ? (
                 <div className="flex-none h-6 flex items-center">
                   {leftAction}
                 </div>
-              )}
+              ) : null}
               <div className="flex-1 min-w-0">
                 {typeof title === "string" ? (
                   <div className="text-[18px] font-medium leading-[24px] truncate text-[#141415] dark:text-[#f4f5f6]">
@@ -71,9 +71,9 @@ export function PageContainer({
                   title
                 )}
               </div>
-              {rightAction && (
+              {rightAction ? (
                 <div className="flex-none flex items-center">{rightAction}</div>
-              )}
+              ) : null}
             </>
           )}
         </div>

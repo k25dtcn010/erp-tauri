@@ -15,20 +15,16 @@ interface BadgeNotificationProps {
   badge: AppBadge;
 }
 
+const ICON_MAP: Record<string, React.ReactNode> = {
+  version_update: <Download className="h-6 w-6 text-blue-500" />,
+  notice: <Bell className="h-6 w-6 text-orange-500" />,
+};
+
 const BadgeNotification: React.FC<BadgeNotificationProps> = ({ badge }) => {
   const { dismissBadge } = useAppConfigStore();
   const [snoozeChecked, setSnoozeChecked] = React.useState(false);
 
-  const getIcon = () => {
-    switch (badge.type) {
-      case "version_update":
-        return <Download className="h-6 w-6 text-blue-500" />;
-      case "notice":
-        return <Bell className="h-6 w-6 text-orange-500" />;
-      default:
-        return <Info className="h-6 w-6 text-slate-400" />;
-    }
-  };
+  const icon = ICON_MAP[badge.type] || <Info className="h-6 w-6 text-slate-400" />;
 
   const handleAction = () => {
     if (badge.actionUrl) {
@@ -56,7 +52,7 @@ const BadgeNotification: React.FC<BadgeNotificationProps> = ({ badge }) => {
       >
         <div className="bg-white p-8 flex flex-col items-center">
           <div className="mb-6 h-16 w-16 bg-slate-50 rounded-full flex items-center justify-center ring-8 ring-slate-50/50">
-            {getIcon()}
+            {icon}
           </div>
 
           <DialogHeader className="space-y-3">
@@ -69,7 +65,7 @@ const BadgeNotification: React.FC<BadgeNotificationProps> = ({ badge }) => {
           </DialogHeader>
 
           <div className="w-full space-y-3 mt-8">
-            {badge.actionUrl && (
+            {badge.actionUrl ? (
               <Button
                 fullWidth
                 className="h-12 rounded-xl bg-orange-600 text-white font-black uppercase text-xs tracking-widest shadow-lg shadow-orange-600/20 active:scale-[0.98] transition-all"
@@ -77,9 +73,9 @@ const BadgeNotification: React.FC<BadgeNotificationProps> = ({ badge }) => {
               >
                 {badge.type === 'version_update' ? 'Cập nhật ngay' : 'Xem chi tiết'}
               </Button>
-            )}
+            ) : null}
 
-            {badge.isClosable && (
+            {badge.isClosable ? (
               <div className="flex flex-col gap-3 w-full">
                 <div className="flex items-center gap-2 px-1">
                   <input
@@ -105,7 +101,7 @@ const BadgeNotification: React.FC<BadgeNotificationProps> = ({ badge }) => {
                   Đóng
                 </Button>
               </div>
-            )}
+            ) : null}
           </div>
         </div>
       </DialogContent>

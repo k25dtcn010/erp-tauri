@@ -22,6 +22,8 @@ import {
   Loader2,
   XCircle,
   CreditCard,
+  Folder,
+  ArrowLeft,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -37,6 +39,7 @@ import {
   Sheet,
   Select as ZSelect,
   Input as ZInput,
+  Icon,
 } from "zmp-ui";
 import { DatePicker } from "@/components/ui/date-picker";
 import { parse } from "date-fns";
@@ -54,6 +57,11 @@ import {
   getApiEmployeesByEmployeeIdDocuments,
   postApiEmployeesByEmployeeIdDocuments,
   deleteApiEmployeesByEmployeeIdDocumentsByDocumentId,
+  getApiEmployeesByIdAttachments,
+  getApiByEntityTypeByIdPortfolios,
+  postApiByEntityTypeByIdPortfolios,
+  postApiEmployeesByIdAttachments,
+  postApiUpload,
   postApiEmployeesMeEmergencyContacts,
   putApiEmployeesMeEmergencyContactsContactId,
   deleteApiEmployeesMeEmergencyContactsContactId,
@@ -112,6 +120,20 @@ export default function SettingsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const docFileInputRef = useRef<HTMLInputElement>(null);
   const [uploadingDocType, setUploadingDocType] = useState<string | null>(null);
+
+  // New Folder/Attachment state
+  const [portfolios, setPortfolios] = useState<any[]>([]);
+  const [selectedPortfolioId, setSelectedPortfolioId] = useState<string | null>(
+    null,
+  );
+  const [isAddingFolder, setIsAddingFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState("");
+  const attachmentFileInputRef = useRef<HTMLInputElement>(null);
+
+  // Switch Company States
+  const [companies, setCompanies] = useState<any[]>([]);
+  const [isSwitchCompanySheetOpen, setIsSwitchCompanySheetOpen] = useState(false);
+  const [isFetchingCompanies, setIsFetchingCompanies] = useState(false);
 
   // States for Add/Edit Modals
   const [isContactSheetOpen, setIsContactSheetOpen] = useState(false);
@@ -191,17 +213,35 @@ export default function SettingsPage() {
 
       // Fetch documents using employee ID from profile
       if (profileRes.data?.data?.id) {
-        const docsRes = await getApiEmployeesByEmployeeIdDocuments({
-          path: { employeeId: profileRes.data.data.id },
-        });
+        const employeeId = profileRes.data.data.id;
+        const [docsRes, attachRes, portfoliosRes, bankRes] = await Promise.all([
+          getApiEmployeesByEmployeeIdDocuments({
+            path: { employeeId },
+          }),
+          getApiEmployeesByIdAttachments({
+            path: { id: employeeId },
+          }),
+          getApiByEntityTypeByIdPortfolios({
+            path: { entityType: "employees", id: employeeId },
+          }),
+          getApiEmployeesEmployeesByEmployeeIdBankAccounts({
+            path: { employeeId },
+          }),
+        ]);
+
+        let combinedDocs = [];
         if (docsRes.data && docsRes.data.data) {
-          setDocuments(docsRes.data.data);
+          combinedDocs.push(...docsRes.data.data);
+        }
+        if (attachRes.data && attachRes.data.data) {
+          combinedDocs.push(...attachRes.data.data);
+        }
+        setDocuments(combinedDocs);
+
+        if (portfoliosRes.data && portfoliosRes.data.data) {
+          setPortfolios(portfoliosRes.data.data);
         }
 
-        // Fetch bank accounts
-        const bankRes = await getApiEmployeesEmployeesByEmployeeIdBankAccounts({
-          path: { employeeId: profileRes.data.data.id },
-        });
         if (bankRes.data && bankRes.data.data) {
           setBankAccounts(bankRes.data.data);
         }
@@ -354,6 +394,121 @@ export default function SettingsPage() {
     }
   };
 
+  const handleCreatePortfolio = async () => {
+    if (!newFolderName.trim() || !originalUser?.id) return;
+
+    try {
+      setIsLoading(true);
+      const res = await postApiByEntityTypeByIdPortfolios({
+        path: { entityType: "employees", id: originalUser.id },
+        body: {
+          portfolioName: newFolderName,
+        },
+      });
+
+      if (res.error) throw res.error;
+
+      openSnackbar({
+        type: "success",
+        text: "Đã tạo thư mục mới",
+        duration: 3000,
+      });
+
+      setNewFolderName("");
+      setIsAddingFolder(false);
+
+      // Refresh portfolios
+      const portfoliosRes = await getApiByEntityTypeByIdPortfolios({
+        path: { entityType: "employees", id: originalUser.id },
+      });
+      if (portfoliosRes.data && portfoliosRes.data.data) {
+        setPortfolios(portfoliosRes.data.data);
+      }
+    } catch (error) {
+      console.error("Failed to create portfolio:", error);
+      openSnackbar({
+        type: "error",
+        text: "Tạo thư mục thất bại",
+        duration: 3000,
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUploadAttachment = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file || !originalUser?.id) return;
+
+    try {
+      setIsLoading(true);
+
+      // Bước 1: Tải tệp lên hệ thống lưu trữ (SeaweedFS)
+      const uploadRes = await postApiUpload({
+        body: { file },
+      });
+
+      if (uploadRes.error || !uploadRes.data) {
+        throw new Error("Không thể tải tệp lên server lưu trữ");
+      }
+
+      const { fid, url } = uploadRes.data as any;
+
+      // Bước 2: Lưu thông tin tệp vào thư mục nhân viên
+      const res = await postApiEmployeesByIdAttachments({
+        path: { id: originalUser.id },
+        body: {
+          file_fid: fid,
+          file_url: url,
+          portfolio_id: selectedPortfolioId || undefined,
+          file_name: file.name,
+          file_size: file.size,
+          file_type: file.type,
+        },
+      });
+
+      if (res.error) throw res.error;
+
+      openSnackbar({
+        type: "success",
+        text: "Tải lên tài liệu thành công",
+        duration: 3000,
+      });
+
+      // Làm mới danh sách tài liệu và tệp đính kèm
+      const [docsRes, attachRes] = await Promise.all([
+        getApiEmployeesByEmployeeIdDocuments({
+          path: { employeeId: originalUser.id },
+        }),
+        getApiEmployeesByIdAttachments({
+          path: { id: originalUser.id },
+        }),
+      ]);
+
+      let combinedDocs = [];
+      if (docsRes.data && docsRes.data.data) {
+        combinedDocs.push(...docsRes.data.data);
+      }
+      if (attachRes.data && attachRes.data.data) {
+        combinedDocs.push(...attachRes.data.data);
+      }
+      setDocuments(combinedDocs);
+    } catch (error) {
+      console.error("Failed to upload attachment:", error);
+      openSnackbar({
+        type: "error",
+        text: "Tải lên thất bại",
+        duration: 3000,
+      });
+    } finally {
+      setIsLoading(false);
+      if (attachmentFileInputRef.current)
+        attachmentFileInputRef.current.value = "";
+    }
+  };
+
   const handleSaveProfile = async () => {
     const phoneRegex = /^0\d{9,10}$/;
     if (user.phone && !phoneRegex.test(user.phone)) {
@@ -460,6 +615,55 @@ export default function SettingsPage() {
         duration: 3000,
       });
     } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleOpenSwitchCompany = async () => {
+    setIsSwitchCompanySheetOpen(true);
+    if (companies.length > 0) return;
+
+    try {
+      setIsFetchingCompanies(true);
+      // Lấy username từ profile hoặc email để fetch danh sách công ty
+      const username = originalUser?.workEmail || user.id;
+      const data = await authService.getUserCompanies(username);
+
+      let apiCompanies: any[] = [];
+      if (Array.isArray(data)) {
+        apiCompanies = data;
+      } else {
+        const anyData = data as any;
+        apiCompanies = anyData.data || anyData.companies || [];
+      }
+
+      setCompanies(apiCompanies.map((c: any) => ({
+        id: c.companyId || c.id,
+        name: c.companyName || c.name,
+        isPrimary: c.isPrimary || false,
+      })));
+    } catch (error) {
+      console.error("Failed to fetch companies:", error);
+      openSnackbar({ type: "error", text: "Không thể lấy danh sách công ty" });
+    } finally {
+      setIsFetchingCompanies(false);
+    }
+  };
+
+  const handleSelectCompany = async (companyId: string) => {
+    try {
+      setIsLoading(true);
+      // Lưu companyId mới vào storage
+      localStorage.setItem("companyId", companyId);
+
+      openSnackbar({ type: "success", text: "Đang chuyển đổi công ty..." });
+
+      // Reload ứng dụng để các interceptor nhận X-Company-Id mới
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+    } catch (error) {
+      openSnackbar({ type: "error", text: "Chuyển đổi thất bại" });
       setIsLoading(false);
     }
   };
@@ -1039,220 +1243,317 @@ export default function SettingsPage() {
                   {/* Documents Section */}
                   <section className="space-y-4">
                     <div className="flex items-center justify-between px-1">
-                      <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
-                        Tài liệu hồ sơ
-                      </h3>
-                      <Badge className="bg-orange-500/10 text-orange-600 border-none rounded-full px-3 py-1 text-[10px] font-black">
-                        {
-                          [
-                            "personal_photo",
-                            "degree_certification",
-                            "identity_card_front",
-                            "identity_card_back",
-                            "health_certificate",
-                            "cv_resume",
-                          ].filter((type) =>
-                            documents.some((d) => d.documentType === type),
-                          ).length
-                        }
-                        /6 Yêu cầu
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        {selectedPortfolioId && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 rounded-full"
+                            onClick={() => setSelectedPortfolioId(null)}
+                          >
+                            <ArrowLeft className="h-4 w-4" />
+                          </Button>
+                        )}
+                        <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                          {selectedPortfolioId
+                            ? portfolios.find((p) => p.id === selectedPortfolioId)
+                                ?.portfolioName || "Thư mục"
+                            : "Tài liệu hồ sơ"}
+                        </h3>
+                      </div>
+                      <div className="flex gap-2">
+                        {!selectedPortfolioId && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 rounded-full text-orange-600 font-black text-[10px] uppercase tracking-wider"
+                            onClick={() => setIsAddingFolder(true)}
+                          >
+                            <Plus className="h-3 w-3 mr-1" /> Thư mục mới
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 rounded-full text-emerald-600 font-black text-[10px] uppercase tracking-wider"
+                          onClick={() => attachmentFileInputRef.current?.click()}
+                        >
+                          <Plus className="h-3 w-3 mr-1" /> Tải tệp lên
+                        </Button>
+                      </div>
                     </div>
+
+                    {isAddingFolder && (
+                      <Card className="p-4 border-orange-200 bg-orange-50/30 dark:bg-orange-950/10">
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="Tên thư mục mới..."
+                            value={newFolderName}
+                            onChange={(e) => setNewFolderName(e.target.value)}
+                            className="h-10 rounded-xl"
+                            autoFocus
+                          />
+                          <Button
+                            size="sm"
+                            className="h-10 bg-orange-600 rounded-xl"
+                            onClick={handleCreatePortfolio}
+                            disabled={isLoading}
+                          >
+                            Tạo
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-10 rounded-xl"
+                            onClick={() => setIsAddingFolder(false)}
+                          >
+                            Hủy
+                          </Button>
+                        </div>
+                      </Card>
+                    )}
+
                     <Card className="border-gray-100 dark:border-[#353A45] bg-white dark:bg-[#262A31] shadow-sm rounded-2xl overflow-hidden">
                       <div className="divide-y divide-gray-50 dark:divide-white/5">
-                        {[
-                          {
-                            type: "personal_photo",
-                            label: "Ảnh thẻ cá nhân",
-                          },
-                          {
-                            type: "degree_certification",
-                            label: "Bằng cấp chuyên môn",
-                          },
-                          {
-                            type: "identity_card_front",
-                            label: "CCCD mặt trước",
-                          },
-                          {
-                            type: "identity_card_back",
-                            label: "CCCD mặt sau",
-                          },
-                          {
-                            type: "health_certificate",
-                            label: "Giấy khám sức khỏe",
-                          },
-                          {
-                            type: "cv_resume",
-                            label: "CV / Resume",
-                          },
-                        ].map((docType, idx) => {
-                          const docsOfType = documents.filter(
-                            (d) => d.documentType === docType.type,
-                          );
-                          const hasDoc = docsOfType.length > 0;
-
-                          return (
-                            <div key={idx} className="flex flex-col">
+                        {!selectedPortfolioId ? (
+                          <>
+                            {/* Folders List */}
+                            {portfolios.map((portfolio) => (
                               <div
+                                key={portfolio.id}
                                 className="flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors group cursor-pointer"
-                                onClick={() => {
-                                  if (hasDoc) {
-                                    // Basic toggle or view logic could go here
-                                    // For now, let's just open the first one if there is only one
-                                    if (docsOfType.length === 1) {
-                                      window.open(
-                                        docsOfType[0].fileUrl,
-                                        "_blank",
-                                      );
-                                    }
-                                  }
-                                }}
+                                onClick={() => setSelectedPortfolioId(portfolio.id)}
                               >
                                 <div className="flex items-center gap-3">
-                                  <div
-                                    className={cn(
-                                      "h-10 w-10 rounded-xl flex items-center justify-center transition-colors shadow-sm",
-                                      hasDoc
-                                        ? "bg-orange-500/10 text-orange-600"
-                                        : "bg-slate-100 text-slate-400 dark:bg-slate-800",
-                                    )}
-                                  >
-                                    <Files className="h-5 w-5" />
+                                  <div className="h-10 w-10 rounded-xl flex items-center justify-center bg-orange-500/10 text-orange-600 shadow-sm">
+                                    <Folder className="h-5 w-5" />
                                   </div>
                                   <div>
                                     <p className="text-sm font-bold text-slate-900 dark:text-white leading-none mb-1">
-                                      {docType.label}
+                                      {portfolio.portfolioName}
                                     </p>
                                     <p className="text-[10px] font-medium text-slate-400 uppercase">
-                                      {hasDoc ? (
-                                        <>
-                                          Đã tải lên •{" "}
-                                          {docsOfType.length > 1
-                                            ? `${docsOfType.length} tệp`
-                                            : format(
-                                                new Date(
-                                                  docsOfType[0].uploadedAt,
-                                                ),
-                                                "dd-MM-yyyy",
-                                              )}
-                                        </>
-                                      ) : (
-                                        "Chưa tải lên"
-                                      )}
+                                      {documents.filter(
+                                        (d) => d.portfolioId === portfolio.id,
+                                      ).length}{" "}
+                                      tài liệu
                                     </p>
                                   </div>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                  {hasDoc && (
-                                    <Badge className="bg-green-500/10 text-green-600 border-none rounded-full px-2 py-0.5 text-[8px] font-black uppercase">
-                                      Done
-                                    </Badge>
-                                  )}
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="h-8 w-8 rounded-full text-slate-400 hover:text-orange-600 hover:bg-orange-50"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setUploadingDocType(docType.type);
-                                      docFileInputRef.current?.click();
-                                    }}
-                                    disabled={isLoading}
-                                  >
-                                    {uploadingDocType === docType.type ? (
-                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                    ) : (
-                                      <Plus className="h-4 w-4" />
-                                    )}
-                                  </Button>
-                                  <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-orange-500 transition-colors" />
-                                </div>
+                                <ChevronRight className="h-4 w-4 text-slate-300 group-hover:text-orange-500 transition-colors" />
                               </div>
-                              {hasDoc && (
-                                <div className="px-14 pb-4 pt-1 space-y-2">
-                                  {docsOfType.map((doc, dIdx) => (
-                                    <div
-                                      key={dIdx}
-                                      className="flex items-center justify-between group/item"
-                                    >
-                                      <div
-                                        className="flex flex-col cursor-pointer hover:text-orange-600 transition-colors"
-                                        onClick={() =>
-                                          window.open(doc.fileUrl, "_blank")
+                            ))}
+
+                            {/* Required Documents Section */}
+                            <div className="p-3 bg-slate-50/50 dark:bg-slate-900/30">
+                              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest px-1 mb-2">
+                                Danh mục yêu cầu
+                              </p>
+                            </div>
+                            {[
+                              { type: "personal_photo", label: "Ảnh thẻ cá nhân" },
+                              {
+                                type: "degree_certification",
+                                label: "Bằng cấp chuyên môn",
+                              },
+                              {
+                                type: "identity_card_front",
+                                label: "CCCD mặt trước",
+                              },
+                              {
+                                type: "identity_card_back",
+                                label: "CCCD mặt sau",
+                              },
+                              {
+                                type: "health_certificate",
+                                label: "Giấy khám sức khỏe",
+                              },
+                              { type: "cv_resume", label: "CV / Resume" },
+                            ].map((docType, idx) => {
+                              const docsOfType = documents.filter(
+                                (d) => d.documentType === docType.type,
+                              );
+                              const hasDoc = docsOfType.length > 0;
+
+                              return (
+                                <div key={idx} className="flex flex-col">
+                                  <div
+                                    className="flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors group cursor-pointer"
+                                    onClick={() => {
+                                      if (hasDoc) {
+                                        if (docsOfType.length === 1) {
+                                          window.open(
+                                            docsOfType[0].fileUrl,
+                                            "_blank",
+                                          );
                                         }
+                                      }
+                                    }}
+                                  >
+                                    <div className="flex items-center gap-3">
+                                      <div
+                                        className={cn(
+                                          "h-10 w-10 rounded-xl flex items-center justify-center transition-colors shadow-sm",
+                                          hasDoc
+                                            ? "bg-orange-500/10 text-orange-600"
+                                            : "bg-slate-100 text-slate-400 dark:bg-slate-800",
+                                        )}
                                       >
-                                        <span className="text-[11px] font-bold truncate max-w-[150px]">
-                                          {doc.originalFilename}
-                                        </span>
-                                        <span className="text-[9px] font-medium text-slate-400 uppercase tracking-tight">
-                                          {format(
-                                            new Date(doc.uploadedAt),
-                                            "dd-MM-yyyy HH:mm",
-                                          )}
-                                        </span>
+                                        <Files className="h-5 w-5" />
                                       </div>
+                                      <div>
+                                        <p className="text-sm font-bold text-slate-900 dark:text-white leading-none mb-1">
+                                          {docType.label}
+                                        </p>
+                                        <p className="text-[10px] font-medium text-slate-400 uppercase">
+                                          {hasDoc
+                                            ? `Đã tải lên • ${format(new Date(docsOfType[0].uploadedAt), "dd-MM-yyyy")}`
+                                            : "Chưa tải lên"}
+                                        </p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
                                       <Button
                                         variant="ghost"
                                         size="icon"
-                                        className="h-6 w-6 rounded-full text-slate-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover/item:opacity-100 transition-opacity"
+                                        className="h-8 w-8 rounded-full text-slate-400 hover:text-orange-600 hover:bg-orange-50"
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          handleDeleteDocument(doc.id);
+                                          setUploadingDocType(docType.type);
+                                          docFileInputRef.current?.click();
                                         }}
                                         disabled={isLoading}
                                       >
-                                        <Trash2 className="h-3 w-3" />
+                                        {uploadingDocType === docType.type ? (
+                                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                        ) : (
+                                          <Plus className="h-4 w-4" />
+                                        )}
                                       </Button>
                                     </div>
-                                  ))}
+                                  </div>
+                                  {hasDoc && (
+                                    <div className="pl-14 pr-4 pb-4 pt-1 space-y-3">
+                                      {docsOfType.map((doc, dIdx) => (
+                                        <div
+                                          key={dIdx}
+                                          className="flex items-center justify-between group/item"
+                                        >
+                                          <div className="flex flex-col flex-1 min-w-0 pr-2">
+                                            <span className="text-[11px] font-bold truncate">
+                                              {doc.originalFilename}
+                                            </span>
+                                          </div>
+                                          <div className="flex items-center gap-1 shrink-0">
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              className="h-8 w-8 rounded-full text-slate-300 active:text-orange-600 active:bg-orange-50"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                window.open(doc.fileUrl, "_blank");
+                                              }}
+                                            >
+                                              <Eye className="h-4 w-4" />
+                                            </Button>
+                                            <Button
+                                              variant="ghost"
+                                              size="icon"
+                                              className="h-8 w-8 rounded-full text-slate-300 active:text-red-500 active:bg-red-50"
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDeleteDocument(doc.id);
+                                              }}
+                                            >
+                                              <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                      <div className="p-4 bg-orange-50/50 dark:bg-orange-950/20">
-                        <Button
-                          variant="ghost"
-                          className="w-full text-orange-600 font-black uppercase text-[10px] tracking-[0.2em] gap-2"
-                          onClick={() => {
-                            // Default to some type if clicked? Or just show a message?
-                            // Actually, let's just make it focus an existing type or something.
-                            // For now, let's map it to open the first type that's not uploaded.
-                            const firstMissing = [
-                              "personal_photo",
-                              "degree_certification",
-                              "identity_card_front",
-                              "identity_card_back",
-                              "health_certificate",
-                              "cv_resume",
-                            ].find(
-                              (t) =>
-                                !documents.some((d) => d.documentType === t),
-                            );
-                            if (firstMissing) {
-                              setUploadingDocType(firstMissing);
-                              docFileInputRef.current?.click();
-                            } else {
-                              setUploadingDocType("cv_resume");
-                              docFileInputRef.current?.click();
-                            }
-                          }}
-                        >
-                          <Plus className="h-4 w-4" /> Tải lên tài liệu mới
-                        </Button>
-                        <input
-                          type="file"
-                          ref={docFileInputRef}
-                          className="hidden"
-                          onChange={(e) => {
-                            if (uploadingDocType) {
-                              handleUploadDocument(e, uploadingDocType);
-                            }
-                          }}
-                        />
+                              );
+                            })}
+                          </>
+                        ) : (
+                          <>
+                            {/* Files in selected folder */}
+                            {documents
+                              .filter((d) => d.portfolioId === selectedPortfolioId)
+                              .map((doc) => (
+                                <div
+                                  key={doc.id}
+                                  className="flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors group"
+                                >
+                                  <div
+                                    className="flex items-center gap-3"
+                                  >
+                                    <div className="h-10 w-10 rounded-xl flex items-center justify-center bg-blue-500/10 text-blue-600 shadow-sm">
+                                      <Files className="h-5 w-5" />
+                                    </div>
+                                    <div>
+                                      <p className="text-sm font-bold text-slate-900 dark:text-white leading-none mb-1">
+                                        {doc.originalFilename || doc.fileName}
+                                      </p>
+                                      <p className="text-[10px] font-medium text-slate-400 uppercase">
+                                        {format(
+                                          new Date(doc.uploadedAt),
+                                          "dd-MM-yyyy HH:mm",
+                                        )}
+                                      </p>
+                                    </div>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 rounded-full text-slate-300 hover:text-orange-600"
+                                      onClick={() => window.open(doc.fileUrl, "_blank")}
+                                    >
+                                      <Eye className="h-4 w-4" />
+                                    </Button>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 rounded-full text-slate-300 hover:text-red-500"
+                                      onClick={() => handleDeleteDocument(doc.id)}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            {documents.filter(
+                              (d) => d.portfolioId === selectedPortfolioId,
+                            ).length === 0 && (
+                              <div className="py-10 text-center">
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
+                                  Thư mục trống
+                                </p>
+                              </div>
+                            )}
+                          </>
+                        )}
                       </div>
                     </Card>
+
+                    <input
+                      type="file"
+                      ref={attachmentFileInputRef}
+                      className="hidden"
+                      onChange={handleUploadAttachment}
+                    />
+                    <input
+                      type="file"
+                      ref={docFileInputRef}
+                      className="hidden"
+                      onChange={(e) => {
+                        if (uploadingDocType) {
+                          handleUploadDocument(e, uploadingDocType);
+                        }
+                      }}
+                    />
                   </section>
                 </div>
               </Tabs.Tab>
@@ -1565,6 +1866,23 @@ export default function SettingsPage() {
                         </Button>
                       </div>
                     </Card>
+                  </section>
+
+                  <section className="space-y-4">
+                    <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+                      Quản lý tổ chức
+                    </h3>
+                    <Button
+                      variant="ghost"
+                      onClick={handleOpenSwitchCompany}
+                      className="w-full h-14 rounded-2xl bg-orange-50 dark:bg-orange-950/20 text-orange-600 font-black text-sm uppercase tracking-widest flex items-center justify-between px-6 border border-orange-100 dark:border-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-all"
+                    >
+                      <div className="flex items-center gap-3">
+                        <Users className="h-5 w-5" />
+                        <span>Đổi công ty làm việc</span>
+                      </div>
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
                   </section>
 
                   <section className="space-y-4">
@@ -1976,6 +2294,92 @@ export default function SettingsPage() {
                 "Lưu tài khoản"
               )}
             </Button>
+          </div>
+        </div>
+      </Sheet>
+
+      <Sheet
+        visible={isSwitchCompanySheetOpen}
+        onClose={() => setIsSwitchCompanySheetOpen(false)}
+        mask
+        handler
+        swipeToClose
+      >
+        <div className="flex flex-col h-[60vh] w-full bg-white dark:bg-[#1a1d23] rounded-t-3xl overflow-hidden relative text-left">
+          <div className="px-5 py-4 border-b border-gray-100 dark:border-[#353A45] flex items-center justify-between shrink-0 bg-white/95 dark:bg-[#1a1d23]/95 backdrop-blur-sm z-20">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-2xl bg-orange-500/10 flex items-center justify-center text-orange-600 shadow-sm">
+                <Users className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-black text-slate-900 dark:text-white leading-tight">
+                  Đổi công ty làm việc
+                </h3>
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400">
+                  Chọn tổ chức bạn muốn truy cập
+                </span>
+              </div>
+            </div>
+            <button
+              onClick={() => setIsSwitchCompanySheetOpen(false)}
+              className="h-8 w-8 rounded-full bg-gray-50 dark:bg-gray-800 flex items-center justify-center text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+            >
+              <XCircle className="h-5 w-5" />
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-5 space-y-3 pb-24">
+            {isFetchingCompanies ? (
+              <div className="flex flex-col items-center justify-center py-10 gap-3">
+                <Loader2 className="h-8 w-8 text-orange-500 animate-spin" />
+                <p className="text-xs font-bold text-slate-400 uppercase">
+                  Đang tải danh sách...
+                </p>
+              </div>
+            ) : companies.length > 0 ? (
+              companies.map((company) => (
+                <div
+                  key={company.id}
+                  onClick={() => handleSelectCompany(company.id)}
+                  className={cn(
+                    "p-4 rounded-2xl border-2 flex items-center justify-between transition-all active:scale-[0.98] cursor-pointer",
+                    localStorage.getItem("companyId") === company.id
+                      ? "border-orange-500 bg-orange-50/50 dark:bg-orange-950/20"
+                      : "border-gray-50 dark:border-gray-800 hover:border-orange-200"
+                  )}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className={cn(
+                      "h-10 w-10 rounded-xl flex items-center justify-center shadow-sm",
+                      localStorage.getItem("companyId") === company.id
+                        ? "bg-orange-500 text-white"
+                        : "bg-slate-100 text-slate-400 dark:bg-slate-800"
+                    )}>
+                      <Users className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-black text-slate-900 dark:text-white">
+                        {company.name}
+                      </p>
+                      {company.isPrimary && (
+                        <Badge className="bg-orange-500/10 text-orange-600 border-none rounded-full px-2 py-0.5 text-[8px] font-black uppercase mt-1">
+                          Mặc định
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                  {localStorage.getItem("companyId") === company.id && (
+                    <div className="h-6 w-6 rounded-full bg-orange-500 flex items-center justify-center text-white">
+                      <Icon icon="zi-check" className="text-xs" />
+                    </div>
+                  )}
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-10">
+                <p className="text-sm text-slate-400 font-bold"> Không tìm thấy công ty nào </p>
+              </div>
+            )}
           </div>
         </div>
       </Sheet>

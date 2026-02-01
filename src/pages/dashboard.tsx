@@ -123,10 +123,11 @@ const DashboardPage: React.FC = () => {
 
   const fetchLeaveData = useCallback(async () => {
     try {
-      // Fetch recent leave requests
-      const requestsRes = await getApiV3LeaveRequestsMy({
-        query: { limit: "3" },
-      });
+      const [requestsRes, balancesRes] = await Promise.all([
+        getApiV3LeaveRequestsMy({ query: { limit: "3" } }),
+        getApiV3LeavePoliciesBalances(),
+      ]);
+
       if (requestsRes.data && requestsRes.data.requests) {
         setRecentRequests(
           requestsRes.data.requests.map((req: any) => ({
@@ -140,12 +141,8 @@ const DashboardPage: React.FC = () => {
         );
       }
 
-      // Fetch leave balances
-      const balancesRes = await getApiV3LeavePoliciesBalances();
       if (balancesRes.data && balancesRes.data.balances) {
         const balances = balancesRes.data.balances as any[];
-        // Find the "Annual Leave" or main leave policy. For now, let's sum them or find a primary one.
-        // Usually, users care about "Phep nam" (Annual Leave).
         const mainBalance =
           balances.find(
             (b) =>
@@ -165,43 +162,7 @@ const DashboardPage: React.FC = () => {
     }
   }, []);
 
-  useEffect(() => {
-    if (isOnline) {
-      fetchTodayAttendance();
-    }
-  }, [isOnline, fetchTodayAttendance]);
-
-  // Fetch user data
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const res = await getApiEmployeesMe();
-        if (res.data) {
-          const data = (res.data as any).data;
-          const fullName = data.fullName;
-          const avatar = data.avatarUrl || "";
-          const code = data.employeeCode || "";
-          const id = data.id || "";
-
-          setUserName(fullName);
-          setUserAvatar(avatar);
-          setEmployeeCode(code);
-          setEmployeeId(id);
-
-          // Cache the data
-          localStorage.setItem("cached_userName", fullName);
-          localStorage.setItem("cached_userAvatar", avatar);
-          localStorage.setItem("cached_employeeCode", code);
-          localStorage.setItem("cached_employeeId", id);
-        }
-      } catch (error) {
-        console.error("Failed to fetch user information", error);
-      }
-    };
-    fetchUser();
-  }, []);
-
-  const mapOTStatus = (
+  const mapOTStatus = useCallback((
     status: string,
   ): "pending" | "approved" | "rejected" | "cancelled" => {
     switch (status) {
@@ -215,7 +176,7 @@ const DashboardPage: React.FC = () => {
       default:
         return "rejected";
     }
-  };
+  }, []);
 
   const fetchOvertimeData = useCallback(async (eid: string) => {
     try {
@@ -235,15 +196,17 @@ const DashboardPage: React.FC = () => {
       if (res.data) {
         const records = (res.data as any).data || [];
 
-        // 1. Calculate summary for the month
-        const total = records.reduce(
-          (acc: number, curr: any) =>
-            acc + (curr.actualHours || curr.scheduledHours || 0),
-          0,
-        );
-        const pending = records.filter(
-          (r: any) => r.status === "PENDING",
-        ).length;
+        // 1. Calculate summary for the month in a single pass
+        let total = 0;
+        let pending = 0;
+
+        records.forEach((curr: any) => {
+          total += (curr.actualHours || curr.scheduledHours || 0);
+          if (curr.status === "PENDING") {
+            pending++;
+          }
+        });
+
         setTotalOTHours(total);
         setPendingOTRequests(pending);
 
@@ -287,13 +250,7 @@ const DashboardPage: React.FC = () => {
     } catch (error) {
       console.error("Failed to fetch overtime data", error);
     }
-  }, []);
-
-  useEffect(() => {
-    if (employeeId && isOnline) {
-      fetchOvertimeData(employeeId);
-    }
-  }, [employeeId, isOnline, fetchOvertimeData]);
+  }, [mapOTStatus]);
 
   const fetchHistoryData = useCallback(async (eid: string) => {
     setIsHistoryLoading(true);
@@ -364,34 +321,72 @@ const DashboardPage: React.FC = () => {
     }
   }, []);
 
+  // 1. Unified Initial Data Fetching
+  const fetchAllData = useCallback(
+    async (eid: string) => {
+      if (!isOnline) return;
+      try {
+        await Promise.all([
+          fetchOvertimeData(eid),
+          fetchHistoryData(eid),
+          fetchLeaveData(),
+          fetchTodayAttendance(),
+        ]);
+      } catch (err) {
+        console.error("Failed to fetch dashboard data", err);
+      }
+    },
+    [isOnline, fetchOvertimeData, fetchHistoryData, fetchLeaveData, fetchTodayAttendance],
+  );
+
+  // 2. Fetch User & Trigger Initial Data
+  useEffect(() => {
+    const initUser = async () => {
+      try {
+        const res = await getApiEmployeesMe();
+        if (res.data) {
+          const data = (res.data as any).data;
+          const { fullName, avatarUrl: avatar = "", employeeCode: code = "", id } = data;
+
+          setUserName(fullName);
+          setUserAvatar(avatar);
+          setEmployeeCode(code);
+          setEmployeeId(id);
+
+          // Cache data
+          localStorage.setItem("cached_userName", fullName);
+          localStorage.setItem("cached_userAvatar", avatar);
+          localStorage.setItem("cached_employeeCode", code);
+          localStorage.setItem("cached_employeeId", id);
+
+          // Trigger data fetch immediately after getting ID to avoid effect chain delay
+          if (id) fetchAllData(id);
+        }
+      } catch (error) {
+        console.error("Failed to fetch user information", error);
+      }
+    };
+    initUser();
+  }, [fetchAllData]);
+
+  // 3. Handle Re-sync when coming back online
+  useEffect(() => {
+    if (isOnline && employeeId) {
+      fetchAllData(employeeId);
+    }
+  }, [isOnline, employeeId, fetchAllData]);
+
+  // 4. Events & Subscriptions
   useEffect(() => {
     const handleRefresh = () => {
       fetchLeaveData();
       fetchTodayAttendance();
     };
     window.addEventListener("leave-request-submitted", handleRefresh);
-    return () =>
-      window.removeEventListener("leave-request-submitted", handleRefresh);
+    return () => window.removeEventListener("leave-request-submitted", handleRefresh);
   }, [fetchLeaveData, fetchTodayAttendance]);
 
-  useEffect(() => {
-    if (employeeId && isOnline) {
-      fetchOvertimeData(employeeId);
-      fetchHistoryData(employeeId);
-      fetchLeaveData();
-      fetchLeaveData();
-      fetchTodayAttendance();
-    }
-  }, [
-    employeeId,
-    isOnline,
-    fetchOvertimeData,
-    fetchHistoryData,
-    fetchLeaveData,
-    fetchTodayAttendance,
-  ]);
-
-  // Check network status and pending records
+  // 5. Network & Sync Monitoring
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
@@ -400,7 +395,6 @@ const DashboardPage: React.FC = () => {
     window.addEventListener("offline", handleOffline);
 
     refreshPendingCount();
-    // Check every 5 seconds
     const interval = setInterval(refreshPendingCount, 5000);
 
     return () => {
@@ -410,7 +404,7 @@ const DashboardPage: React.FC = () => {
     };
   }, [refreshPendingCount]);
 
-  // Initialize Anticheat Service
+  // 6. Security Init
   useEffect(() => {
     AnticheatService.init().catch((err) =>
       console.error("Anticheat init failed", err),
@@ -523,19 +517,22 @@ const DashboardPage: React.FC = () => {
       // 3. Data Consistency Refreshes
       console.log("[Dashboard] onVerified: Scheduling consistency fetches...");
 
-      // Immediate-ish fetch (wait for server to process async task)
-      setTimeout(() => {
-        console.log("[Dashboard] Initial consistency fetch...");
+      // Use a cleaner approach for refreshes
+      const refreshData = () => {
         fetchTodayAttendance();
         if (employeeId) fetchHistoryData(employeeId);
         fetchLeaveData();
-      }, 1000);
+      };
 
-      // Delayed fetch (ensure eventual consistency)
-      setTimeout(() => {
-        console.log("[Dashboard] Final consistency fetch...");
-        fetchTodayAttendance();
-      }, 5000);
+      // Initial refresh after server sync
+      const timer1 = setTimeout(refreshData, 1000);
+      // Final eventual consistency check
+      const timer2 = setTimeout(fetchTodayAttendance, 5000);
+
+      return () => {
+        clearTimeout(timer1);
+        clearTimeout(timer2);
+      };
     },
     [
       isOnline,
@@ -556,58 +553,6 @@ const DashboardPage: React.FC = () => {
     [navigate],
   );
 
-  const mockHistory: any[] = [
-    {
-      id: "1",
-      date: new Date(),
-      status: "present" as const,
-      checkIn: "08:30",
-      checkOut: "17:35",
-    },
-    {
-      id: "2",
-      date: new Date(Date.now() - 86400000),
-      status: "late" as const,
-      checkIn: "09:15",
-      checkOut: "18:00",
-    },
-    {
-      id: "3",
-      date: new Date(Date.now() - 86400000 * 2),
-      status: "present" as const,
-      checkIn: "08:25",
-      checkOut: "17:30",
-    },
-  ];
-
-  // Placeholder for leave requests (to be integrated later)
-  const mockLeaveRequests: LeaveRequest[] = [
-    {
-      id: "l1",
-      startDate: new Date(Date.now() + 86400000 * 2).toISOString(),
-      endDate: new Date(Date.now() + 86400000 * 3).toISOString(),
-      type: "Nghỉ phép năm",
-      status: "pending",
-      days: 1,
-    },
-    {
-      id: "l2",
-      startDate: new Date(Date.now() - 86400000 * 10).toISOString(),
-      endDate: new Date(Date.now() - 86400000 * 10).toISOString(),
-      type: "Nghỉ ốm",
-      status: "approved",
-      days: 1,
-    },
-    {
-      id: "l3",
-      startDate: new Date(Date.now() - 86400000 * 20).toISOString(),
-      endDate: new Date(Date.now() - 86400000 * 18).toISOString(),
-      type: "Nghỉ việc riêng",
-      status: "approved",
-      days: 2,
-    },
-  ];
-
   return (
     <PageContainer
       header={
@@ -618,17 +563,17 @@ const DashboardPage: React.FC = () => {
       }
     >
       {/* Network Status Indicator */}
-      {!isOnline && (
+      {!isOnline ? (
         <div className="bg-red-500/10 border border-red-500/20 text-red-700 px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-2 mt-2">
           <WifiOff className="h-4 w-4" />
           <span>Bạn đang ở chế độ ngoại tuyến. Dữ liệu sẽ được lưu tạm.</span>
         </div>
-      )}
+      ) : null}
 
       <GreetingSection displayName={userName || "Nguyễn Văn A"} />
 
       {/* Pending Sync Indicator - Redesigned for Premium Look */}
-      {pendingSync > 0 && (
+      {pendingSync > 0 ? (
         <div
           className="mt-4 p-4 rounded-xl bg-gradient-to-r from-orange-500/10 via-orange-500/5 to-transparent border border-orange-500/20 flex items-center justify-between cursor-pointer active:scale-[0.98] transition-all overflow-hidden relative group"
           onClick={() => setIsSyncSheetOpen(true)}
@@ -662,7 +607,7 @@ const DashboardPage: React.FC = () => {
             <ChevronRight className="h-4 w-4 text-orange-600" />
           </div>
         </div>
-      )}
+      ) : null}
 
       <AttendanceSection
         workStatus={workStatus}

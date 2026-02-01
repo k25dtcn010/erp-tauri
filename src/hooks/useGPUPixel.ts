@@ -182,8 +182,21 @@ export const useGPUPixel = ({
 
   const requestRef = useRef<number>();
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  // Refs for WASM memory reuse
+  const wasmBufferRef = useRef<{ ptr: number; size: number } | null>(null);
   // Refs cho params để tránh dependency loop
   const paramsRef = useRef({ smoothing, whitening, enabled });
+
+  useEffect(() => {
+    return () => {
+      // Cleanup WASM buffer on unmount
+      const module = GPUPixelLoader.getModule();
+      if (module && wasmBufferRef.current) {
+        module._free(wasmBufferRef.current.ptr);
+        wasmBufferRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     paramsRef.current = { smoothing, whitening, enabled };
@@ -272,9 +285,19 @@ export const useGPUPixel = ({
         ctx.drawImage(video, 0, 0, width, height);
         const imageData = ctx.getImageData(0, 0, width, height);
 
-        // --- SỬA LỖI Ở ĐÂY ---
         const dataLen = imageData.data.length;
-        const ptr = module._malloc(dataLen);
+
+        // --- REUSE WASM BUFFER ---
+        if (!wasmBufferRef.current || wasmBufferRef.current.size !== dataLen) {
+          if (wasmBufferRef.current) {
+            module._free(wasmBufferRef.current.ptr);
+          }
+          wasmBufferRef.current = {
+            ptr: module._malloc(dataLen),
+            size: dataLen
+          };
+        }
+        const ptr = wasmBufferRef.current.ptr;
 
         // Tìm kiếm HEAPU8 từ nhiều nguồn: từ module, từ global window, hoặc từ memory buffer
         let memoryView = module.HEAPU8;
@@ -312,8 +335,6 @@ export const useGPUPixel = ({
           // Fallback vẽ thường
           ctx.drawImage(video, 0, 0, width, height);
         }
-
-        module._free(ptr);
         // ---------------------
       } catch (e) {
         // Chỉ log error một lần hoặc throttle để tránh treo trình duyệt

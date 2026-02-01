@@ -1,7 +1,8 @@
 import React, { useState } from "react";
-import { Sheet, Text, useSnackbar, DatePicker } from "zmp-ui";
+import { Sheet, Text, useSnackbar } from "zmp-ui";
 import { CalendarDays, Clock, FileText, Send, X } from "lucide-react";
 import { TimePicker } from "@/components/common/TimePicker";
+import { DatePicker } from "@/components/ui/date-picker";
 
 interface LateEarlyRequestModalProps {
   isOpen: boolean;
@@ -100,13 +101,9 @@ export const LateEarlyRequestModal: React.FC<LateEarlyRequestModalProps> = ({
               </label>
 
               <DatePicker
-                mask
-                maskClosable
-                title="Chọn ngày xin nghỉ"
-                dateFormat="dd/mm/yyyy"
-                value={date}
-                onChange={(value) => setDate(value as Date)}
-                inputClass="w-full h-12 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#262A31] font-bold text-sm text-slate-700 dark:text-slate-200 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 outline-none transition-all shadow-sm"
+                date={date}
+                setDate={(newDate) => newDate && setDate(newDate)}
+                className="w-full"
               />
             </div>
 

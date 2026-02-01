@@ -23,9 +23,9 @@ import {
   Tabs,
   Sheet,
   Select as ZSelect,
-  DatePicker,
   useSnackbar,
 } from "zmp-ui";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -758,13 +758,9 @@ const OvertimePage: React.FC = () => {
                 </label>
                 <div className="relative">
                   <DatePicker
-                    mask
-                    maskClosable
-                    title="Chọn ngày bắt đầu"
-                    dateFormat="dd/mm/yyyy"
-                    value={selectedDate}
-                    onChange={(value) => setSelectedDate(value as Date)}
-                    inputClass="w-full h-12 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#262A31] font-bold text-sm text-slate-700 dark:text-slate-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 outline-none transition-all shadow-sm"
+                    date={selectedDate}
+                    setDate={(date) => date && setSelectedDate(date)}
+                    className="w-full"
                   />
                 </div>
               </div>
@@ -775,13 +771,9 @@ const OvertimePage: React.FC = () => {
                 </label>
                 <div className="relative">
                   <DatePicker
-                    mask
-                    maskClosable
-                    title="Chọn ngày kết thúc"
-                    dateFormat="dd/mm/yyyy"
-                    value={selectedDate}
-                    onChange={(value) => setSelectedDate(value as Date)}
-                    inputClass="w-full h-12 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#262A31] font-bold text-sm text-slate-700 dark:text-slate-200 focus:border-purple-500 focus:ring-4 focus:ring-purple-500/10 outline-none transition-all shadow-sm"
+                    date={selectedDate}
+                    setDate={(date) => date && setSelectedDate(date)}
+                    className="w-full"
                   />
                 </div>
               </div>

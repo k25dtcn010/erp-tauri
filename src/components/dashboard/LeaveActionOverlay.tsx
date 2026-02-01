@@ -11,7 +11,8 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { useUserStore } from "@/store/user-store";
-import { Sheet, Select as ZSelect, DatePicker, useSnackbar } from "zmp-ui";
+import { Sheet, Select as ZSelect, useSnackbar } from "zmp-ui";
+import { DatePicker } from "@/components/ui/date-picker";
 import { LateEarlyRequestModal } from "./LateEarlyRequestModal";
 import {
   getApiV3LeavePolicies,
@@ -312,13 +313,9 @@ const LeaveActionOverlay: React.FC = () => {
                 </label>
                 <div className="relative">
                   <DatePicker
-                    mask
-                    maskClosable
-                    title="Chọn ngày bắt đầu"
-                    dateFormat="dd/mm/yyyy"
-                    value={startDate}
-                    onChange={(value) => setStartDate(value as Date)}
-                    inputClass="w-full h-12 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#262A31] font-bold text-sm text-slate-700 dark:text-slate-200 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 outline-none transition-all shadow-sm"
+                    date={startDate}
+                    setDate={(date) => date && setStartDate(date)}
+                    className="w-full"
                   />
                 </div>
               </div>
@@ -330,13 +327,9 @@ const LeaveActionOverlay: React.FC = () => {
                 </label>
                 <div className="relative">
                   <DatePicker
-                    mask
-                    maskClosable
-                    title="Chọn ngày kết thúc"
-                    dateFormat="dd/mm/yyyy"
-                    value={endDate}
-                    onChange={(value) => setEndDate(value as Date)}
-                    inputClass="w-full h-12 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#262A31] font-bold text-sm text-slate-700 dark:text-slate-200 focus:border-orange-500 focus:ring-4 focus:ring-orange-500/10 outline-none transition-all shadow-sm"
+                    date={endDate}
+                    setDate={(date) => date && setEndDate(date)}
+                    className="w-full"
                   />
                 </div>
               </div>

@@ -66,12 +66,12 @@ export const CustomPageHeader: React.FC<CustomPageHeaderProps> = ({
       </div>
 
       <div className="w-full flex flex-col items-center justify-center z-10 px-10">
-        <h1 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tight leading-none text-center truncate w-full">
+        <h1 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tight leading-normal text-center truncate w-full py-0.5">
           {title}
         </h1>
         <span
           className={cn(
-            "text-[10px] font-bold text-transparent bg-clip-text bg-gradient-to-r uppercase tracking-widest mt-0.5 text-center truncate w-full",
+            "text-[10px] font-bold text-transparent bg-clip-text bg-gradient-to-r uppercase tracking-widest mt-0.5 text-center truncate w-full py-0.5",
             styles.textGradient,
           )}
         >

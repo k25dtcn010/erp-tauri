@@ -1,11 +1,11 @@
 import React, { useMemo } from "react";
-import { Clock, Fingerprint, Timer, Zap, Briefcase, CalendarRange } from "lucide-react";
+import { Clock, Fingerprint, Timer, Zap, Briefcase, CalendarRange, Users, MapPin, CheckCircle2, AlertCircle, ArrowRight, LogIn, LogOut } from "lucide-react";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Text, useNavigate } from "zmp-ui";
+import { useNavigate } from "zmp-ui";
 import { useCurrentTime } from "@/hooks/use-current-time";
 
 export interface AttendanceSessionItem {
@@ -97,32 +97,17 @@ export function AttendanceSection({
     return currentMinutes >= start && currentMinutes <= end;
   }, [overtime, currentMinutes]);
 
-  const getStatusDisplay = (status: string) => {
-    switch (status) {
-      case "COMPLETED":
-        return {
-          label: "Hoàn thành",
-          color: "text-green-600",
-          bg: "bg-green-50",
-          border: "border-green-100"
-        };
-      case "PENDING_REVIEW":
-        return {
-          label: "Chờ duyệt",
-          color: "text-orange-600",
-          bg: "bg-orange-50",
-          border: "border-orange-100"
-        };
-      case "ACTIVE":
-        return { label: "Đang làm", color: "text-blue-600", bg: "bg-blue-50", border: "border-blue-100" };
-      default:
-        return { label: status, color: "text-gray-600", bg: "bg-gray-50", border: "border-gray-100" };
-    }
-  };
-
   return (
-    <div className="flex flex-col gap-5 mt-6">
-      {/* Premium Main Stats Card */}
+    <div className="flex flex-col gap-4 mt-6">
+      {/* Header */}
+      <div className="flex items-center gap-3 px-1">
+        <div className="p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+          <Clock className="h-5 w-5 text-blue-600" />
+        </div>
+        <h3 className="text-lg font-bold text-blue-900 dark:text-blue-100">Chấm công</h3>
+      </div>
+
+      {/* Premium Main Stats Card (Restored) */}
       <Card className="relative overflow-hidden rounded-[24px] border-none shadow-xl shadow-blue-900/10">
         {/* Dynamic Background */}
         <div className={cn(
@@ -189,8 +174,6 @@ export function AttendanceSection({
 
             {/* Progress Bar Container */}
             <div className="h-3 bg-black/20 rounded-full relative w-full overflow-hidden backdrop-blur-sm">
-
-              {/* Regular Shift Segment */}
               {shift && (
                 <div
                   className="absolute top-0 bottom-0 bg-white/30 rounded-full"
@@ -200,8 +183,6 @@ export function AttendanceSection({
                   }}
                 />
               )}
-
-              {/* Overtime Segment */}
               {overtime && (
                 <div
                   className="absolute top-0 bottom-0 bg-purple-400/50 rounded-full striped-bg"
@@ -212,7 +193,25 @@ export function AttendanceSection({
                 />
               )}
 
-              {/* Current Time Indicator */}
+              {/* Actual Working Sessions */}
+              {sessions.map((session) => {
+                const startMins = getMinutes(format(new Date(session.checkInAt), "HH:mm"));
+                const endMins = session.checkOutAt
+                  ? getMinutes(format(new Date(session.checkOutAt), "HH:mm"))
+                  : currentMinutes;
+
+                return (
+                  <div
+                    key={session.id}
+                    className="absolute top-0 bottom-0 bg-green-400/60 z-10"
+                    style={{
+                      left: `${getPosition(startMins)}%`,
+                      width: `${getPosition(endMins) - getPosition(startMins)}%`
+                    }}
+                  />
+                );
+              })}
+
               <div
                 className="absolute top-0 bottom-0 w-0.5 bg-yellow-400 z-20 shadow-[0_0_8px_rgba(250,204,21,0.8)]"
                 style={{ left: `${getPosition(currentMinutes)}%` }}
@@ -221,7 +220,6 @@ export function AttendanceSection({
               </div>
             </div>
 
-            {/* Dynamic Message */}
             <p className="text-xs text-center mt-1 text-white/80 font-medium">
               {isOvertimeNow
                 ? "Bạn đang trong giờ tăng ca. Hãy nhớ check-out khi về!"
@@ -249,127 +247,113 @@ export function AttendanceSection({
         </div>
       </Card>
 
-      {/* Action Buttons */}
-      <div className="grid grid-cols-2 gap-4">
-        <Button
-          onClick={onCheckIn}
-          disabled={workStatus !== "idle"}
-          className={cn(
-            "h-14 rounded-2xl flex flex-col items-center justify-center gap-0.5 transition-all duration-300 border-0",
-            workStatus === "idle"
-              ? "bg-gradient-to-br from-green-500 to-emerald-600 shadow-lg shadow-green-500/30 hover:scale-[1.02]"
-              : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 cursor-not-allowed"
-          )}
-        >
-          <Fingerprint className="h-5 w-5 mb-0.5" />
-          {checkInTime ? (
-            <div className="flex flex-col items-center">
-              <span className="text-[10px] font-medium opacity-80 uppercase leading-none mb-0.5">
-                {workStatus === "idle" ? "Vào ca" : "Đã vào"}
-              </span>
-              <span className="text-lg font-bold tabular-nums leading-none">{checkInTime}</span>
-            </div>
-          ) : (
-            <span className="text-xs font-bold uppercase tracking-wider">Vào ca</span>
-          )}
-        </Button>
+      {/* Action Buttons (New Design Kept) */}
+      <div className="grid grid-cols-2 gap-3">
+        {/* Check In Card */}
+        <div className={cn(
+          "p-3.5 rounded-2xl bg-white dark:bg-gray-800 border-2 transition-all flex flex-col gap-3 shadow-sm",
+          isWorking ? "border-green-100 dark:border-green-900/20" : "border-gray-50 dark:border-gray-700"
+        )}>
+          <div className="flex justify-between items-center">
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Giờ vào</span>
+            <LogIn className={cn("h-4 w-4", isWorking ? "text-green-500" : "text-gray-300")} />
+          </div>
+          <p className={cn("text-2xl font-bold tabular-nums", isWorking ? "text-green-600" : "text-gray-400")}>
+            {checkInTime || "--:--"}
+          </p>
+          <Button
+            onClick={onCheckIn}
+            disabled={workStatus !== "idle"}
+            className={cn(
+              "w-full h-10 rounded-xl font-bold text-sm shadow-none",
+              isWorking
+                ? "bg-green-50 text-green-700 hover:bg-green-100 border-none"
+                : "bg-green-600 text-white hover:bg-green-700"
+            )}
+          >
+            {isWorking ? "Đã vào" : "Vào ca"}
+          </Button>
+        </div>
 
-        <Button
-          onClick={onCheckOut}
-          disabled={!isWorking}
-          className={cn(
-            "h-14 rounded-2xl flex flex-col items-center justify-center gap-0.5 transition-all duration-300 border-0",
-            isWorking
-              ? "bg-gradient-to-br from-orange-500 to-red-600 shadow-lg shadow-orange-500/30 hover:scale-[1.02] text-white"
-              : "bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 cursor-not-allowed"
-          )}
-        >
-          <Clock className="h-5 w-5 mb-0.5" />
-          {!isWorking && checkOutTime ? (
-            <div className="flex flex-col items-center">
-              <span className="text-[10px] font-medium opacity-80 uppercase leading-none mb-0.5">Đã ra</span>
-              <span className="text-lg font-bold tabular-nums leading-none">{checkOutTime}</span>
-            </div>
-          ) : (
-            <span className="text-xs font-bold uppercase tracking-wider">Ra ca</span>
-          )}
-        </Button>
+        {/* Check Out Card */}
+        <div className={cn(
+          "p-3.5 rounded-2xl bg-white dark:bg-gray-800 border-2 transition-all flex flex-col gap-3 shadow-sm",
+          !isWorking && checkOutTime ? "border-orange-100 dark:border-orange-900/20" : "border-gray-50 dark:border-gray-700"
+        )}>
+          <div className="flex justify-between items-center">
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Giờ ra</span>
+            <LogOut className={cn("h-4 w-4", !isWorking && checkOutTime ? "text-orange-500" : "text-gray-300")} />
+          </div>
+          <p className={cn("text-2xl font-bold tabular-nums", !isWorking && checkOutTime ? "text-gray-800 dark:text-gray-100" : "text-gray-400")}>
+            {checkOutTime || "--:--"}
+          </p>
+          <Button
+            onClick={onCheckOut}
+            disabled={!isWorking}
+            className={cn(
+              "w-full h-10 rounded-xl font-bold text-sm shadow-none",
+              !isWorking && checkOutTime
+                ? "bg-orange-50 text-orange-700 hover:bg-orange-100 border-none"
+                : "bg-orange-600 text-white hover:bg-orange-700"
+            )}
+          >
+            {!isWorking && checkOutTime ? "Đã ra" : "Ra ca"}
+          </Button>
+        </div>
       </div>
 
-      {/* Today's Sessions List */}
+      {/* Sessions List Header */}
       {sessions.length > 0 && (
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-between px-1">
-            <div className="flex items-center gap-2">
-              <Clock className="h-4 w-4 text-blue-600" />
-              <h4 className="text-sm font-bold text-gray-800 dark:text-gray-200">
-                Ca làm việc hôm nay
-              </h4>
-            </div>
-            <button
-              onClick={() => navigate("/attendance-history")}
-              className="px-2 py-1 rounded-lg bg-blue-50 text-[10px] font-bold text-blue-600 hover:bg-blue-100 transition-colors"
-            >
-              Xem lịch sử
-            </button>
+        <div className="flex items-center justify-between px-1 mt-4">
+          <div className="flex items-center gap-2">
+            <h4 className="text-sm font-bold text-gray-800 dark:text-gray-200">
+              Lịch sử trong ngày
+            </h4>
           </div>
-          <div className="flex flex-col gap-3">
-            {[...sessions]
-              .sort(
-                (a, b) =>
-                  new Date(b.checkInAt).getTime() -
-                  new Date(a.checkInAt).getTime(),
-              )
-              .map((session) => {
-                const status = getStatusDisplay(session.status);
-                return (
-                  <div
-                    key={session.id}
-                    className="p-4 rounded-2xl bg-white dark:bg-[#1e2025] border border-gray-100 dark:border-gray-800 shadow-sm flex items-center justify-between transition-all"
-                  >
-                    <div className="flex items-center gap-3">
-                      {/* Icon Box */}
-                      <div className="w-10 h-10 rounded-xl bg-gray-50 dark:bg-gray-800 flex items-center justify-center border border-gray-100 dark:border-gray-700">
-                        <CheckInIcon status={session.status} />
-                      </div>
-
-                      <div className="flex flex-col">
-                        <span className="text-sm font-bold text-gray-900 dark:text-gray-100">
-                          {format(new Date(session.checkInAt), "HH:mm")} -{" "}
-                          {session.checkOutAt
-                            ? format(new Date(session.checkOutAt), "HH:mm")
-                            : "..."}
-                        </span>
-                        <span className="text-xs text-gray-500 dark:text-gray-400 font-medium">
-                          {session.workedHours
-                            ? `${session.workedHours.toFixed(2)} giờ`
-                            : "Đang tính..."}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div
-                      className={cn(
-                        "px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase border",
-                        status.bg,
-                        status.color,
-                        status.border
-                      )}
-                    >
-                      {status.label}
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
+          <button
+            onClick={() => navigate("/attendance-history")}
+            className="text-xs font-bold text-blue-600"
+          >
+            Xem lịch sử
+          </button>
         </div>
       )}
+
+      {/* Sessions List */}
+      <div className="flex flex-col gap-3">
+        {[...sessions]
+          .sort((a, b) => new Date(b.checkInAt).getTime() - new Date(a.checkInAt).getTime())
+          .map((session) => (
+            <div
+              key={session.id}
+              className="p-3.5 rounded-2xl bg-gray-50 dark:bg-gray-800/50 border border-gray-100 dark:border-gray-800 flex items-center gap-3 transition-all"
+            >
+              <div className={cn(
+                "w-10 h-10 rounded-full flex items-center justify-center shadow-sm",
+                session.status === "ACTIVE" ? "bg-blue-100 text-blue-600" : "bg-green-100 text-green-600"
+              )}>
+                {session.status === "ACTIVE" ? <Timer className="h-5 w-5" /> : <CheckCircle2 className="h-5 w-5" />}
+              </div>
+
+              <div className="flex flex-col flex-1">
+                <span className="text-[10px] font-bold text-gray-500 uppercase">Phiên làm việc</span>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-sm font-bold text-gray-900 dark:text-gray-100">
+                    {format(new Date(session.checkInAt), "HH:mm")}
+                  </span>
+                  <ArrowRight className="h-3 w-3 text-gray-400" />
+                  <span className="text-sm font-bold text-gray-900 dark:text-gray-100">
+                    {session.checkOutAt ? format(new Date(session.checkOutAt), "HH:mm") : "..."}
+                  </span>
+                </div>
+              </div>
+
+              <div className="px-2.5 py-1 rounded-lg bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 text-xs font-bold">
+                {session.workedHours ? `${session.workedHours.toFixed(1)}h` : "..."}
+              </div>
+            </div>
+          ))}
+      </div>
     </div>
   );
-}
-
-function CheckInIcon({ status }: { status: string }) {
-  if (status === "ACTIVE") return <Timer className="h-5 w-5 text-blue-500" />;
-  if (status === "COMPLETED") return <Briefcase className="h-5 w-5 text-green-500" />;
-  return <Clock className="h-5 w-5 text-gray-400" />;
 }

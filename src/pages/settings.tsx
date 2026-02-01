@@ -37,8 +37,9 @@ import {
   Sheet,
   Select as ZSelect,
   Input as ZInput,
-  DatePicker,
 } from "zmp-ui";
+import { DatePicker } from "@/components/ui/date-picker";
+import { parse } from "date-fns";
 import { Textarea } from "@/components/ui/textarea";
 const { Option } = ZSelect;
 import { cn } from "@/lib/utils";
@@ -937,17 +938,20 @@ export default function SettingsPage() {
                             <Label className="text-[10px] font-black uppercase tracking-widest text-slate-400">
                               Ngày sinh
                             </Label>
-                            <div className="relative">
-                              <Calendar className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-                              <Input
-                                type="text"
-                                value={user.birthday}
-                                onChange={(e) =>
-                                  setUser({ ...user, birthday: e.target.value })
-                                }
-                                className="pl-10 h-12 rounded-xl bg-slate-50 dark:bg-slate-900/50 border-none font-bold text-sm"
-                              />
-                            </div>
+                            <DatePicker
+                              date={
+                                user.birthday
+                                  ? parse(user.birthday, "dd-MM-yyyy", new Date())
+                                  : undefined
+                              }
+                              setDate={(date) =>
+                                setUser({
+                                  ...user,
+                                  birthday: date ? format(date, "dd-MM-yyyy") : "",
+                                })
+                              }
+                              className="h-12 rounded-xl bg-slate-50 dark:bg-slate-900/50 border-none font-bold text-sm"
+                            />
                           </div>
                         </div>
                       </div>
@@ -1793,22 +1797,18 @@ export default function SettingsPage() {
                 Ngày sinh
               </Label>
               <DatePicker
-                mask
-                maskClosable
-                title="Chọn ngày sinh"
-                dateFormat="dd/mm/yyyy"
-                value={
+                date={
                   dependentForm.birthday
                     ? new Date(dependentForm.birthday)
-                    : new Date()
+                    : undefined
                 }
-                onChange={(value) =>
+                setDate={(date) =>
                   setDependentForm({
                     ...dependentForm,
-                    birthday: format(value as Date, "yyyy-MM-dd"),
+                    birthday: date ? format(date, "yyyy-MM-dd") : "",
                   })
                 }
-                inputClass="w-full h-12 rounded-xl border-none bg-slate-50 dark:bg-slate-900/50 font-bold text-sm text-slate-700 dark:text-slate-200 outline-none transition-all"
+                className="w-full h-12 rounded-xl border-none bg-slate-50 dark:bg-slate-900/50 font-bold text-sm text-slate-700 dark:text-slate-200"
               />
             </div>
             <div className="space-y-2">

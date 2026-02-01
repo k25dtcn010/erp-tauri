@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   Page,
   Box,
@@ -54,7 +54,23 @@ const LoginPage: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState("");
 
   // --- Handlers ---
-  const handleUsernameSubmit = async () => {
+  const handleSwitchCompany = useCallback(() => {
+    setStep("company");
+    setPassword("");
+  }, []);
+
+  const handleBack = useCallback(() => {
+    setStep("username");
+    setCompanies([]);
+    setSelectedCompany(null);
+    setEmployeeInfo(null);
+    setPassword("");
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+  }, []);
+
+  const handleUsernameSubmit = useCallback(async () => {
     if (!username.trim()) {
       openSnackbar({ type: "error", text: "Vui lòng nhập tên đăng nhập" });
       return;
@@ -73,7 +89,6 @@ const LoginPage: React.FC = () => {
         apiCompanies = data;
       } else {
         const anyData = data as any;
-        // Check for 'data' property (common in many API responses) or 'companies'
         if (Array.isArray(anyData.data)) {
           apiCompanies = anyData.data;
         } else if (Array.isArray(anyData.companies)) {
@@ -102,7 +117,6 @@ const LoginPage: React.FC = () => {
           avatar: mappedCompanies[0].avatarUrl,
         });
 
-        // Check if user must change password (if indicated in the first company entry or global)
         const mustChange = mappedCompanies.some((c) => c.mustChangePassword);
 
         if (mustChange) {
@@ -127,14 +141,14 @@ const LoginPage: React.FC = () => {
         text: "Lỗi kết nối hoặc không tìm thấy người dùng.",
       });
     }
-  };
+  }, [username, openSnackbar]);
 
-  const handleCompanySelect = (company: UserCompany) => {
+  const handleCompanySelect = useCallback((company: UserCompany) => {
     setSelectedCompany(company);
     setStep("password");
-  };
+  }, []);
 
-  const handleLogin = async () => {
+  const handleLogin = useCallback(async () => {
     if (password.length < 6) {
       openSnackbar({ type: "warning", text: "Mật khẩu phải đủ 6 ký tự" });
       return;
@@ -157,13 +171,11 @@ const LoginPage: React.FC = () => {
         type: "error",
         text: `Đăng nhập thất bại: ${error?.message || "Kiểm tra lại thông tin"}`,
       });
-      // setPassword(""); // Keep password for easier retry? Or clear it.
-      // User style seems to prefer clear.
       setPassword("");
     }
-  };
+  }, [password, username, selectedCompany, openSnackbar, navigate]);
 
-  const handleChangePassword = async () => {
+  const handleChangePassword = useCallback(async () => {
     if (!currentPassword || !newPassword || !confirmPassword) {
       openSnackbar({ type: "warning", text: "Vui lòng điền đầy đủ thông tin" });
       return;
@@ -178,7 +190,6 @@ const LoginPage: React.FC = () => {
     }
 
     setLoading(true);
-    // TODO: Implement change password API in authService if available
     await new Promise((r) => setTimeout(r, 1000));
     setLoading(false);
 
@@ -188,18 +199,7 @@ const LoginPage: React.FC = () => {
     });
 
     handleBack();
-  };
-
-  const handleBack = () => {
-    setStep("username");
-    setCompanies([]);
-    setSelectedCompany(null);
-    setEmployeeInfo(null);
-    setPassword("");
-    setCurrentPassword("");
-    setNewPassword("");
-    setConfirmPassword("");
-  };
+  }, [currentPassword, newPassword, confirmPassword, openSnackbar, handleBack]);
 
   // --- Render Helpers ---
 
@@ -224,11 +224,11 @@ const LoginPage: React.FC = () => {
           <Text className="font-bold text-base">
             {employeeInfo?.name || username}
           </Text>
-          {step === "password" && selectedCompany && (
+          {step === "password" && selectedCompany ? (
             <Text className="text-gray-500 text-sm">
               {selectedCompany.name}
             </Text>
-          )}
+          ) : null}
         </Box>
         <Button
           icon={<Icon icon="zi-edit-text" />}
@@ -246,7 +246,7 @@ const LoginPage: React.FC = () => {
       <Box p={6} className="w-full max-w-md mx-auto">
         {/* Header Section */}
         <Box className="text-center mb-8">
-          {step === "username" && (
+          {step === "username" ? (
             <>
               <Box className="flex justify-center mb-6">
                 <Icon icon="zi-lock" className="text-yellow-400 text-6xl" />
@@ -258,9 +258,9 @@ const LoginPage: React.FC = () => {
                 Vui lòng nhập tên đăng nhập để tiếp tục
               </Text>
             </>
-          )}
+          ) : null}
 
-          {step === "company" && (
+          {step === "company" ? (
             <>
               <Text.Title size="xLarge" className="font-bold mb-2">
                 Chọn Công Ty
@@ -269,9 +269,9 @@ const LoginPage: React.FC = () => {
                 Chọn công ty bạn muốn truy cập
               </Text>
             </>
-          )}
+          ) : null}
 
-          {step === "password" && (
+          {step === "password" ? (
             <>
               <Text.Title size="xLarge" className="font-bold mb-2">
                 Nhập Mật Khẩu
@@ -280,8 +280,8 @@ const LoginPage: React.FC = () => {
                 Truy cập an toàn vào tài khoản của bạn
               </Text>
             </>
-          )}
-          {step === "changePassword" && (
+          ) : null}
+          {step === "changePassword" ? (
             <>
               <Text.Title size="xLarge" className="font-bold mb-2">
                 Đổi Mật Khẩu
@@ -290,14 +290,14 @@ const LoginPage: React.FC = () => {
                 Bạn cần đổi mật khẩu để tiếp tục
               </Text>
             </>
-          )}
+          ) : null}
         </Box>
 
         {/* User Info (Skipped for Username step) */}
-        {step !== "username" && renderUserInfo()}
+        {step !== "username" ? renderUserInfo() : null}
 
         {/* Step 1: Username */}
-        {step === "username" && (
+        {step === "username" ? (
           <Box className="space-y-6">
             <Box>
               <Text size="small" className="font-semibold mb-1">
@@ -321,10 +321,10 @@ const LoginPage: React.FC = () => {
               Tiếp tục
             </Button>
           </Box>
-        )}
+        ) : null}
 
         {/* Step 2: Company Selection */}
-        {step === "company" && (
+        {step === "company" ? (
           <Box className="space-y-4 max-h-[60vh] overflow-y-auto">
             {companies.map((company) => (
               <Box
@@ -355,31 +355,31 @@ const LoginPage: React.FC = () => {
                 <Box className="flex-1">
                   <Box className="flex items-center">
                     <Text className="font-bold mr-2">{company.name}</Text>
-                    {company.isPrimary && (
+                    {company.isPrimary ? (
                       <span className="bg-yellow-400 text-[10px] font-bold px-2 py-0.5 rounded-full text-black">
                         MẶC ĐỊNH
                       </span>
-                    )}
+                    ) : null}
                   </Box>
-                  {company.role && (
+                  {company.role ? (
                     <Text size="small" className="text-gray-500">
                       {company.role}
                     </Text>
-                  )}
+                  ) : null}
                 </Box>
-                {selectedCompany?.id === company.id && (
+                {selectedCompany?.id === company.id ? (
                   <Icon
                     icon="zi-check-circle-solid"
                     className="text-yellow-400"
                   />
-                )}
+                ) : null}
               </Box>
             ))}
           </Box>
-        )}
+        ) : null}
 
         {/* Step 3: Password */}
-        {step === "password" && (
+        {step === "password" ? (
           <Box className="space-y-6">
             <Box>
               <Text
@@ -396,7 +396,6 @@ const LoginPage: React.FC = () => {
                   onChange={(e) => {
                     setPassword(e.target.value);
                     if (e.target.value.length === 6) {
-                      // small delay to allow UI update before submit
                       setTimeout(
                         () => document.getElementById("btn-login")?.click(),
                         100,
@@ -424,10 +423,10 @@ const LoginPage: React.FC = () => {
               </Text>
             </Box>
           </Box>
-        )}
+        ) : null}
 
         {/* Change Password Step */}
-        {step === "changePassword" && (
+        {step === "changePassword" ? (
           <Box className="space-y-4">
             <Box>
               <Text size="small" className="font-semibold mb-1">
@@ -473,7 +472,7 @@ const LoginPage: React.FC = () => {
               <Button
                 fullWidth
                 variant="secondary"
-                onClick={() => handleBack()}
+                onClick={handleBack}
                 disabled={loading}
               >
                 Quay lại
@@ -488,7 +487,7 @@ const LoginPage: React.FC = () => {
               </Button>
             </Box>
           </Box>
-        )}
+        ) : null}
 
         {/* Footer for Version */}
         <Box className="mt-8 text-center">

@@ -24,17 +24,17 @@ interface HistoryItem {
 }
 
 interface AttendanceHistorySectionProps {
-  totalWorkHours: number;
-  attendanceRate: number;
-  presentDays: number;
+  requiredWorkDays: number; // Số công định mức tháng này
+  presentDays: number; // Số công đến thời điểm hiện tại
+  onTimeRate: number; // Tỉ lệ chấm công đúng giờ (%)
   recentHistory: HistoryItem[];
   isLoading?: boolean;
 }
 
 export const AttendanceHistorySection = memo(function AttendanceHistorySection({
-  totalWorkHours,
-  attendanceRate,
+  requiredWorkDays,
   presentDays,
+  onTimeRate,
   recentHistory,
   isLoading,
 }: AttendanceHistorySectionProps) {
@@ -118,30 +118,30 @@ export const AttendanceHistorySection = memo(function AttendanceHistorySection({
         <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16 blur-2xl group-hover:scale-150 transition-transform duration-700" />
         <div className="grid grid-cols-3 divide-x divide-white/20 relative z-10">
           <div className="flex flex-col items-center gap-2">
-            <Timer className="h-5 w-5 opacity-80" />
+            <Calendar className="h-5 w-5 opacity-80" />
             <Header className="!text-lg !font-bold !text-white m-0">
-              {totalWorkHours.toFixed(1)}h
+              {requiredWorkDays}
             </Header>
             <Text className="!text-[10px] !uppercase !font-medium !text-white opacity-70 tracking-wider text-center m-0">
-              Giờ làm
+              Định mức
+            </Text>
+          </div>
+          <div className="flex flex-col items-center gap-2">
+            <CalendarCheck className="h-5 w-5 opacity-80" />
+            <Header className="!text-lg !font-bold !text-white m-0">
+              {presentDays}
+            </Header>
+            <Text className="!text-[10px] !uppercase !font-medium !text-white opacity-70 tracking-wider text-center m-0">
+              Đã chấm
             </Text>
           </div>
           <div className="flex flex-col items-center gap-2">
             <TrendingUp className="h-5 w-5 opacity-80" />
             <Header className="!text-lg !font-bold !text-white m-0">
-              {attendanceRate}%
+              {onTimeRate}%
             </Header>
             <Text className="!text-[10px] !uppercase !font-medium !text-white opacity-70 tracking-wider text-center m-0">
-              Tỷ lệ
-            </Text>
-          </div>
-          <div className="flex flex-col items-center gap-2">
-            <Calendar className="h-5 w-5 opacity-80" />
-            <Header className="!text-lg !font-bold !text-white m-0">
-              {presentDays}
-            </Header>
-            <Text className="!text-[10px] !uppercase !font-medium !text-white opacity-70 tracking-wider text-center m-0">
-              Công
+              Đúng giờ
             </Text>
           </div>
         </div>

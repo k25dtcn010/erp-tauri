@@ -1,5 +1,12 @@
 import { memo } from "react";
-import { Calendar, ShieldCheck, CalendarDays, Plus, Clock, Coffee } from "lucide-react";
+import {
+  Calendar,
+  ShieldCheck,
+  CalendarDays,
+  Plus,
+  Clock,
+  LogOut,
+} from "lucide-react";
 import { useNavigate } from "zmp-ui";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -153,7 +160,9 @@ export const LeaveSection = memo(function LeaveSection({
           </div>
         ) : (
           <div className="p-4 rounded-xl bg-gray-50/50 dark:bg-gray-800/50 border border-dashed border-gray-200 dark:border-gray-700 flex items-center justify-center py-8">
-            <span className="text-xs text-gray-500 italic">Không có yêu cầu nghỉ phép nào gần đây</span>
+            <span className="text-xs text-gray-500 italic">
+              Không có yêu cầu nghỉ phép nào gần đây
+            </span>
           </div>
         )}
       </div>
@@ -183,9 +192,9 @@ export const LeaveSection = memo(function LeaveSection({
           onClick={onMidDayLeaveClick}
         >
           <div className="p-1 rounded bg-white/20 flex items-center justify-center text-white">
-            <Coffee className="h-4 w-4" />
+            <LogOut className="h-4 w-4" />
           </div>
-          <span className="text-sm">Nghỉ giữa giờ</span>
+          <span className="text-sm">Xin ra ngoài</span>
         </Button>
       </div>
     </div>

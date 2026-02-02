@@ -9,6 +9,7 @@ import {
   FileText,
   Send,
   CheckCircle2,
+  LogOut,
 } from "lucide-react";
 import { useUserStore } from "@/store/user-store";
 import { useQueryClient } from "@tanstack/react-query";
@@ -16,6 +17,7 @@ import { dashboardKeys } from "@/hooks/use-dashboard-data";
 import { Sheet, Select as ZSelect, useSnackbar } from "zmp-ui";
 import { DatePicker } from "@/components/ui/date-picker";
 import { LateEarlyRequestModal } from "./LateEarlyRequestModal";
+import { RequestOutModal } from "./RequestOutModal";
 import {
   getApiV3LeavePolicies,
   postApiV3LeaveRequests,
@@ -36,6 +38,7 @@ const LeaveActionOverlay: React.FC = () => {
   const queryClient = useQueryClient();
   const [isSheetVisible, setIsSheetVisible] = useState(false);
   const [isLateEarlyModalOpen, setIsLateEarlyModalOpen] = useState(false);
+  const [isRequestOutModalOpen, setIsRequestOutModalOpen] = useState(false);
   const [startDate, setStartDate] = useState(startOfDay(new Date()));
   const [endDate, setEndDate] = useState(startOfDay(addDays(new Date(), 1)));
   const [reason, setReason] = useState("");
@@ -189,6 +192,25 @@ const LeaveActionOverlay: React.FC = () => {
     <>
       {/* Floating Action Buttons */}
       <div className="fixed bottom-28 right-6 z-[100] flex flex-col items-end gap-4 pointer-events-auto">
+        {/* Xin ra ngoài Button */}
+        <button
+          className="w-52 h-14 pl-4 pr-6 rounded-2xl shadow-lg shadow-orange-500/10 hover:scale-105 active:scale-95 transition-all flex items-center gap-3 bg-white dark:bg-[#1a1d23] text-slate-800 dark:text-white border border-orange-50 dark:border-orange-900/20 group relative overflow-hidden"
+          onClick={() => setIsRequestOutModalOpen(true)}
+        >
+          <div className="absolute inset-0 bg-orange-500/0 group-hover:bg-orange-500/5 transition-colors pointer-events-none" />
+          <div className="h-9 w-9 rounded-xl bg-orange-500/10 dark:bg-orange-500/20 flex items-center justify-center text-orange-600 dark:text-orange-400 transition-all duration-300 shrink-0 group-hover:bg-orange-600 group-hover:text-white">
+            <LogOut className="h-4 w-4" />
+          </div>
+          <div className="flex flex-col items-start leading-tight whitespace-nowrap z-10">
+            <span className="text-[9px] uppercase font-black text-orange-600/60 dark:text-orange-400/60 tracking-widest block text-left mb-0.5">
+              Tạo đơn
+            </span>
+            <span className="block text-left text-xs font-bold text-slate-700 dark:text-slate-200">
+              Xin ra ngoài
+            </span>
+          </div>
+        </button>
+
         {/* Đi muộn / Về sớm Button */}
         <button
           className="w-52 h-14 pl-4 pr-6 rounded-2xl shadow-lg shadow-orange-500/10 hover:scale-105 active:scale-95 transition-all flex items-center gap-3 bg-white dark:bg-[#1a1d23] text-slate-800 dark:text-white border border-orange-50 dark:border-orange-900/20 group relative overflow-hidden"
@@ -409,6 +431,11 @@ const LeaveActionOverlay: React.FC = () => {
       <LateEarlyRequestModal
         isOpen={isLateEarlyModalOpen}
         onClose={() => setIsLateEarlyModalOpen(false)}
+      />
+
+      <RequestOutModal
+        isOpen={isRequestOutModalOpen}
+        onClose={() => setIsRequestOutModalOpen(false)}
       />
     </>
   );

@@ -1,24 +1,30 @@
 import React, { useState, useCallback } from "react";
 import { Sheet, Button as ZButton, useSnackbar } from "zmp-ui";
-import { X, Coffee, Clock, Calendar, Send } from "lucide-react";
+import { X, LogOut, Clock, Calendar, Send, FileText } from "lucide-react";
 import { format } from "date-fns";
-import { vi } from "date-fns/locale";
 
-interface MidDayLeaveModalProps {
+interface RequestOutModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess?: () => void;
 }
 
-export const MidDayLeaveModal: React.FC<MidDayLeaveModalProps> = ({
+export const RequestOutModal: React.FC<RequestOutModalProps> = ({
   isOpen,
   onClose,
   onSuccess,
 }) => {
   const { openSnackbar } = useSnackbar();
-  const [selectedDate, setSelectedDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
-  const [startTime, setStartTime] = useState("");
-  const [endTime, setEndTime] = useState("");
+  const [selectedDate, setSelectedDate] = useState(() =>
+    format(new Date(), "yyyy-MM-dd"),
+  );
+  const [startTime, setStartTime] = useState(() => format(new Date(), "HH:mm"));
+  const [endTime, setEndTime] = useState(() => {
+    const now = new Date();
+    const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
+    return format(oneHourLater, "HH:mm");
+  });
+  const [reason, setReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Calculate total hours
@@ -39,7 +45,7 @@ export const MidDayLeaveModal: React.FC<MidDayLeaveModalProps> = ({
     if (!selectedDate) {
       openSnackbar({
         type: "error",
-        text: "Vui lòng chọn ngày nghỉ",
+        text: "Vui lòng chọn ngày",
         duration: 3000,
       });
       return false;
@@ -48,7 +54,7 @@ export const MidDayLeaveModal: React.FC<MidDayLeaveModalProps> = ({
     if (!startTime || !endTime) {
       openSnackbar({
         type: "error",
-        text: "Vui lòng chọn giờ bắt đầu và giờ kết thúc",
+        text: "Vui lòng chọn giờ ra và giờ vào",
         duration: 3000,
       });
       return false;
@@ -57,25 +63,7 @@ export const MidDayLeaveModal: React.FC<MidDayLeaveModalProps> = ({
     if (totalHours <= 0) {
       openSnackbar({
         type: "error",
-        text: "Giờ kết thúc phải sau giờ bắt đầu",
-        duration: 3000,
-      });
-      return false;
-    }
-
-    if (totalHours < 0.5) {
-      openSnackbar({
-        type: "error",
-        text: "Thời gian nghỉ tối thiểu là 30 phút",
-        duration: 3000,
-      });
-      return false;
-    }
-
-    if (totalHours > 4) {
-      openSnackbar({
-        type: "error",
-        text: "Thời gian nghỉ tối đa là 4 giờ",
+        text: "Giờ vào phải sau giờ ra",
         duration: 3000,
       });
       return false;
@@ -96,15 +84,15 @@ export const MidDayLeaveModal: React.FC<MidDayLeaveModalProps> = ({
       const requests = existingData ? JSON.parse(existingData) : [];
 
       const newRequest = {
-        id: `mid-day-${Date.now()}`,
+        id: `request-out-${Date.now()}`,
         employeeId,
         date: selectedDate,
         startTime,
         endTime,
         totalHours: parseFloat(totalHours.toFixed(2)),
-        reason: "",
+        reason: reason.trim(),
         status: "pending",
-        type: "Nghỉ giữa giờ",
+        type: "Xin ra ngoài",
         createdAt: new Date().toISOString(),
       };
 
@@ -113,14 +101,17 @@ export const MidDayLeaveModal: React.FC<MidDayLeaveModalProps> = ({
 
       openSnackbar({
         type: "success",
-        text: "Đã gửi đơn nghỉ giữa giờ thành công!",
+        text: "Đã gửi đơn xin ra ngoài thành công!",
         duration: 3000,
       });
 
       // Reset form
-      setSelectedDate(format(new Date(), "yyyy-MM-dd"));
-      setStartTime("14:00");
-      setEndTime("16:00");
+      const now = new Date();
+      setSelectedDate(format(now, "yyyy-MM-dd"));
+      setStartTime(format(now, "HH:mm"));
+      const oneHourLater = new Date(now.getTime() + 60 * 60 * 1000);
+      setEndTime(format(oneHourLater, "HH:mm"));
+      setReason("");
 
       // Call success callback
       if (onSuccess) {
@@ -130,7 +121,7 @@ export const MidDayLeaveModal: React.FC<MidDayLeaveModalProps> = ({
       // Close modal
       onClose();
     } catch (error) {
-      console.error("Failed to submit mid-day leave request", error);
+      console.error("Failed to submit request-out", error);
       openSnackbar({
         type: "error",
         text: "Gửi đơn thất bại. Vui lòng thử lại!",
@@ -139,7 +130,17 @@ export const MidDayLeaveModal: React.FC<MidDayLeaveModalProps> = ({
     } finally {
       setIsSubmitting(false);
     }
-  }, [validate, selectedDate, startTime, endTime, totalHours, onSuccess, onClose, openSnackbar]);
+  }, [
+    validate,
+    selectedDate,
+    startTime,
+    endTime,
+    totalHours,
+    reason,
+    onSuccess,
+    onClose,
+    openSnackbar,
+  ]);
 
   return (
     <Sheet
@@ -155,14 +156,14 @@ export const MidDayLeaveModal: React.FC<MidDayLeaveModalProps> = ({
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <div className="h-12 w-12 rounded-2xl bg-orange-500/10 flex items-center justify-center text-orange-600">
-              <Coffee className="h-6 w-6" />
+              <LogOut className="h-6 w-6" />
             </div>
             <div>
               <h2 className="text-xl font-bold text-slate-900 dark:text-white">
-                Nghỉ giữa giờ
+                Đơn xin ra ngoài
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Đăng ký nghỉ vài giờ trong ngày
+                Đăng ký ra ngoài trong giờ làm việc
               </p>
             </div>
           </div>
@@ -180,7 +181,7 @@ export const MidDayLeaveModal: React.FC<MidDayLeaveModalProps> = ({
           <div className="space-y-2">
             <label className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-300">
               <Calendar className="h-4 w-4 text-orange-500" />
-              Ngày nghỉ
+              Ngày thực hiện
             </label>
             <input
               type="date"
@@ -196,7 +197,7 @@ export const MidDayLeaveModal: React.FC<MidDayLeaveModalProps> = ({
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-300">
                 <Clock className="h-4 w-4 text-orange-500" />
-                Giờ bắt đầu
+                Giờ ra
               </label>
               <input
                 type="time"
@@ -208,7 +209,7 @@ export const MidDayLeaveModal: React.FC<MidDayLeaveModalProps> = ({
             <div className="space-y-2">
               <label className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-300">
                 <Clock className="h-4 w-4 text-orange-500" />
-                Giờ kết thúc
+                Giờ vào
               </label>
               <input
                 type="time"
@@ -223,12 +224,26 @@ export const MidDayLeaveModal: React.FC<MidDayLeaveModalProps> = ({
           <div className="p-4 rounded-xl bg-orange-50/50 dark:bg-orange-500/5 border border-orange-100 dark:border-orange-500/10">
             <div className="flex items-center justify-between">
               <span className="text-sm font-bold text-slate-700 dark:text-slate-300">
-                Tổng thời gian nghỉ:
+                Tổng thời gian ra ngoài:
               </span>
               <span className="text-lg font-black text-orange-600 dark:text-orange-400">
                 {totalHours > 0 ? `${totalHours.toFixed(1)} giờ` : "0 giờ"}
               </span>
             </div>
+          </div>
+
+          {/* Reason */}
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm font-bold text-slate-700 dark:text-slate-300">
+              <FileText className="h-4 w-4 text-orange-500" />
+              Lý do ra ngoài
+            </label>
+            <textarea
+              placeholder="Nhập lý do cụ thể (không bắt buộc)..."
+              value={reason}
+              onChange={(e) => setReason(e.target.value)}
+              className="w-full min-h-[100px] px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent transition-all resize-none"
+            />
           </div>
 
           {/* Action Buttons */}

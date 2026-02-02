@@ -33,9 +33,9 @@ const FaceVerificationModal = React.lazy(() =>
   })),
 );
 
-const MidDayLeaveModal = React.lazy(() =>
-  import("@/components/dashboard/MidDayLeaveModal").then((module) => ({
-    default: module.MidDayLeaveModal,
+const RequestOutModal = React.lazy(() =>
+  import("@/components/dashboard/RequestOutModal").then((module) => ({
+    default: module.RequestOutModal,
   })),
 );
 
@@ -47,14 +47,14 @@ const DashboardPage: React.FC = () => {
     todaySessions,
     fetchTodayAttendance,
     performCheckIn,
-    performCheckOut
+    performCheckOut,
   } = useAttendanceStore();
 
   const [isFaceModalOpen, setIsFaceModalOpen] = useState(false);
   const [isPreCheckModalOpen, setIsPreCheckModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<string>("check-in");
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [isMidDayLeaveModalOpen, setIsMidDayLeaveModalOpen] = useState(false);
+  const [isRequestOutModalOpen, setIsRequestOutModalOpen] = useState(false);
 
   // Employee ID state
   const [employeeId, setEmployeeId] = useState<string>(() => {
@@ -62,14 +62,8 @@ const DashboardPage: React.FC = () => {
   });
 
   // ✅ USE REACT QUERY HOOK - Replaces all manual state management
-  const {
-    overtime,
-    leave,
-    history,
-    attendance,
-    isRefreshing,
-    refetchAll,
-  } = useDashboardData(employeeId);
+  const { overtime, leave, history, attendance, isRefreshing, refetchAll } =
+    useDashboardData(employeeId);
 
   const {
     pendingCount: pendingSync,
@@ -88,12 +82,15 @@ const DashboardPage: React.FC = () => {
     () => setIsPreCheckModalOpen(false),
     [],
   );
-  const closeMidDayLeaveModal = useCallback(() => setIsMidDayLeaveModalOpen(false), []);
+  const closeRequestOutModal = useCallback(
+    () => setIsRequestOutModalOpen(false),
+    [],
+  );
 
   useSheetBackHandler(isFaceModalOpen, closeFaceModal);
   useSheetBackHandler(isSyncSheetOpen, closeSyncSheet);
   useSheetBackHandler(isPreCheckModalOpen, closePreCheckModal);
-  useSheetBackHandler(isMidDayLeaveModalOpen, closeMidDayLeaveModal);
+  useSheetBackHandler(isRequestOutModalOpen, closeRequestOutModal);
 
   const { openSnackbar } = useSnackbar();
   const navigate = useNavigate();
@@ -118,7 +115,12 @@ const DashboardPage: React.FC = () => {
         const res = await getApiEmployeesMe();
         if (res.data) {
           const data = (res.data as any).data;
-          const { fullName, avatarUrl: avatar = "", employeeCode: code = "", id } = data;
+          const {
+            fullName,
+            avatarUrl: avatar = "",
+            employeeCode: code = "",
+            id,
+          } = data;
 
           setUserName(fullName);
           setUserAvatar(avatar);
@@ -160,15 +162,18 @@ const DashboardPage: React.FC = () => {
   useEffect(() => {
     // Initial sync (chỉ khi cần)
     TimeSyncService.syncTimeIfNeeded().catch((error) => {
-      console.warn('[Dashboard] Initial time sync failed:', error);
+      console.warn("[Dashboard] Initial time sync failed:", error);
     });
 
     // Auto check và sync mỗi 5 phút nếu cần
-    const syncInterval = setInterval(() => {
-      TimeSyncService.syncTimeIfNeeded().catch((error) => {
-        console.warn('[Dashboard] Periodic time sync failed:', error);
-      });
-    }, 5 * 60 * 1000);
+    const syncInterval = setInterval(
+      () => {
+        TimeSyncService.syncTimeIfNeeded().catch((error) => {
+          console.warn("[Dashboard] Periodic time sync failed:", error);
+        });
+      },
+      5 * 60 * 1000,
+    );
 
     return () => clearInterval(syncInterval);
   }, []);
@@ -239,7 +244,7 @@ const DashboardPage: React.FC = () => {
         modalMode,
         currentTimeStr,
         isOnline,
-        onlineTrialFailed
+        onlineTrialFailed,
       });
 
       // 1. PERFORM OPTIMISTIC UPDATE IMMEDIATELY
@@ -312,11 +317,11 @@ const DashboardPage: React.FC = () => {
     [navigate],
   );
 
-  const handleOpenMidDayLeaveModal = useCallback(() => {
-    setIsMidDayLeaveModalOpen(true);
+  const handleOpenRequestOutModal = useCallback(() => {
+    setIsRequestOutModalOpen(true);
   }, []);
 
-  const handleMidDayLeaveSuccess = useCallback(() => {
+  const handleRequestOutSuccess = useCallback(() => {
     // Refresh data after successful submission
     refetchAll();
   }, [refetchAll]);
@@ -420,14 +425,14 @@ const DashboardPage: React.FC = () => {
           totalLeaveDays={leave.data?.leaveTotals.total ?? 0}
           entitlementLeaveDays={leave.data?.leaveTotals.entitled ?? 0}
           requests={leave.data?.recentRequests ?? []}
-          onMidDayLeaveClick={handleOpenMidDayLeaveModal}
+          onMidDayLeaveClick={handleOpenRequestOutModal}
         />
       </div>
 
       <AttendanceHistorySection
-        totalWorkHours={history.data?.stats.totalWorkHours ?? 0}
-        attendanceRate={history.data?.stats.attendanceRate ?? 0}
+        requiredWorkDays={history.data?.stats.requiredWorkDays ?? 22}
         presentDays={history.data?.stats.presentDays ?? 0}
+        onTimeRate={history.data?.stats.onTimeRate ?? 0}
         recentHistory={history.data?.recentHistory ?? []}
         isLoading={history.isLoading}
       />
@@ -467,10 +472,10 @@ const DashboardPage: React.FC = () => {
       )}
 
       <Suspense fallback={null}>
-        <MidDayLeaveModal
-          isOpen={isMidDayLeaveModalOpen}
-          onClose={() => setIsMidDayLeaveModalOpen(false)}
-          onSuccess={handleMidDayLeaveSuccess}
+        <RequestOutModal
+          isOpen={isRequestOutModalOpen}
+          onClose={() => setIsRequestOutModalOpen(false)}
+          onSuccess={handleRequestOutSuccess}
         />
       </Suspense>
     </PageContainer>

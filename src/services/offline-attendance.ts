@@ -10,6 +10,7 @@ import {
   postApiV3AttendanceCheckInAsync,
   postApiV3AttendanceCheckOutAsync,
 } from "@/client-timekeeping/sdk.gen";
+import { TimeSyncService } from "./time-sync";
 
 export interface AttendanceRecord {
   id: string;
@@ -23,6 +24,7 @@ export interface AttendanceRecord {
   deviceInfo?: any;
   photoId?: string; // ID to retrieve from IndexedDB
   metadataSynced?: boolean;
+  timestampValidated?: boolean; // Đánh dấu timestamp đã được validate
 }
 
 const STORAGE_KEY = "offline_attendance_records";
@@ -133,6 +135,19 @@ export const OfflineAttendanceService = {
       }
     } catch (e) {}
 
+    // Validate timestamp nếu có
+    const timestampValidated = record.timestamp
+      ? TimeSyncService.validateTimestamp(record.timestamp)
+      : false;
+
+    if (!timestampValidated && record.timestamp) {
+      console.warn('[OfflineAttendance] ⚠️ Timestamp validation failed for record:', {
+        timestamp: record.timestamp,
+        now: Date.now(),
+        drift: Math.abs(record.timestamp - Date.now()),
+      });
+    }
+
     const newRecord: AttendanceRecord = {
       ...record,
       id,
@@ -141,6 +156,7 @@ export const OfflineAttendanceService = {
       deviceInfo,
       photoId: photoDataUrl || skipPhotoSave ? id : undefined,
       metadataSynced,
+      timestampValidated,
     };
 
     try {

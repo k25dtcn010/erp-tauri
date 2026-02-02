@@ -31,7 +31,7 @@ interface AttendanceSectionProps {
   checkOutTime?: string | null;
   sessions?: AttendanceSessionItem[];
   shift?: AttendanceSchedule | null;
-  overtime?: AttendanceSchedule | null;
+  overtimes?: AttendanceSchedule[];
 }
 
 export function AttendanceSection({
@@ -42,7 +42,7 @@ export function AttendanceSection({
   checkOutTime,
   sessions = [],
   shift,
-  overtime,
+  overtimes = [],
 }: AttendanceSectionProps) {
   const navigate = useNavigate();
   const currentTime = useCurrentTime();
@@ -71,31 +71,59 @@ export function AttendanceSection({
       end = Math.max(end, e + 60);
     }
 
-    if (overtime) {
+    // Process all overtimes
+    overtimes.forEach(overtime => {
       const s = getMinutes(overtime.startTime);
       const e = getMinutes(overtime.endTime);
       start = Math.min(start, s - 30);
       end = Math.max(end, e + 30);
-    }
+    });
 
     // Ensure current time is visible
     start = Math.min(start, currentMinutes - 60);
     end = Math.max(end, currentMinutes + 60);
 
     return { start, end, duration: end - start };
-  }, [shift, overtime, currentMinutes]);
+  }, [shift, overtimes, currentMinutes]);
 
   const getPosition = (minutes: number) => {
     const pos = ((minutes - timelineStats.start) / timelineStats.duration) * 100;
     return Math.max(0, Math.min(100, pos));
   };
 
+  // Helper to check if two positions are too close (< 8% apart)
+  const isTooClose = (pos1: number, pos2: number, threshold = 8) => {
+    return Math.abs(pos1 - pos2) < threshold;
+  };
+
+  // Calculate which markers to show based on proximity
+  const markerVisibility = useMemo(() => {
+    const startPos = getPosition(0);
+    const endPos = getPosition(24 * 60);
+    const shiftStartPos = shift ? getPosition(getMinutes(shift.startTime)) : -100;
+    const shiftEndPos = shift ? getPosition(getMinutes(shift.endTime)) : -100;
+
+    // Check proximity with all overtimes
+    const hasTooCloseOvertimeAtStart = overtimes.some(ot =>
+      isTooClose(startPos, getPosition(getMinutes(ot.startTime)))
+    );
+    const hasTooCloseOvertimeAtEnd = overtimes.some(ot =>
+      isTooClose(endPos, getPosition(getMinutes(ot.endTime)))
+    );
+
+    return {
+      show0: !isTooClose(startPos, shiftStartPos) && !hasTooCloseOvertimeAtStart,
+      show24: !isTooClose(endPos, shiftEndPos) && !hasTooCloseOvertimeAtEnd,
+    };
+  }, [shift, overtimes, timelineStats]);
+
   const isOvertimeNow = useMemo(() => {
-    if (!overtime) return false;
-    const start = getMinutes(overtime.startTime);
-    const end = getMinutes(overtime.endTime);
-    return currentMinutes >= start && currentMinutes <= end;
-  }, [overtime, currentMinutes]);
+    return overtimes.some(overtime => {
+      const start = getMinutes(overtime.startTime);
+      const end = getMinutes(overtime.endTime);
+      return currentMinutes >= start && currentMinutes <= end;
+    });
+  }, [overtimes, currentMinutes]);
 
   return (
     <div className="flex flex-col gap-4 mt-6">
@@ -107,7 +135,7 @@ export function AttendanceSection({
         <h3 className="text-lg font-bold text-blue-900 dark:text-blue-100">Chấm công</h3>
       </div>
 
-      {/* Premium Main Stats Card (Restored) */}
+      {/* Premium Main Stats Card - Redesigned */}
       <Card className="relative overflow-hidden rounded-[24px] border-none shadow-xl shadow-blue-900/10">
         {/* Dynamic Background */}
         <div className={cn(
@@ -121,26 +149,26 @@ export function AttendanceSection({
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl opacity-30" />
         <div className="absolute bottom-0 left-0 w-40 h-40 bg-black/10 rounded-full -ml-10 -mb-10 blur-2xl opacity-20" />
 
-        <div className="relative z-10 p-6 flex flex-col gap-6">
-          {/* Header Row */}
-          <div className="flex justify-between items-start">
-            <div>
+        <div className="relative z-10 p-6 flex flex-col gap-5">
+          {/* Top Section: Date & Status */}
+          <div className="flex justify-between items-center">
+            {/* Current Time - Prominent Display */}
+            <div className="flex flex-col">
               <div className="flex items-center gap-2 mb-1">
-                <div className="px-2 py-0.5 rounded-full bg-white/20 backdrop-blur-md border border-white/10 flex items-center gap-1.5">
-                  <CalendarRange className="h-3 w-3 text-blue-50" />
-                  <span className="text-[10px] font-medium text-blue-50 uppercase tracking-wide">
-                    {format(currentTime, "EEEE", { locale: vi })}
-                  </span>
-                </div>
+                <CalendarRange className="h-3.5 w-3.5 text-white/70" />
+                <span className="text-xs font-semibold text-white/70 uppercase tracking-wide">
+                  {format(currentTime, "EEEE, d 'thg' M", { locale: vi })}
+                </span>
               </div>
-              <h3 className="text-3xl font-bold text-white tracking-tight">
-                {format(currentTime, "d 'thg' M")}
-              </h3>
+              <time className="text-4xl font-bold text-white tabular-nums leading-none tracking-tight">
+                {format(currentTime, "HH:mm")}
+                <span className="text-2xl opacity-50 ml-0.5">:{format(currentTime, "ss")}</span>
+              </time>
             </div>
 
             {/* Status Badge */}
             <div className={cn(
-              "px-3 py-1.5 rounded-full backdrop-blur-md border flex items-center gap-2 shadow-sm transition-all",
+              "px-3 py-1.5 rounded-full backdrop-blur-md border flex items-center gap-2 shadow-lg transition-all",
               isOvertimeNow
                 ? "bg-purple-500/30 border-purple-200/20 text-purple-50"
                 : isWorking
@@ -149,100 +177,208 @@ export function AttendanceSection({
             )}>
               <div className={cn(
                 "h-1.5 w-1.5 rounded-full",
-                isOvertimeNow ? "bg-purple-300 animate-pulse" :
-                  isWorking ? "bg-green-300 animate-pulse" : "bg-gray-300"
+                isOvertimeNow ? "bg-purple-300 animate-pulse shadow-[0_0_4px_rgba(216,180,254,0.8)]" :
+                  isWorking ? "bg-green-300 animate-pulse shadow-[0_0_4px_rgba(134,239,172,0.8)]" : "bg-gray-300"
               )} />
               <span className="text-xs font-semibold">
-                {isOvertimeNow ? "Tăng ca" : isWorking ? "Đang làm việc" : "Ngoài giờ"}
+                {isOvertimeNow ? "Tăng ca" : isWorking ? "Đang làm" : "Ngoài giờ"}
               </span>
             </div>
           </div>
 
-          {/* Timeline Visualization */}
-          <div className="flex flex-col gap-2">
-            <div className="flex justify-between text-xs font-medium text-white/60 px-1">
-              <span>
-                {shift ? `Hành chính: ${shift.startTime} - ${shift.endTime}` : "Chưa có lịch"}
-              </span>
-              {overtime && (
-                <span className="text-purple-200 flex items-center gap-1">
-                  <Zap className="h-3 w-3" />
-                  OT: {overtime.startTime} - {overtime.endTime}
-                </span>
+          {/* Schedule Overview - New Section */}
+          {(shift || overtimes.length > 0) && (
+            <div className="flex flex-wrap gap-2">
+              {shift && (
+                <div className="px-3 py-1.5 rounded-lg bg-white/10 backdrop-blur-sm border border-white/20 flex items-center gap-2">
+                  <Briefcase className="h-3.5 w-3.5 text-white/90" />
+                  <span className="text-xs font-semibold text-white/90">
+                    Ca làm: {shift.startTime} - {shift.endTime}
+                  </span>
+                </div>
               )}
+              {overtimes.map((overtime, index) => (
+                <div key={index} className="px-3 py-1.5 rounded-lg bg-purple-300/30 backdrop-blur-sm border border-purple-100/40 flex items-center gap-2">
+                  <span className="text-xs font-semibold text-purple-50">
+                    Tăng ca: {overtime.startTime} - {overtime.endTime}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Timeline Visualization - Improved */}
+          <div className="flex flex-col gap-3 pt-2">
+            {/* Timeline Label */}
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold text-white/60 uppercase tracking-wide">
+                Tiến trình hôm nay
+              </span>
+              <span className="text-xs font-semibold text-white/80 tabular-nums">
+                {format(currentTime, "HH:mm")}
+              </span>
             </div>
 
-            {/* Progress Bar Container */}
-            <div className="h-3 bg-black/20 rounded-full relative w-full overflow-hidden backdrop-blur-sm">
-              {shift && (
-                <div
-                  className="absolute top-0 bottom-0 bg-white/30 rounded-full"
-                  style={{
-                    left: `${getPosition(getMinutes(shift.startTime))}%`,
-                    width: `${getPosition(getMinutes(shift.endTime)) - getPosition(getMinutes(shift.startTime))}%`
-                  }}
-                />
-              )}
-              {overtime && (
-                <div
-                  className="absolute top-0 bottom-0 bg-purple-400/50 rounded-full striped-bg"
-                  style={{
-                    left: `${getPosition(getMinutes(overtime.startTime))}%`,
-                    width: `${getPosition(getMinutes(overtime.endTime)) - getPosition(getMinutes(overtime.startTime))}%`
-                  }}
-                />
-              )}
-
-              {/* Actual Working Sessions */}
-              {sessions.map((session) => {
-                const startMins = getMinutes(format(new Date(session.checkInAt), "HH:mm"));
-                const endMins = session.checkOutAt
-                  ? getMinutes(format(new Date(session.checkOutAt), "HH:mm"))
-                  : currentMinutes;
-
-                return (
+            {/* Progress Bar Container - Larger & Clearer */}
+            <div className="relative">
+              {/* Timeline Markers - Above the bar */}
+              <div className="relative w-full h-6 mb-1.5">
+                {/* Start time marker (0:00) */}
+                {markerVisibility.show0 && (
                   <div
-                    key={session.id}
-                    className="absolute top-0 bottom-0 bg-green-400/60 z-10"
+                    className="absolute -translate-x-1/2 flex flex-col items-center"
+                    style={{ left: `${getPosition(0)}%` }}
+                  >
+                    <div className="text-[10px] font-bold text-white/40 mb-0.5">0:00</div>
+                    <div className="w-px h-2 bg-white/20"></div>
+                  </div>
+                )}
+
+                {/* Shift markers */}
+                {shift && (
+                  <>
+                    <div
+                      className="absolute -translate-x-1/2 flex flex-col items-center z-10"
+                      style={{ left: `${getPosition(getMinutes(shift.startTime))}%` }}
+                    >
+                      <div className="text-[11px] font-bold mb-0.5 whitespace-nowrap text-white">
+                        {shift.startTime}
+                      </div>
+                      <div className="w-px h-3 bg-white/70 shadow-sm"></div>
+                    </div>
+                    <div
+                      className="absolute -translate-x-1/2 flex flex-col items-center z-10"
+                      style={{ left: `${getPosition(getMinutes(shift.endTime))}%` }}
+                    >
+                      <div className="text-[11px] font-bold mb-0.5 whitespace-nowrap text-white">
+                        {shift.endTime}
+                      </div>
+                      <div className="w-px h-3 bg-white/70 shadow-sm"></div>
+                    </div>
+                  </>
+                )}
+
+                {/* Overtime markers */}
+                {overtimes.map((overtime, index) => (
+                  <React.Fragment key={index}>
+                    <div
+                      className="absolute -translate-x-1/2 flex flex-col items-center z-10"
+                      style={{ left: `${getPosition(getMinutes(overtime.startTime))}%` }}
+                    >
+                      <div className="text-[11px] font-bold text-purple-200 mb-0.5 whitespace-nowrap">
+                        {overtime.startTime}
+                      </div>
+                      <div className="w-px h-3 bg-purple-300/80"></div>
+                    </div>
+                    <div
+                      className="absolute -translate-x-1/2 flex flex-col items-center z-10"
+                      style={{ left: `${getPosition(getMinutes(overtime.endTime))}%` }}
+                    >
+                      <div className="text-[11px] font-bold text-purple-200 mb-0.5 whitespace-nowrap">
+                        {overtime.endTime}
+                      </div>
+                      <div className="w-px h-3 bg-purple-300/80"></div>
+                    </div>
+                  </React.Fragment>
+                ))}
+
+                {/* End time marker (24:00) */}
+                {markerVisibility.show24 && (
+                  <div
+                    className="absolute -translate-x-1/2 flex flex-col items-center"
+                    style={{ left: `${getPosition(24 * 60)}%` }}
+                  >
+                    <div className="text-[10px] font-bold text-white/40 mb-0.5">24:00</div>
+                    <div className="w-px h-2 bg-white/20"></div>
+                  </div>
+                )}
+              </div>
+
+              {/* Progress Bar - Larger and more visible */}
+              <div className="h-4 bg-black/30 rounded-full relative w-full overflow-hidden backdrop-blur-sm shadow-inner">
+                {/* Shift time range */}
+                {shift && (
+                  <div
+                    className="absolute top-0 bottom-0 bg-white/40 rounded-full"
                     style={{
-                      left: `${getPosition(startMins)}%`,
-                      width: `${getPosition(endMins) - getPosition(startMins)}%`
+                      left: `${getPosition(getMinutes(shift.startTime))}%`,
+                      width: `${getPosition(getMinutes(shift.endTime)) - getPosition(getMinutes(shift.startTime))}%`
                     }}
                   />
-                );
-              })}
+                )}
 
-              <div
-                className="absolute top-0 bottom-0 w-0.5 bg-yellow-400 z-20 shadow-[0_0_8px_rgba(250,204,21,0.8)]"
-                style={{ left: `${getPosition(currentMinutes)}%` }}
-              >
-                <div className="absolute -top-1 -left-[3px] w-2 h-2 bg-yellow-400 rounded-full ring-2 ring-black/10" />
+                {/* Overtime ranges */}
+                {overtimes.map((overtime, index) => (
+                  <div
+                    key={index}
+                    className="absolute top-0 bottom-0 bg-purple-400/60 rounded-full striped-bg"
+                    style={{
+                      left: `${getPosition(getMinutes(overtime.startTime))}%`,
+                      width: `${getPosition(getMinutes(overtime.endTime)) - getPosition(getMinutes(overtime.startTime))}%`
+                    }}
+                  />
+                ))}
+
+                {/* Actual Working Sessions */}
+                {sessions.map((session) => {
+                  const startMins = getMinutes(format(new Date(session.checkInAt), "HH:mm"));
+                  const endMins = session.checkOutAt
+                    ? getMinutes(format(new Date(session.checkOutAt), "HH:mm"))
+                    : currentMinutes;
+
+                  return (
+                    <div
+                      key={session.id}
+                      className="absolute top-0 bottom-0 bg-green-400/70 z-10 shadow-sm"
+                      style={{
+                        left: `${getPosition(startMins)}%`,
+                        width: `${getPosition(endMins) - getPosition(startMins)}%`
+                      }}
+                    />
+                  );
+                })}
+
+                {/* Current Time Indicator */}
+                <div
+                  className="absolute top-0 bottom-0 w-0.5 bg-yellow-400 z-20 shadow-[0_0_12px_rgba(250,204,21,0.9)]"
+                  style={{ left: `${getPosition(currentMinutes)}%` }}
+                >
+                  <div className="absolute -top-1.5 -left-[4px] w-2.5 h-2.5 bg-yellow-400 rounded-full ring-2 ring-white/30 shadow-lg" />
+                  <div className="absolute -bottom-1.5 -left-[4px] w-2.5 h-2.5 bg-yellow-400 rounded-full ring-2 ring-white/30 shadow-lg" />
+                </div>
+              </div>
+
+              {/* Legend - Below the bar */}
+              <div className="flex items-center justify-center gap-4 mt-2.5">
+                {shift && (
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 rounded-sm bg-white/40"></div>
+                    <span className="text-[10px] font-medium text-white/70">Ca làm</span>
+                  </div>
+                )}
+                {overtimes.length > 0 && (
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 rounded-sm bg-purple-400/60 striped-bg"></div>
+                    <span className="text-[10px] font-medium text-purple-200">Tăng ca</span>
+                  </div>
+                )}
+                {sessions.length > 0 && (
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-3 h-3 rounded-sm bg-green-400/70"></div>
+                    <span className="text-[10px] font-medium text-green-200">Đã làm</span>
+                  </div>
+                )}
               </div>
             </div>
 
-            <p className="text-xs text-center mt-1 text-white/80 font-medium">
+            {/* Helper Message */}
+            <p className="text-xs text-center text-white/70 font-medium leading-relaxed">
               {isOvertimeNow
                 ? "Bạn đang trong giờ tăng ca. Hãy nhớ check-out khi về!"
                 : isWorking
                   ? "Chúc bạn một ngày làm việc hiệu quả!"
                   : "Đã đến lúc nghỉ ngơi hoặc chuẩn bị cho ca làm việc."}
             </p>
-          </div>
-
-          {/* Time Stats */}
-          <div className="grid grid-cols-1 mt-2">
-            <div className="bg-white/10 rounded-xl p-3 backdrop-blur-sm border border-white/10 flex items-center justify-center gap-3">
-              <div className="p-2 rounded-lg bg-white/20">
-                <Clock className="h-5 w-5 text-white" />
-              </div>
-              <div className="flex flex-col items-start">
-                <p className="text-[10px] text-white/60 uppercase font-bold">Giờ hiện tại</p>
-                <p className="text-xl font-bold text-white tabular-nums leading-none mt-0.5">
-                  {format(currentTime, "HH:mm")}
-                  <span className="text-base opacity-60">:{format(currentTime, "ss")}</span>
-                </p>
-              </div>
-            </div>
           </div>
         </div>
       </Card>
@@ -284,8 +420,8 @@ export function AttendanceSection({
             <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Giờ ra</span>
             <LogOut className={cn("h-4 w-4", !isWorking && checkOutTime ? "text-orange-500" : "text-gray-300")} />
           </div>
-          <p className={cn("text-2xl font-bold tabular-nums", !isWorking && checkOutTime ? "text-gray-800 dark:text-gray-100" : "text-gray-400")}>
-            {checkOutTime || "--:--"}
+          <p className={cn("text-2xl font-bold tabular-nums", isWorking && checkOutTime ? "text-gray-800 dark:text-gray-100" : "text-gray-400")}>
+            {isWorking ? (checkOutTime || "--:--") : "--:--"}
           </p>
           <Button
             onClick={onCheckOut}

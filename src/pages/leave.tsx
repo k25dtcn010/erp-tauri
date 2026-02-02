@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import {
   HelpCircle,
   Calendar,
@@ -42,72 +42,51 @@ import { PageContainer } from "@/components/layout/PageContainer";
 import { CustomPageHeader } from "@/components/layout/CustomPageHeader";
 import LeaveActionOverlay from "@/components/dashboard/LeaveActionOverlay";
 import { useUserStore } from "@/store/user-store";
-import {
-  getApiV3LeaveRequestsMy,
-  getApiV3LeavePoliciesBalances,
-} from "@/client-timekeeping/sdk.gen";
+import { useLeavePageData } from "@/hooks/use-dashboard-data";
 import { format } from "date-fns";
 import { vi } from "date-fns/locale";
+import { useSnackbar } from "zmp-ui";
 
 const { Option } = ZSelect;
 
 const LeavePage: React.FC = () => {
   const navigate = useNavigate();
   const { userName, userAvatar, employeeId } = useUserStore();
+  const { openSnackbar } = useSnackbar();
   const [activeTab, setActiveTab] = useState("balance");
-
-  const [leaveBalances, setLeaveBalances] = useState<any[]>([]);
-  const [historyRequests, setHistoryRequests] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState("all");
 
-  const fetchData = async () => {
-    if (!employeeId) return;
-    setLoading(true);
+  // ✅ Use React Query hook for data fetching
+  const {
+    data,
+    isLoading: loading,
+    isFetching,
+    refetch,
+  } = useLeavePageData(employeeId);
+
+  const leaveBalances = data?.leaveBalances || [];
+  const historyRequests = data?.historyRequests || [];
+
+  // ✅ No need for registerRefreshCallback anymore - data auto-refreshes via invalidateQueries
+
+  // ✅ Manual refresh handler
+  const handleRefresh = async () => {
     try {
-      const [balancesRes, requestsRes] = await Promise.all([
-        getApiV3LeavePoliciesBalances({
-          query: { employeeId },
-        }),
-        getApiV3LeaveRequestsMy({
-          query: { limit: "50" },
-        }),
-      ]);
-
-      if (balancesRes.data?.balances) {
-        // Deduplicate by policyId and fiscalYear to prevent duplicates if API returns extra data
-        const uniqueBalancesMap = new Map();
-        balancesRes.data.balances.forEach((b: any) => {
-          const key = `${b.policyId}-${b.fiscalYear}`;
-          if (!uniqueBalancesMap.has(key)) {
-            uniqueBalancesMap.set(key, b);
-          }
-        });
-        setLeaveBalances(Array.from(uniqueBalancesMap.values()));
-      }
-
-      if (requestsRes.data?.requests) {
-        setHistoryRequests(requestsRes.data.requests);
-      }
+      await refetch();
+      openSnackbar({
+        type: "success",
+        text: "Đã làm mới dữ liệu!",
+        duration: 2000,
+      });
     } catch (error) {
-      console.error("Failed to fetch leave data", error);
-    } finally {
-      setLoading(false);
+      console.error("Failed to refresh leave data", error);
+      openSnackbar({
+        type: "error",
+        text: "Không thể làm mới dữ liệu",
+        duration: 3000,
+      });
     }
   };
-
-  useEffect(() => {
-    if (employeeId) {
-      fetchData();
-    }
-  }, [employeeId]);
-
-  useEffect(() => {
-    const handleRefresh = () => fetchData();
-    window.addEventListener("leave-request-submitted", handleRefresh);
-    return () =>
-      window.removeEventListener("leave-request-submitted", handleRefresh);
-  }, []);
 
   const getStatusInfo = (status: string) => {
     switch (status.toUpperCase()) {
@@ -185,7 +164,8 @@ const LeavePage: React.FC = () => {
             title="Nghỉ phép"
             subtitle="Leave"
             user={{ name: userName, avatar: userAvatar }}
-            onBack={() => navigate(-1)}
+            onRefresh={handleRefresh}
+            isRefreshing={isFetching}
             variant="orange"
           />
         }

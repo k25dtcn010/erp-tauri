@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import {
   Plus,
   Clock,
@@ -12,10 +12,6 @@ import {
   FileText,
   Send,
   ShieldCheck,
-  Zap,
-  ChevronLeft,
-  Bell,
-  Calendar,
 } from "lucide-react";
 import {
   useNavigate,
@@ -28,7 +24,6 @@ import {
 import { DatePicker } from "@/components/ui/date-picker";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { PageContainer } from "@/components/layout/PageContainer";
 import { cn } from "@/lib/utils";
 import {
@@ -47,27 +42,101 @@ import {
 import { CustomPageHeader } from "@/components/layout/CustomPageHeader";
 import { TimePicker } from "@/components/common/TimePicker";
 import { useUserStore } from "@/store/user-store";
-import {
-  getApiV3OvertimeSchedules,
-  postApiV3OvertimeSchedules,
-} from "@/client-timekeeping/sdk.gen";
+import { useOvertimePageData } from "@/hooks/use-dashboard-data";
+import { useQueryClient } from "@tanstack/react-query";
+import { dashboardKeys } from "@/hooks/use-dashboard-data";
+import { postApiV3OvertimeSchedules } from "@/client-timekeeping/sdk.gen";
 import {
   format,
-  startOfMonth,
-  endOfMonth,
   startOfWeek,
   addDays,
   isSameDay,
   parseISO,
 } from "date-fns";
 import { vi } from "date-fns/locale";
-import { OvertimeRequest } from "@/components/dashboard/sections/OvertimeSection";
 
 const { Option } = ZSelect;
 
+// ✅ Best Practice: Hoist static config outside component (rendering-hoist-jsx)
+const CHART_CONFIG = {
+  approved: {
+    label: "Đã duyệt",
+    color: "hsl(270 70% 60%)",
+  },
+  pending: {
+    label: "Chờ duyệt",
+    color: "hsl(25 95% 60%)",
+  },
+} satisfies ChartConfig;
+
+// ✅ Best Practice: Hoist static data outside component
+const FILTER_OPTIONS = [
+  { label: "Tất cả", value: "all" },
+  { label: "Chờ duyệt", value: "pending" },
+  { label: "Đã duyệt", value: "approved" },
+  { label: "Từ chối", value: "rejected" },
+];
+
+// ✅ Best Practice: Extract helper functions to module level (js-cache-function-results)
+const getStatusLabel = (status: string) => {
+  switch (status) {
+    case "PENDING":
+      return "Chờ duyệt";
+    case "ACTIVE":
+    case "COMPLETED":
+      return "Đã duyệt";
+    case "CANCELLED":
+      return "Đã hủy";
+    default:
+      return "Từ chối";
+  }
+};
+
+const getStatusColor = (status: string) => {
+  switch (status) {
+    case "PENDING":
+      return "text-orange-500";
+    case "ACTIVE":
+    case "COMPLETED":
+      return "text-emerald-500";
+    case "CANCELLED":
+      return "text-gray-500";
+    default:
+      return "text-red-500";
+  }
+};
+
+const getStatusBg = (status: string) => {
+  switch (status) {
+    case "PENDING":
+      return "bg-orange-500/10";
+    case "ACTIVE":
+    case "COMPLETED":
+      return "bg-emerald-500/10";
+    case "CANCELLED":
+      return "bg-gray-500/10";
+    default:
+      return "bg-red-500/10";
+  }
+};
+
+// ✅ Best Practice: Hoist JSX outside component (rendering-hoist-jsx)
+const getStatusIcon = (status: string) => {
+  switch (status) {
+    case "PENDING":
+      return <Clock className="h-4 w-4" />;
+    case "ACTIVE":
+    case "COMPLETED":
+      return <CheckCircle2 className="h-4 w-4" />;
+    default:
+      return <XCircle className="h-4 w-4" />;
+  }
+};
+
 const OvertimePage: React.FC = () => {
   const navigate = useNavigate();
-  const { userName, userAvatar } = useUserStore();
+  const { userName, userAvatar, employeeId } = useUserStore();
+  const queryClient = useQueryClient();
   const { openSnackbar } = useSnackbar();
   const [activeTab, setActiveTab] = useState("stats");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -80,12 +149,17 @@ const OvertimePage: React.FC = () => {
   const [endTime, setEndTime] = useState("20:30");
   const [reason, setReason] = useState("");
 
-  // Data State
-  const [employeeId, setEmployeeId] = useState<string>(() => {
-    return localStorage.getItem("cached_employeeId") || "";
-  });
-  const [allMonthRecords, setAllMonthRecords] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  // ✅ Use React Query for data fetching
+  const {
+    data,
+    isLoading,
+    isFetching,
+    refetch,
+  } = useOvertimePageData(employeeId);
+
+  const allMonthRecords = data?.allMonthRecords || [];
+
+  // ✅ No need for registerRefreshCallback - data auto-refreshes via invalidateQueries
 
   // Check for action=new in URL to open sheet automatically
   useEffect(() => {
@@ -95,176 +169,109 @@ const OvertimePage: React.FC = () => {
     }
   }, []);
 
-  const fetchOvertimeData = useCallback(async (eid: string) => {
-    setIsLoading(true);
-    try {
-      const now = new Date();
-      const monthStart = format(startOfMonth(now), "yyyy-MM-dd");
-      const monthEnd = format(endOfMonth(now), "yyyy-MM-dd");
+  // ✅ Best Practice: Use useMemo for expensive calculations (rerender-memo)
+  // Calculate stats only when allMonthRecords changes
+  const stats = useMemo(() => {
+    let totalHours = 0;
+    let pendingHours = 0;
 
-      const res = await getApiV3OvertimeSchedules({
-        query: {
-          employeeId: eid,
-          fromDate: monthStart,
-          toDate: monthEnd,
-          pageSize: 100, // Get all records for the month
-        },
-      });
-
-      if (res.data) {
-        setAllMonthRecords((res.data as any).data || []);
+    // ✅ Best Practice: Single pass calculation (js-combine-iterations)
+    allMonthRecords.forEach((curr) => {
+      if (curr.status === "COMPLETED" || curr.status === "ACTIVE") {
+        totalHours += curr.actualHours || curr.scheduledHours || 0;
+      } else if (curr.status === "PENDING") {
+        pendingHours += curr.scheduledHours || 0;
       }
-    } catch (error) {
-      console.error("Failed to fetch overtime data", error);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (employeeId) {
-      fetchOvertimeData(employeeId);
-    }
-  }, [employeeId, fetchOvertimeData]);
-
-  // Derived Stats
-  const totalHours = allMonthRecords.reduce(
-    (acc, curr) =>
-      acc +
-      (curr.status === "COMPLETED" || curr.status === "ACTIVE"
-        ? curr.actualHours || curr.scheduledHours || 0
-        : 0),
-    0,
-  );
-
-  const pendingHours = allMonthRecords.reduce(
-    (acc, curr) =>
-      acc + (curr.status === "PENDING" ? curr.scheduledHours || 0 : 0),
-    0,
-  );
-
-  const totalPossibleHours = totalHours + pendingHours;
-
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case "PENDING":
-        return "Chờ duyệt";
-      case "ACTIVE":
-      case "COMPLETED":
-        return "Đã duyệt";
-      case "CANCELLED":
-        return "Đã hủy";
-      default:
-        return "Từ chối";
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "PENDING":
-        return "text-orange-500";
-      case "ACTIVE":
-      case "COMPLETED":
-        return "text-emerald-500";
-      case "CANCELLED":
-        return "text-gray-500";
-      default:
-        return "text-red-500";
-    }
-  };
-
-  const getStatusBg = (status: string) => {
-    switch (status) {
-      case "PENDING":
-        return "bg-orange-500/10";
-      case "ACTIVE":
-      case "COMPLETED":
-        return "bg-emerald-500/10";
-      case "CANCELLED":
-        return "bg-gray-500/10";
-      default:
-        return "bg-red-500/10";
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "PENDING":
-        return <Clock className="h-4 w-4" />;
-      case "ACTIVE":
-      case "COMPLETED":
-        return <CheckCircle2 className="h-4 w-4" />;
-      case "CANCELLED":
-        return <XCircle className="h-4 w-4" />;
-      default:
-        return <XCircle className="h-4 w-4" />;
-    }
-  };
-
-  // Weekly chart data
-  const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
-  const chartData = Array.from({ length: 7 }).map((_, i) => {
-    const dayDate = addDays(weekStart, i);
-    const dayRecords = allMonthRecords.filter((r) =>
-      isSameDay(parseISO(r.date), dayDate),
-    );
-    const approved = dayRecords
-      .filter((r) => r.status === "COMPLETED" || r.status === "ACTIVE")
-      .reduce(
-        (acc, curr) => acc + (curr.actualHours || curr.scheduledHours || 0),
-        0,
-      );
-    const pending = dayRecords
-      .filter((r) => r.status === "PENDING")
-      .reduce((acc, curr) => acc + (curr.scheduledHours || 0), 0);
+    });
 
     return {
-      day: format(dayDate, "EEEE", { locale: vi }),
-      approved,
-      pending,
+      totalHours,
+      pendingHours,
+      totalPossibleHours: totalHours + pendingHours,
     };
-  });
+  }, [allMonthRecords]);
 
-  const chartConfig = {
-    approved: {
-      label: "Đã duyệt",
-      color: "hsl(270 70% 60%)",
-    },
-    pending: {
-      label: "Chờ duyệt",
-      color: "hsl(25 95% 60%)",
-    },
-  } satisfies ChartConfig;
+  // ✅ Best Practice: Memoize chart data calculation (rerender-memo)
+  const chartData = useMemo(() => {
+    const weekStart = startOfWeek(new Date(), { weekStartsOn: 1 });
 
-  const otTypes = [
+    return Array.from({ length: 7 }).map((_, i) => {
+      const dayDate = addDays(weekStart, i);
+      const dayRecords = allMonthRecords.filter((r) =>
+        isSameDay(parseISO(r.date), dayDate),
+      );
+
+      const approved = dayRecords
+        .filter((r) => r.status === "COMPLETED" || r.status === "ACTIVE")
+        .reduce(
+          (acc, curr) => acc + (curr.actualHours || curr.scheduledHours || 0),
+          0,
+        );
+
+      const pending = dayRecords
+        .filter((r) => r.status === "PENDING")
+        .reduce((acc, curr) => acc + (curr.scheduledHours || 0), 0);
+
+      return {
+        day: format(dayDate, "EEEE", { locale: vi }),
+        approved,
+        pending,
+      };
+    });
+  }, [allMonthRecords]);
+
+  // ✅ Best Practice: Memoize filtered data (rerender-memo)
+  const filteredEntries = useMemo(() => {
+    return allMonthRecords
+      .filter((req) => {
+        if (filterStatus === "all") return true;
+        if (filterStatus === "pending") return req.status === "PENDING";
+        if (filterStatus === "approved")
+          return req.status === "COMPLETED" || req.status === "ACTIVE";
+        if (filterStatus === "rejected")
+          return (
+            req.status !== "PENDING" &&
+            req.status !== "COMPLETED" &&
+            req.status !== "ACTIVE" &&
+            req.status !== "CANCELLED"
+          );
+        return true;
+      })
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [allMonthRecords, filterStatus]);
+
+  // ✅ Best Practice: Memoize static array that depends on calculations (rerender-memo)
+  const otTypes = useMemo(() => [
     {
       label: "Giờ tăng ca",
-      approved: totalHours,
-      pending: pendingHours,
+      approved: stats.totalHours,
+      pending: stats.pendingHours,
       total: 30, // Mock limit
       icon: <Clock className="h-4 w-4" />,
       color: "text-purple-600 dark:text-purple-400",
       bgColor: "bg-purple-500/10",
       indicatorColor: "bg-purple-500",
     },
-  ];
+  ], [stats.totalHours, stats.pendingHours]);
 
-  const filteredEntries = allMonthRecords
-    .filter((req) => {
-      if (filterStatus === "all") return true;
-      if (filterStatus === "pending") return req.status === "PENDING";
-      if (filterStatus === "approved")
-        return req.status === "COMPLETED" || req.status === "ACTIVE";
-      if (filterStatus === "rejected")
-        return (
-          req.status !== "PENDING" &&
-          req.status !== "COMPLETED" &&
-          req.status !== "ACTIVE" &&
-          req.status !== "CANCELLED"
-        );
-      return true;
-    })
-    .sort((a, b) => b.date.localeCompare(a.date));
+  // ✅ Manual refresh handler
+  const handleRefresh = async () => {
+    try {
+      await refetch();
+      openSnackbar({
+        type: "success",
+        text: "Đã làm mới dữ liệu!",
+        duration: 2000,
+      });
+    } catch (error) {
+      console.error("Failed to refresh overtime data", error);
+      openSnackbar({
+        type: "error",
+        text: "Không thể làm mới dữ liệu",
+        duration: 3000,
+      });
+    }
+  };
 
   const handleCreateOvertime = async () => {
     if (!reason.trim()) {
@@ -296,8 +303,8 @@ const OvertimePage: React.FC = () => {
         });
         setIsSheetVisible(false);
         setReason("");
-        // Refresh data
-        fetchOvertimeData(employeeId);
+        // ✅ Refresh via React Query
+        await refetch();
       } else if (res.data && res.data.errors && res.data.errors.length > 0) {
         openSnackbar({
           type: "error",
@@ -325,7 +332,8 @@ const OvertimePage: React.FC = () => {
             title="Tăng ca"
             subtitle="Overtime"
             user={{ name: userName, avatar: userAvatar }}
-            onBack={() => navigate(-1)}
+            onRefresh={handleRefresh}
+            isRefreshing={isFetching}
             variant="purple"
           />
         }
@@ -358,7 +366,7 @@ const OvertimePage: React.FC = () => {
                       </div>
                       <div className="flex items-baseline gap-2">
                         <h2 className="text-6xl font-black tabular-nums">
-                          {totalPossibleHours.toFixed(1)}
+                          {stats.totalPossibleHours.toFixed(1)}
                         </h2>
                         <span className="text-xl font-bold opacity-80">
                           giờ
@@ -375,13 +383,13 @@ const OvertimePage: React.FC = () => {
                       <div
                         className="absolute top-0 left-0 h-full bg-orange-400 rounded-full"
                         style={{
-                          width: `${Math.min(100, (totalPossibleHours / 30) * 100)}%`,
+                          width: `${Math.min(100, (stats.totalPossibleHours / 30) * 100)}%`,
                         }}
                       />
                       <div
                         className="absolute top-0 left-0 h-full bg-white rounded-full shadow-[0_0_10px_rgba(255,255,255,1)]"
                         style={{
-                          width: `${Math.min(100, (totalHours / 30) * 100)}%`,
+                          width: `${Math.min(100, (stats.totalHours / 30) * 100)}%`,
                         }}
                       />
                     </div>
@@ -393,7 +401,7 @@ const OvertimePage: React.FC = () => {
                         Đã duyệt
                       </span>
                       <span className="text-lg font-bold">
-                        {totalHours.toFixed(1)} giờ
+                        {stats.totalHours.toFixed(1)} giờ
                       </span>
                     </div>
                     <div className="flex flex-col text-right">
@@ -401,7 +409,7 @@ const OvertimePage: React.FC = () => {
                         Đang chờ
                       </span>
                       <span className="text-lg font-bold">
-                        {pendingHours.toFixed(1)} giờ
+                        {stats.pendingHours.toFixed(1)} giờ
                       </span>
                     </div>
                   </div>
@@ -416,7 +424,7 @@ const OvertimePage: React.FC = () => {
                   <Card className="p-6 border-gray-100 dark:border-[#353A45] bg-white dark:bg-[#262A31] shadow-sm rounded-2xl overflow-hidden">
                     <div className="h-48 w-full">
                       <ChartContainer
-                        config={chartConfig}
+                        config={CHART_CONFIG}
                         className="h-full w-full"
                       >
                         <ResponsiveContainer width="100%" height="100%">
@@ -577,12 +585,7 @@ const OvertimePage: React.FC = () => {
               <div className="mt-4 space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-400">
                 {/* Filter Bar */}
                 <div className="overflow-x-auto no-scrollbar py-2 -mx-1 px-1 flex items-center gap-3">
-                  {[
-                    { label: "Tất cả", value: "all" },
-                    { label: "Chờ duyệt", value: "pending" },
-                    { label: "Đã duyệt", value: "approved" },
-                    { label: "Từ chối", value: "rejected" },
-                  ].map((filter) => (
+                  {FILTER_OPTIONS.map((filter) => (
                     <button
                       key={filter.value}
                       onClick={() => setFilterStatus(filter.value)}

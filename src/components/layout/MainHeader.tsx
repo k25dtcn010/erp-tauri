@@ -6,6 +6,8 @@ interface MainHeaderProps {
   title: string;
   subtitle: string;
   onBack?: () => void;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
   variant?: HeaderVariant;
 }
 
@@ -13,6 +15,8 @@ export const MainHeader: React.FC<MainHeaderProps> = ({
   title,
   subtitle,
   onBack,
+  onRefresh,
+  isRefreshing,
   variant = "default",
 }) => {
   const { userName, userAvatar, fetchUser } = useUserStore();
@@ -29,6 +33,8 @@ export const MainHeader: React.FC<MainHeaderProps> = ({
       title={title}
       subtitle={subtitle}
       onBack={onBack}
+      onRefresh={onRefresh}
+      isRefreshing={isRefreshing}
       user={{ name: userName, avatar: userAvatar }}
       variant={variant}
     />

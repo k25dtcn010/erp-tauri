@@ -11,6 +11,8 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { useUserStore } from "@/store/user-store";
+import { useQueryClient } from "@tanstack/react-query";
+import { dashboardKeys } from "@/hooks/use-dashboard-data";
 import { Sheet, Select as ZSelect, useSnackbar } from "zmp-ui";
 import { DatePicker } from "@/components/ui/date-picker";
 import { LateEarlyRequestModal } from "./LateEarlyRequestModal";
@@ -31,6 +33,7 @@ const { Option } = ZSelect;
 
 const LeaveActionOverlay: React.FC = () => {
   const { employeeId } = useUserStore();
+  const queryClient = useQueryClient();
   const [isSheetVisible, setIsSheetVisible] = useState(false);
   const [isLateEarlyModalOpen, setIsLateEarlyModalOpen] = useState(false);
   const [startDate, setStartDate] = useState(startOfDay(new Date()));
@@ -153,8 +156,9 @@ const LeaveActionOverlay: React.FC = () => {
         });
         setIsSheetVisible(false);
         setReason("");
-        // Notify pages to refresh data without reload
-        window.dispatchEvent(new CustomEvent("leave-request-submitted"));
+        // ✅ Invalidate all dashboard queries to trigger refresh
+        queryClient.invalidateQueries({ queryKey: dashboardKeys.all });
+        queryClient.invalidateQueries({ queryKey: ["leave-page", employeeId] });
       } else if (res.error) {
         openSnackbar({
           type: "error",

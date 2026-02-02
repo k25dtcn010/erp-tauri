@@ -194,6 +194,7 @@ const CameraControls = memo(function CameraControls({
 
 import { useCurrentTime } from "../../hooks/use-current-time";
 import AttendanceWorker from "../../workers/attendance.worker?worker&inline";
+import { TimeSyncService } from "../../services/time-sync";
 
 interface FaceVerificationModalProps {
   isOpen: boolean;
@@ -533,6 +534,16 @@ export function FaceVerificationModal({
     setVerificationStatus("verifying");
 
     try {
+      // 0. Kiểm tra kết nối mạng và sync time
+      try {
+        await TimeSyncService.checkOnlineAndSync();
+      } catch (error: any) {
+        setCameraError(error.message);
+        setVerificationStatus("idle");
+        setCapturedImage(null);
+        return;
+      }
+
       // 1. Fetch Metadata (Parallel)
       const [location, deviceInfo] = await Promise.all([
         ZaloService.getUserLocation().catch((err) => {
@@ -609,16 +620,25 @@ export function FaceVerificationModal({
         }
       }
 
-      // 3. Generate Record ID & Save Metadata
+      // 3. Generate Record ID & Save Metadata with Reliable Timestamp
       const recordId =
         self.crypto && self.crypto.randomUUID
           ? self.crypto.randomUUID()
           : Date.now().toString() + Math.random().toString(36).substring(2);
 
+      // Lấy timestamp chính xác từ server (đã sync trước đó)
+      const reliableTimestamp = await TimeSyncService.getReliableTimestamp();
+
+      console.log("[FaceVerificationModal] Using reliable timestamp:", {
+        reliableTimestamp,
+        clientTime: Date.now(),
+        offset: TimeSyncService.getOffset(),
+      });
+
       const saveResult = await OfflineAttendanceService.saveMetadata(
         {
           type: (mode as any) || "check-in",
-          timestamp: Date.now(),
+          timestamp: reliableTimestamp,
           location: { latitude: lat, longitude: lon },
           deviceInfo: deviceInfo,
         },
@@ -650,7 +670,7 @@ export function FaceVerificationModal({
               location: { latitude: lat, longitude: lon },
               deviceInfo,
               employeeCode: employeeCode || "ME",
-              timestamp: Date.now(),
+              timestamp: reliableTimestamp, // Dùng timestamp đã được sync
             },
             recordId,
             eventId,

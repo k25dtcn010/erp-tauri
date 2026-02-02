@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Calendar, ShieldCheck, CalendarDays, Plus, Clock } from "lucide-react";
+import { Calendar, ShieldCheck, CalendarDays, Plus, Clock, Coffee } from "lucide-react";
 import { useNavigate } from "zmp-ui";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,12 +19,14 @@ interface LeaveSectionProps {
   totalLeaveDays: number;
   entitlementLeaveDays: number;
   requests?: LeaveRequest[];
+  onMidDayLeaveClick?: () => void;
 }
 
 export const LeaveSection = memo(function LeaveSection({
   totalLeaveDays,
   entitlementLeaveDays,
   requests = [],
+  onMidDayLeaveClick,
 }: LeaveSectionProps) {
   const navigate = useNavigate();
 
@@ -175,6 +177,15 @@ export const LeaveSection = memo(function LeaveSection({
             <Clock className="h-4 w-4" />
           </div>
           <span className="text-sm">Xin đi muộn, về sớm</span>
+        </Button>
+        <Button
+          className="w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white rounded-xl h-11 font-bold transition-all active:scale-[0.98] flex items-center justify-center gap-2 shadow-lg shadow-orange-500/30 border-none"
+          onClick={onMidDayLeaveClick}
+        >
+          <div className="p-1 rounded bg-white/20 flex items-center justify-center text-white">
+            <Coffee className="h-4 w-4" />
+          </div>
+          <span className="text-sm">Nghỉ giữa giờ</span>
         </Button>
       </div>
     </div>

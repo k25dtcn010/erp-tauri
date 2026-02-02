@@ -1,5 +1,5 @@
 import React from "react";
-import { ChevronLeft, Bell } from "lucide-react";
+import { ChevronLeft, Bell, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -14,6 +14,8 @@ interface CustomPageHeaderProps {
     avatar?: string;
   };
   onBack?: () => void;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
   variant?: HeaderVariant;
   className?: string;
 }
@@ -45,6 +47,8 @@ export const CustomPageHeader: React.FC<CustomPageHeaderProps> = ({
   subtitle,
   user,
   onBack,
+  onRefresh,
+  isRefreshing = false,
   variant = "default",
   className,
 }) => {
@@ -52,6 +56,7 @@ export const CustomPageHeader: React.FC<CustomPageHeaderProps> = ({
 
   return (
     <div className={cn("flex items-center w-full relative h-12", className)}>
+      {/* Left: Back Button */}
       <div className="absolute left-0 top-1/2 -translate-y-1/2 z-20">
         {onBack ? (
           <Button
@@ -65,6 +70,7 @@ export const CustomPageHeader: React.FC<CustomPageHeaderProps> = ({
         ) : null}
       </div>
 
+      {/* Center: Title & Subtitle */}
       <div className="w-full flex flex-col items-center justify-center z-10 px-10">
         <h1 className="text-sm font-black text-slate-800 dark:text-white uppercase tracking-tight leading-normal text-center truncate w-full py-0.5">
           {title}
@@ -77,6 +83,27 @@ export const CustomPageHeader: React.FC<CustomPageHeaderProps> = ({
         >
           {subtitle}
         </span>
+      </div>
+
+      {/* Left: Refresh Button (replaces back button position) */}
+      <div className="absolute left-0 top-1/2 -translate-y-1/2 z-20">
+        {onRefresh && !onBack ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-9 w-9 -ml-1 rounded-full text-slate-500 hover:text-slate-900 hover:bg-slate-100 dark:hover:bg-white/10 dark:text-slate-400 transition-all disabled:opacity-50"
+            onClick={onRefresh}
+            disabled={isRefreshing}
+            aria-label="Làm mới dữ liệu"
+          >
+            <RefreshCw
+              className={cn(
+                "h-5 w-5 transition-transform",
+                isRefreshing && "animate-spin"
+              )}
+            />
+          </Button>
+        ) : null}
       </div>
     </div>
   );

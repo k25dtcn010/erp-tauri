@@ -12,6 +12,7 @@ import {
 import { AppProps } from "zmp-ui/app";
 import { useEffect, useState, useMemo } from "react";
 import { authService } from "@/services/auth";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 import LoginPage from "@/pages/login";
 import DashboardPage from "@/pages/dashboard";
@@ -111,6 +112,19 @@ const LayoutContent = () => {
   );
 };
 
+// Create QueryClient instance outside component to prevent recreation on re-renders
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5, // 5 minutes - data stays fresh
+      gcTime: 1000 * 60 * 10, // 10 minutes - cache retention (formerly cacheTime)
+      refetchOnWindowFocus: true, // Auto refetch when window regains focus
+      refetchOnReconnect: true, // Auto refetch when reconnecting
+      retry: 1, // Retry failed requests once
+    },
+  },
+});
+
 const Layout = () => {
   const [theme, setTheme] = useState<AppProps["theme"]>("light");
 
@@ -126,11 +140,13 @@ const Layout = () => {
   return (
     <App theme={theme}>
       <Box flex flexDirection="column" className="h-screen">
-        <SnackbarProvider>
-          <ZMPRouter>
-            <LayoutContent />
-          </ZMPRouter>
-        </SnackbarProvider>
+        <QueryClientProvider client={queryClient}>
+          <SnackbarProvider>
+            <ZMPRouter>
+              <LayoutContent />
+            </ZMPRouter>
+          </SnackbarProvider>
+        </QueryClientProvider>
       </Box>
     </App>
   );

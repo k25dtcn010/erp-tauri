@@ -17,28 +17,25 @@ import { WifiOff, RefreshCw, ChevronRight } from "lucide-react";
 import { UnsyncedRecordsSheet } from "@/components/dashboard/UnsyncedRecordsSheet";
 import { GpsRegistrationModal } from "@/components/dashboard/GpsRegistrationModal";
 import { PageContainer } from "@/components/layout/PageContainer";
-import {
-  getApiV3AttendanceHistory,
-  getApiV3LeaveRequestsMy,
-  getApiV3LeavePoliciesBalances,
-  getApiV3OvertimeSchedules,
-} from "@/client-timekeeping/sdk.gen";
 import { useAttendanceStore } from "@/store/attendance-store";
 import { getApiEmployeesMe } from "@/client/sdk.gen";
 import { MainHeader } from "@/components/layout/MainHeader";
-import {
-  format,
-  startOfMonth,
-  endOfMonth,
-  parseISO,
-} from "date-fns";
+import { format } from "date-fns";
 import { useSheetBackHandler } from "@/hooks/use-sheet-back-handler";
 import { useSyncStore } from "@/store/sync-store";
+import { TimeSyncService } from "@/services/time-sync";
+import { useDashboardData } from "@/hooks/use-dashboard-data";
 
 // Lazy load heavy components
 const FaceVerificationModal = React.lazy(() =>
   import("@/components/dashboard/FaceVerificationModal").then((module) => ({
     default: module.FaceVerificationModal,
+  })),
+);
+
+const MidDayLeaveModal = React.lazy(() =>
+  import("@/components/dashboard/MidDayLeaveModal").then((module) => ({
+    default: module.MidDayLeaveModal,
   })),
 );
 
@@ -57,29 +54,22 @@ const DashboardPage: React.FC = () => {
   const [isPreCheckModalOpen, setIsPreCheckModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<string>("check-in");
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [isMidDayLeaveModalOpen, setIsMidDayLeaveModalOpen] = useState(false);
 
-  // Overtime state
+  // Employee ID state
   const [employeeId, setEmployeeId] = useState<string>(() => {
     return localStorage.getItem("cached_employeeId") || "";
   });
-  const [totalOTHours, setTotalOTHours] = useState(0);
-  const [pendingOTRequests, setPendingOTRequests] = useState(0);
-  const [overtimeRequests, setOvertimeRequests] = useState<OvertimeRequest[]>(
-    [],
-  );
-  const [todayOvertimeSchedule, setTodayOvertimeSchedule] = useState<{
-    startTime: string;
-    endTime: string;
-  } | null>(null);
 
-  // Attendance History state
-  const [historyStats, setHistoryStats] = useState({
-    totalWorkHours: 0,
-    attendanceRate: 0,
-    presentDays: 0,
-  });
-  const [recentHistory, setRecentHistory] = useState<any[]>([]);
-  const [isHistoryLoading, setIsHistoryLoading] = useState(false);
+  // ✅ USE REACT QUERY HOOK - Replaces all manual state management
+  const {
+    overtime,
+    leave,
+    history,
+    attendance,
+    isRefreshing,
+    refetchAll,
+  } = useDashboardData(employeeId);
 
   const {
     pendingCount: pendingSync,
@@ -98,10 +88,12 @@ const DashboardPage: React.FC = () => {
     () => setIsPreCheckModalOpen(false),
     [],
   );
+  const closeMidDayLeaveModal = useCallback(() => setIsMidDayLeaveModalOpen(false), []);
 
   useSheetBackHandler(isFaceModalOpen, closeFaceModal);
   useSheetBackHandler(isSyncSheetOpen, closeSyncSheet);
   useSheetBackHandler(isPreCheckModalOpen, closePreCheckModal);
+  useSheetBackHandler(isMidDayLeaveModalOpen, closeMidDayLeaveModal);
 
   const { openSnackbar } = useSnackbar();
   const navigate = useNavigate();
@@ -117,229 +109,9 @@ const DashboardPage: React.FC = () => {
     return localStorage.getItem("cached_employeeCode") || "";
   });
 
-  // Fetch today's attendance status
-  const [recentRequests, setRecentRequests] = useState<any[]>([]);
-  const [leaveTotals, setLeaveTotals] = useState({ total: 0, entitled: 0 });
+  // ✅ No need for registerRefreshCallback - data auto-refreshes via invalidateQueries
 
-  const fetchLeaveData = useCallback(async () => {
-    try {
-      const [requestsRes, balancesRes] = await Promise.all([
-        getApiV3LeaveRequestsMy({ query: { limit: "3" } }),
-        getApiV3LeavePoliciesBalances(),
-      ]);
-
-      if (requestsRes.data && requestsRes.data.requests) {
-        setRecentRequests(
-          requestsRes.data.requests.map((req: any) => ({
-            id: req.id,
-            startDate: req.startDate,
-            endDate: req.endDate,
-            type: req.policyName || "Nghỉ phép",
-            status: (req.status || "pending").toLowerCase(),
-            days: req.days,
-          })),
-        );
-      }
-
-      if (balancesRes.data && balancesRes.data.balances) {
-        const balances = balancesRes.data.balances as any[];
-        const mainBalance =
-          balances.find(
-            (b) =>
-              b.policyName?.toLowerCase().includes("phép năm") ||
-              b.policyName?.toLowerCase().includes("annual"),
-          ) || balances[0];
-
-        if (mainBalance) {
-          setLeaveTotals({
-            total: mainBalance.availableDays || 0,
-            entitled: mainBalance.entitledDays || 0,
-          });
-        }
-      }
-    } catch (error) {
-      console.error("Failed to fetch leave data", error);
-    }
-  }, []);
-
-  const mapOTStatus = useCallback((
-    status: string,
-  ): "pending" | "approved" | "rejected" | "cancelled" => {
-    switch (status) {
-      case "PENDING":
-        return "pending";
-      case "ACTIVE":
-      case "COMPLETED":
-        return "approved";
-      case "CANCELLED":
-        return "cancelled";
-      default:
-        return "rejected";
-    }
-  }, []);
-
-  const fetchOvertimeData = useCallback(async (eid: string) => {
-    try {
-      const now = new Date();
-      const monthStart = format(startOfMonth(now), "yyyy-MM-dd");
-      const monthEnd = format(endOfMonth(now), "yyyy-MM-dd");
-
-      // Fetch month data for both summary and the list
-      const res = await getApiV3OvertimeSchedules({
-        query: {
-          employeeId: eid,
-          fromDate: monthStart,
-          toDate: monthEnd,
-        },
-      });
-
-      if (res.data) {
-        const records = (res.data as any).data || [];
-
-        // 1. Calculate summary for the month in a single pass
-        let total = 0;
-        let pending = 0;
-
-        records.forEach((curr: any) => {
-          total += (curr.actualHours || curr.scheduledHours || 0);
-          if (curr.status === "PENDING") {
-            pending++;
-          }
-        });
-
-        setTotalOTHours(total);
-        setPendingOTRequests(pending);
-
-        // Find today's overtime
-        const todayStr = format(now, "yyyy-MM-dd");
-        const todayOT = records.find(
-          (r: any) =>
-            r.date === todayStr &&
-            (r.status === "APPROVED" ||
-              r.status === "COMPLETED" ||
-              r.status === "ACTIVE"),
-        );
-        if (todayOT) {
-          setTodayOvertimeSchedule({
-            startTime: todayOT.startTime,
-            endTime: todayOT.endTime,
-          });
-        } else {
-          setTodayOvertimeSchedule(null);
-        }
-
-        // 2. Get top 3 most recent items from the month
-        const sortedRecords = [...records].sort((a, b) => {
-          const dateTimeA = `${a.date}T${a.startTime}`;
-          const dateTimeB = `${b.date}T${b.startTime}`;
-          return dateTimeB.localeCompare(dateTimeA);
-        });
-
-        const mapped: OvertimeRequest[] = sortedRecords
-          .slice(0, 3)
-          .map((r: any) => ({
-            id: r.id,
-            date: r.date,
-            hours: r.actualHours || r.scheduledHours,
-            status: mapOTStatus(r.status),
-            startTime: r.startTime,
-            endTime: r.endTime,
-          }));
-        setOvertimeRequests(mapped);
-      }
-    } catch (error) {
-      console.error("Failed to fetch overtime data", error);
-    }
-  }, [mapOTStatus]);
-
-  const fetchHistoryData = useCallback(async (eid: string) => {
-    setIsHistoryLoading(true);
-    try {
-      const now = new Date();
-      const monthStart = format(startOfMonth(now), "yyyy-MM-dd");
-      const monthEnd = format(endOfMonth(now), "yyyy-MM-dd");
-
-      const res = await getApiV3AttendanceHistory({
-        query: {
-          employeeId: eid,
-          fromDate: monthStart,
-          toDate: monthEnd,
-          pageSize: 100, // Get all for the month
-        },
-      });
-
-      if (res.data) {
-        const data = (res.data as any).data || [];
-
-        // 1. Calculate stats
-        const sessionsByDay: Record<string, any[]> = {};
-        let totalHours = 0;
-
-        data.forEach((session: any) => {
-          const day = format(parseISO(session.checkInAt), "yyyy-MM-dd");
-          if (!sessionsByDay[day]) sessionsByDay[day] = [];
-          sessionsByDay[day].push(session);
-          totalHours += session.workedHours || 0;
-        });
-
-        const presentDays = Object.keys(sessionsByDay).length;
-        // Simple attendance rate calculation (present days / working days so far)
-        // Assume working days is 22 for a generic month for now, or calculate based on today
-        const workingDaysSoFar = Math.min(now.getDate(), 22); // Cap at 22 for simplicity
-        const rate =
-          workingDaysSoFar > 0
-            ? Math.round((presentDays / workingDaysSoFar) * 100)
-            : 0;
-
-        setHistoryStats({
-          totalWorkHours: totalHours,
-          attendanceRate: Math.min(rate, 100),
-          presentDays,
-        });
-
-        // 2. Map recent history (last 3 items)
-        const mapped = data.slice(0, 3).map((s: any) => ({
-          id: s.id,
-          date: parseISO(s.checkInAt),
-          status:
-            s.status === "COMPLETED" || s.status === "ACTIVE"
-              ? "present"
-              : s.status === "AUTO_CLOSED" || s.status === "MISSING_CHECKOUT"
-                ? "late"
-                : "absent",
-          checkIn: format(parseISO(s.checkInAt), "HH:mm"),
-          checkOut: s.checkOutAt
-            ? format(parseISO(s.checkOutAt), "HH:mm")
-            : undefined,
-        }));
-        setRecentHistory(mapped);
-      }
-    } catch (error) {
-      console.error("Failed to fetch history data", error);
-    } finally {
-      setIsHistoryLoading(false);
-    }
-  }, []);
-
-  // 1. Unified Initial Data Fetching
-  const fetchAllData = useCallback(
-    async (eid: string) => {
-      if (!isOnline) return;
-      try {
-        await Promise.all([
-          fetchOvertimeData(eid),
-          fetchHistoryData(eid),
-          fetchLeaveData(),
-          fetchTodayAttendance(),
-        ]);
-      } catch (err) {
-        console.error("Failed to fetch dashboard data", err);
-      }
-    },
-    [isOnline, fetchOvertimeData, fetchHistoryData, fetchLeaveData, fetchTodayAttendance],
-  );
-
-  // 2. Fetch User & Trigger Initial Data
+  // Fetch user data on mount
   useEffect(() => {
     const initUser = async () => {
       try {
@@ -358,33 +130,13 @@ const DashboardPage: React.FC = () => {
           localStorage.setItem("cached_userAvatar", avatar);
           localStorage.setItem("cached_employeeCode", code);
           localStorage.setItem("cached_employeeId", id);
-
-          // Trigger data fetch immediately after getting ID to avoid effect chain delay
-          if (id) fetchAllData(id);
         }
       } catch (error) {
         console.error("Failed to fetch user information", error);
       }
     };
     initUser();
-  }, [fetchAllData]);
-
-  // 3. Handle Re-sync when coming back online
-  useEffect(() => {
-    if (isOnline && employeeId) {
-      fetchAllData(employeeId);
-    }
-  }, [isOnline, employeeId, fetchAllData]);
-
-  // 4. Events & Subscriptions
-  useEffect(() => {
-    const handleRefresh = () => {
-      fetchLeaveData();
-      fetchTodayAttendance();
-    };
-    window.addEventListener("leave-request-submitted", handleRefresh);
-    return () => window.removeEventListener("leave-request-submitted", handleRefresh);
-  }, [fetchLeaveData, fetchTodayAttendance]);
+  }, []);
 
   // 5. Network & Sync Monitoring
   useEffect(() => {
@@ -404,7 +156,24 @@ const DashboardPage: React.FC = () => {
     };
   }, [refreshPendingCount]);
 
-  // 6. Security Init
+  // 6. Time Sync Init - Sync chỉ khi cần (> 5 phút từ lần sync cuối)
+  useEffect(() => {
+    // Initial sync (chỉ khi cần)
+    TimeSyncService.syncTimeIfNeeded().catch((error) => {
+      console.warn('[Dashboard] Initial time sync failed:', error);
+    });
+
+    // Auto check và sync mỗi 5 phút nếu cần
+    const syncInterval = setInterval(() => {
+      TimeSyncService.syncTimeIfNeeded().catch((error) => {
+        console.warn('[Dashboard] Periodic time sync failed:', error);
+      });
+    }, 5 * 60 * 1000);
+
+    return () => clearInterval(syncInterval);
+  }, []);
+
+  // 7. Security Init
   useEffect(() => {
     AnticheatService.init().catch((err) =>
       console.error("Anticheat init failed", err),
@@ -514,20 +283,13 @@ const DashboardPage: React.FC = () => {
         return;
       }
 
-      // 3. Data Consistency Refreshes
+      // 3. Data Consistency Refreshes - Use React Query
       console.log("[Dashboard] onVerified: Scheduling consistency fetches...");
 
-      // Use a cleaner approach for refreshes
-      const refreshData = () => {
-        fetchTodayAttendance();
-        if (employeeId) fetchHistoryData(employeeId);
-        fetchLeaveData();
-      };
-
       // Initial refresh after server sync
-      const timer1 = setTimeout(refreshData, 1000);
+      const timer1 = setTimeout(() => refetchAll(), 1000);
       // Final eventual consistency check
-      const timer2 = setTimeout(fetchTodayAttendance, 5000);
+      const timer2 = setTimeout(() => refetchAll(), 5000);
 
       return () => {
         clearTimeout(timer1);
@@ -539,10 +301,7 @@ const DashboardPage: React.FC = () => {
       modalMode,
       openSnackbar,
       refreshPendingCount,
-      fetchTodayAttendance,
-      employeeId,
-      fetchHistoryData,
-      fetchLeaveData,
+      refetchAll,
       performCheckIn,
       performCheckOut,
     ],
@@ -553,12 +312,42 @@ const DashboardPage: React.FC = () => {
     [navigate],
   );
 
+  const handleOpenMidDayLeaveModal = useCallback(() => {
+    setIsMidDayLeaveModalOpen(true);
+  }, []);
+
+  const handleMidDayLeaveSuccess = useCallback(() => {
+    // Refresh data after successful submission
+    refetchAll();
+  }, [refetchAll]);
+
+  // ✅ REFRESH HANDLER - Super simple with React Query!
+  const handleRefresh = useCallback(async () => {
+    try {
+      await refetchAll();
+      openSnackbar({
+        type: "success",
+        text: "Đã làm mới dữ liệu!",
+        duration: 2000,
+      });
+    } catch (error) {
+      console.error("Failed to refresh data", error);
+      openSnackbar({
+        type: "error",
+        text: "Không thể làm mới dữ liệu",
+        duration: 3000,
+      });
+    }
+  }, [refetchAll, openSnackbar]);
+
   return (
     <PageContainer
       header={
         <MainHeader
           title="TỔNG QUAN"
           subtitle="Dashboard"
+          onRefresh={handleRefresh}
+          isRefreshing={isRefreshing}
         />
       }
     >
@@ -618,28 +407,29 @@ const DashboardPage: React.FC = () => {
         checkOutTime={checkOutTime}
         sessions={todaySessions}
         shift={{ startTime: "08:00", endTime: "17:00" }}
-        overtime={todayOvertimeSchedule}
+        overtimes={overtime.data?.todaySchedules ?? []}
       />
 
       <div className="grid grid-cols-1 gap-6">
         <OvertimeSection
-          totalOTHours={totalOTHours}
-          pendingOTRequests={pendingOTRequests}
-          requests={overtimeRequests}
+          totalOTHours={overtime.data?.totalHours ?? 0}
+          pendingOTRequests={overtime.data?.pendingCount ?? 0}
+          requests={overtime.data?.recentRequests ?? []}
         />
         <LeaveSection
-          totalLeaveDays={leaveTotals.total}
-          entitlementLeaveDays={leaveTotals.entitled}
-          requests={recentRequests}
+          totalLeaveDays={leave.data?.leaveTotals.total ?? 0}
+          entitlementLeaveDays={leave.data?.leaveTotals.entitled ?? 0}
+          requests={leave.data?.recentRequests ?? []}
+          onMidDayLeaveClick={handleOpenMidDayLeaveModal}
         />
       </div>
 
       <AttendanceHistorySection
-        totalWorkHours={historyStats.totalWorkHours}
-        attendanceRate={historyStats.attendanceRate}
-        presentDays={historyStats.presentDays}
-        recentHistory={recentHistory}
-        isLoading={isHistoryLoading}
+        totalWorkHours={history.data?.stats.totalWorkHours ?? 0}
+        attendanceRate={history.data?.stats.attendanceRate ?? 0}
+        presentDays={history.data?.stats.presentDays ?? 0}
+        recentHistory={history.data?.recentHistory ?? []}
+        isLoading={history.isLoading}
       />
 
       <Suspense fallback={null}>
@@ -671,11 +461,18 @@ const DashboardPage: React.FC = () => {
           location={gpsData}
           employeeId={employeeId}
           onSuccess={() => {
-            fetchTodayAttendance();
-            if (employeeId) fetchHistoryData(employeeId);
+            refetchAll();
           }}
         />
       )}
+
+      <Suspense fallback={null}>
+        <MidDayLeaveModal
+          isOpen={isMidDayLeaveModalOpen}
+          onClose={() => setIsMidDayLeaveModalOpen(false)}
+          onSuccess={handleMidDayLeaveSuccess}
+        />
+      </Suspense>
     </PageContainer>
   );
 };
